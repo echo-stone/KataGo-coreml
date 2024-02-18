@@ -7,22 +7,6 @@
 
 import SwiftUI
 
-struct CommandButton: View {
-    var title: String
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .foregroundColor(.white)
-                .padding()
-                .background(Color.blue)
-                .clipShape(RoundedRectangle(cornerRadius: 50))
-                .font(.body.monospaced())
-        }
-    }
-}
-
 struct CommandView: View {
     @EnvironmentObject var messagesObject: MessagesObject
     @EnvironmentObject var stones: Stones
@@ -64,12 +48,10 @@ struct CommandView: View {
                     KataGoHelper.sendCommand(command)
                     command = ""
                 }) {
-                    Image(systemName: "return")
+                    Image(systemName: "paperplane")
                 }
             }
             .padding()
-
-            ButtonView(commands: ["kata-set-rules chinese", "komi 7"])
         }
         .padding()
         .onAppear() {
