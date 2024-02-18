@@ -16,20 +16,6 @@ struct ToolbarItems: View {
     var body: some View {
         Group {
             Button(action: {
-                KataGoHelper.sendCommand("undo")
-                KataGoHelper.sendCommand("showboard")
-                if (!paused) && showingAnalysis {
-                    KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
-                } else {
-                    paused = true
-                    showingAnalysis = false
-                }
-            }) {
-                Image(systemName: "backward.frame")
-            }
-            .padding()
-
-            Button(action: {
                 let nextColor = (player.nextColorForPlayCommand == .black) ? "b" : "w"
                 let pass = "play \(nextColor) pass"
                 KataGoHelper.sendCommand(pass)
@@ -42,6 +28,19 @@ struct ToolbarItems: View {
             }
             .padding()
 
+            Button(action: {
+                KataGoHelper.sendCommand("undo")
+                KataGoHelper.sendCommand("showboard")
+                if (!paused) && showingAnalysis {
+                    KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+                } else {
+                    paused = true
+                    showingAnalysis = false
+                }
+            }) {
+                Image(systemName: "backward.frame")
+            }
+            .padding()
 
             if paused {
                 Button(action: {
@@ -68,6 +67,21 @@ struct ToolbarItems: View {
                 showingAnalysis = false
             }) {
                 Image(systemName: "stop")
+            }
+            .padding()
+
+            Button(action: {
+                let nextColor = (player.nextColorForPlayCommand == .black) ? "b" : "w"
+                KataGoHelper.sendCommand("genmove \(nextColor)")
+                KataGoHelper.sendCommand("showboard")
+                if (!paused) && showingAnalysis {
+                    KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+                } else {
+                    paused = true
+                    showingAnalysis = false
+                }
+            }) {
+                Image(systemName: "forward.frame")
             }
             .padding()
 
