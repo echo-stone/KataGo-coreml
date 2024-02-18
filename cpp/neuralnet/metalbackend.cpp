@@ -445,6 +445,10 @@ ComputeContext* NeuralNet::createComputeContext(
   enabled_t useNHWCMode,
   const LoadedModel* loadedModel) {
 
+  // Use CPU and Neural Engine for faster inference.
+  // If set to true, the model will use the CPU and Neural Engine instead of automatically
+  // selecting from CPU, GPU, and Neural Engine.
+  // This can improve performance on systems with powerful CPUs and Neural Engines.
   bool useCpuAndNeuralEngine = false;
 
   // If Metal is enabled for GPU computation, CoreML uses CPU and Neural Engine.
