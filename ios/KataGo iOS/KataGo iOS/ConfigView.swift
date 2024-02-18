@@ -19,18 +19,18 @@ struct EditButtonBar: View {
 struct ConfigItem: View {
     @Environment(\.editMode) private var editMode
     let title: String
-    @Binding var content: String
+    @Binding var value: Int
 
     var body: some View {
         HStack {
             Text(title)
             Spacer()
             if editMode?.wrappedValue.isEditing == true {
-                TextField("", text: $content)
-                    .multilineTextAlignment(.trailing)
-                    .background(Color(white: 0.9))
+                Stepper(value: $value, in: 1...Int.max) {
+                    Text("\(value)")
+                }
             } else {
-                Text(content)
+                Text("\(value)")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -39,49 +39,34 @@ struct ConfigItem: View {
 
 struct ConfigItems: View {
     @EnvironmentObject var config: Config
-    @State var isAnalyzing = Config.defaultIsAnalyzing
-    @State var maxMessageCharacters: String = "\(Config.defaultMaxMessageCharacters)"
-    @State var maxAnalysisMoves: String = "\(Config.defaultMaxAnalysisMoves)"
-    @State var analysisInterval: String = "\(Config.defaultAnalysisInterval)"
-    @State var maxMessageLines: String = "\(Config.defaultMaxMessageLines)"
+    @State var maxMessageCharacters: Int = Config.defaultMaxMessageCharacters
+    @State var maxAnalysisMoves: Int = Config.defaultMaxAnalysisMoves
+    @State var analysisInterval: Int = Config.defaultAnalysisInterval
+    @State var maxMessageLines: Int = Config.defaultMaxMessageLines
 
     var body: some View {
         VStack {
-            HStack {
-                Toggle(isOn: $isAnalyzing) {
-                    Text("Analysis")
-                }
-                .onChange(of: isAnalyzing) { newFlag in
-                    config.isAnalyzing = newFlag
-                }
-            }
-            .padding(.bottom)
-
-            ConfigItem(title: "Max message characters:", content: $maxMessageCharacters)
-                .onChange(of: maxMessageCharacters) { newText in
-                    config.maxMessageCharacters = Int(newText) ??
-                    Config.defaultMaxMessageCharacters
+            ConfigItem(title: "Max message characters:", value: $maxMessageCharacters)
+                .onChange(of: maxMessageCharacters) { newValue in
+                    config.maxMessageCharacters = newValue
                 }
                 .padding(.bottom)
 
-            ConfigItem(title: "Max analysis moves:", content: $maxAnalysisMoves)
-                .onChange(of: maxAnalysisMoves) { newText in
-                    config.maxAnalysisMoves = Int(newText) ??
-                    Config.defaultMaxAnalysisMoves
+            ConfigItem(title: "Max analysis moves:", value: $maxAnalysisMoves)
+                .onChange(of: maxAnalysisMoves) { newValue in
+                    config.maxAnalysisMoves = newValue
                 }
                 .padding(.bottom)
 
-            ConfigItem(title: "Analysis interval (centiseconds):", content: $analysisInterval)
-                .onChange(of: analysisInterval) { newText in
-                    config.analysisInterval = Int(newText) ??
-                    Config.defaultAnalysisInterval
+            ConfigItem(title: "Analysis interval (centiseconds):", value: $analysisInterval)
+                .onChange(of: analysisInterval) { newValue in
+                    config.analysisInterval = newValue
                 }
                 .padding(.bottom)
 
-            ConfigItem(title: "Max message lines:", content: $maxMessageLines)
-                .onChange(of: maxMessageLines) { newText in
-                    config.maxMessageLines = Int(newText) ??
-                    Config.defaultMaxMessageLines
+            ConfigItem(title: "Max message lines:", value: $maxMessageLines)
+                .onChange(of: maxMessageLines) { newValue in
+                    config.maxMessageLines = newValue
                 }
         }
     }

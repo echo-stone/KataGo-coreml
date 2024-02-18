@@ -13,6 +13,8 @@ struct GobanItems: View {
     @EnvironmentObject var player: PlayerObject
     @EnvironmentObject var analysis: Analysis
     @EnvironmentObject var config: Config
+    @State var paused = false
+    @State var showingAnalysis = true
     let texture = WoodImage.createTexture()
 
     var body: some View {
@@ -22,7 +24,7 @@ struct GobanItems: View {
                 ZStack {
                     BoardLineView(dimensions: dimensions, boardWidth: board.width, boardHeight: board.height)
                     StoneView(geometry: geometry)
-                    if config.isAnalyzing {
+                    if showingAnalysis {
                         AnalysisView(geometry: geometry)
                     }
                 }
@@ -38,24 +40,26 @@ struct GobanItems: View {
                     }
 
                     KataGoHelper.sendCommand("showboard")
-                    if config.isAnalyzing {
+                    if showingAnalysis {
+                        paused = false
                         KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+
                     }
                 }
             }
             .onAppear() {
                 KataGoHelper.sendCommand("showboard")
-                if config.isAnalyzing {
+                if (!paused) && showingAnalysis {
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 }
             }
             .onChange(of: config.maxAnalysisMoves) { _ in
-                if config.isAnalyzing {
+                if (!paused) && showingAnalysis {
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 }
             }
 
-            ToolbarView()
+            ToolbarView(paused: $paused, showingAnalysis: $showingAnalysis)
                 .padding()
         }
     }

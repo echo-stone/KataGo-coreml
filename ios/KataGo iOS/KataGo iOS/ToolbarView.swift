@@ -10,17 +10,22 @@ import SwiftUI
 struct ToolbarItems: View {
     @EnvironmentObject var player: PlayerObject
     @EnvironmentObject var config: Config
+    @Binding var paused: Bool
+    @Binding var showingAnalysis: Bool
 
     var body: some View {
         Group {
             Button(action: {
                 KataGoHelper.sendCommand("undo")
                 KataGoHelper.sendCommand("showboard")
-                if config.isAnalyzing {
+                if (!paused) && showingAnalysis {
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+                } else {
+                    paused = true
+                    showingAnalysis = false
                 }
             }) {
-                Image(systemName: "arrow.uturn.backward")
+                Image(systemName: "backward.frame")
             }
             .padding()
 
@@ -29,7 +34,7 @@ struct ToolbarItems: View {
                 let pass = "play \(nextColor) pass"
                 KataGoHelper.sendCommand(pass)
                 KataGoHelper.sendCommand("showboard")
-                if config.isAnalyzing {
+                if showingAnalysis {
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 }
             }) {
@@ -37,19 +42,30 @@ struct ToolbarItems: View {
             }
             .padding()
 
-            Button(action: {
-                if config.isAnalyzing {
+
+            if paused {
+                Button(action: {
+                    paused = false
+                    showingAnalysis = true
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+                }) {
+                    Image(systemName: "play")
                 }
-            }) {
-                Image(systemName: "play")
+                .padding()
+            } else {
+                Button(action: {
+                    paused = true
+                    showingAnalysis = true
+                    KataGoHelper.sendCommand("stop")
+                }) {
+                    Image(systemName: "pause")
+                }
+                .padding()
             }
-            .padding()
 
             Button(action: {
-                if config.isAnalyzing {
-                    KataGoHelper.sendCommand("stop")
-                }
+                paused = true
+                showingAnalysis = false
             }) {
                 Image(systemName: "stop")
             }
@@ -58,8 +74,11 @@ struct ToolbarItems: View {
             Button(action: {
                 KataGoHelper.sendCommand("clear_board")
                 KataGoHelper.sendCommand("showboard")
-                if config.isAnalyzing {
+                if (!paused) && showingAnalysis {
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+                } else {
+                    paused = false
+                    showingAnalysis = false
                 }
             }) {
                 Image(systemName: "clear")
@@ -72,15 +91,17 @@ struct ToolbarItems: View {
 struct ToolbarView: View {
     @Environment(\.horizontalSizeClass) var hSizeClass
     @Environment(\.verticalSizeClass) var vSizeClass
+    @Binding var paused: Bool
+    @Binding var showingAnalysis: Bool
 
     var body: some View {
         if hSizeClass == .compact && vSizeClass == .regular {
             HStack {
-                ToolbarItems()
+                ToolbarItems(paused: $paused, showingAnalysis: $showingAnalysis)
             }
         } else {
             VStack {
-                ToolbarItems()
+                ToolbarItems(paused: $paused, showingAnalysis: $showingAnalysis)
             }
         }
     }
@@ -91,8 +112,9 @@ struct ToolbarView_Previews: PreviewProvider {
     static let config = Config()
 
     static var previews: some View {
-        @State var isAnalyzing = true
-        ToolbarView()
+        @State var paused = false
+        @State var showingAnalysis = true
+        ToolbarView(paused: $paused, showingAnalysis: $showingAnalysis)
             .environmentObject(player)
             .environmentObject(config)
     }

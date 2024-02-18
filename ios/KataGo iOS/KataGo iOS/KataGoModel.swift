@@ -53,7 +53,6 @@ class Analysis: ObservableObject {
 }
 
 class Config: ObservableObject {
-    @Published var isAnalyzing: Bool = defaultIsAnalyzing
     @Published var maxMessageCharacters: Int = defaultMaxMessageCharacters
     @Published var maxAnalysisMoves: Int = defaultMaxAnalysisMoves
     @Published var analysisInterval: Int = defaultAnalysisInterval
@@ -65,10 +64,9 @@ class Config: ObservableObject {
 }
 
 extension Config {
-    static let defaultIsAnalyzing = true
     static let defaultMaxMessageCharacters = 200
-    static let defaultMaxAnalysisMoves = 8
-    static let defaultAnalysisInterval = 20
+    static let defaultMaxAnalysisMoves = 16
+    static let defaultAnalysisInterval = 10
     static let defaultMaxMessageLines = 100
 }
 
