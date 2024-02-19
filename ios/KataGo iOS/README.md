@@ -115,6 +115,7 @@ Switch to the **Goban** tab to access the visual heart of your Go experience. He
 - **Undo**: Revert the last action taken.
 - **Start/Pause**: Begin or pause KataGo's analytical process.
 - **Stop**: Cease analysis and conceal the results.
+- **Next**: Generate the next move.
 - **Clear**: Remove all stones from the board, resetting the game.
 
 ![Goban Tab Screenshot](GobanViewNote.png)
