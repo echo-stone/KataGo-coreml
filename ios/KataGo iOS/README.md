@@ -8,12 +8,7 @@ The *KataGo iOS* project serves as an interface layer, integrating the [KataGo](
 ## CoreML Integration and Power Efficiency
 This project employs the [CoreML](https://developer.apple.com/machine-learning/core-ml/) framework through the [`MLModel`](https://developer.apple.com/documentation/coreml/mlmodel) API, enabling KataGo inference with a [CoreML model](https://apple.github.io/coremltools/docs-guides/source/overview-coremltools.html) converted from the KataGo network. This integration is pivotal for leveraging the Neural Engine in Apple silicon, known for its superior power efficiency compared to traditional GPU processing. The decision to limit search threads to two is a strategic optimization to balance minimal power consumption with responsive user interaction, particularly crucial for mobile devices where battery efficiency is paramount.
 
-Certainly, the revised benchmark results section can be formatted in Markdown as follows:
-
----
-
 ## Analysis of Benchmark Results
-
 Rigorous benchmarking conducted on contemporary devices, including the [iPhone 12](https://support.apple.com/kb/SP830) and [iPad mini (6th generation)](https://support.apple.com/kb/SP850), has elucidated the CoreML Neural Engine (NE) backend's superior power efficiency relative to traditional GPU processing alternatives. These findings are instrumental in demonstrating the Neural Engine's capacity to handle computationally demanding tasks, such as Go game analysis, while adhering to the stringent power consumption constraints inherent to mobile devices.
 
 ### Benchmark Analysis for iPhone 12
