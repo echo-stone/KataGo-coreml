@@ -91,7 +91,7 @@ struct ToolbarItems: View {
                 if (!paused) && showingAnalysis {
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 } else {
-                    paused = false
+                    paused = true
                     showingAnalysis = false
                 }
             }) {
