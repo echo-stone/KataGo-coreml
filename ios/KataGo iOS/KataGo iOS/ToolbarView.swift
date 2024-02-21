@@ -10,8 +10,7 @@ import SwiftUI
 struct ToolbarItems: View {
     @EnvironmentObject var player: PlayerObject
     @EnvironmentObject var config: Config
-    @Binding var paused: Bool
-    @Binding var showingAnalysis: Bool
+    @EnvironmentObject var gobanState: GobanState
 
     var body: some View {
         Group {
@@ -20,7 +19,7 @@ struct ToolbarItems: View {
                 let pass = "play \(nextColor) pass"
                 KataGoHelper.sendCommand(pass)
                 KataGoHelper.sendCommand("showboard")
-                if showingAnalysis {
+                if gobanState.showingAnalysis {
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 }
             }) {
@@ -31,21 +30,21 @@ struct ToolbarItems: View {
             Button(action: {
                 KataGoHelper.sendCommand("undo")
                 KataGoHelper.sendCommand("showboard")
-                if (!paused) && showingAnalysis {
+                if (!gobanState.paused) && gobanState.showingAnalysis {
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 } else {
-                    paused = true
-                    showingAnalysis = false
+                    gobanState.paused = true
+                    gobanState.showingAnalysis = false
                 }
             }) {
                 Image(systemName: "backward.frame")
             }
             .padding()
 
-            if paused {
+            if gobanState.paused {
                 Button(action: {
-                    paused = false
-                    showingAnalysis = true
+                    gobanState.paused = false
+                    gobanState.showingAnalysis = true
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 }) {
                     Image(systemName: "play")
@@ -53,8 +52,8 @@ struct ToolbarItems: View {
                 .padding()
             } else {
                 Button(action: {
-                    paused = true
-                    showingAnalysis = true
+                    gobanState.paused = true
+                    gobanState.showingAnalysis = true
                     KataGoHelper.sendCommand("stop")
                 }) {
                     Image(systemName: "pause")
@@ -63,8 +62,8 @@ struct ToolbarItems: View {
             }
 
             Button(action: {
-                paused = true
-                showingAnalysis = false
+                gobanState.paused = true
+                gobanState.showingAnalysis = false
             }) {
                 Image(systemName: "stop")
             }
@@ -74,11 +73,11 @@ struct ToolbarItems: View {
                 let nextColor = (player.nextColorForPlayCommand == .black) ? "b" : "w"
                 KataGoHelper.sendCommand("genmove \(nextColor)")
                 KataGoHelper.sendCommand("showboard")
-                if (!paused) && showingAnalysis {
+                if (!gobanState.paused) && gobanState.showingAnalysis {
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 } else {
-                    paused = true
-                    showingAnalysis = false
+                    gobanState.paused = true
+                    gobanState.showingAnalysis = false
                 }
             }) {
                 Image(systemName: "forward.frame")
@@ -88,11 +87,11 @@ struct ToolbarItems: View {
             Button(action: {
                 KataGoHelper.sendCommand("clear_board")
                 KataGoHelper.sendCommand("showboard")
-                if (!paused) && showingAnalysis {
+                if (!gobanState.paused) && gobanState.showingAnalysis {
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 } else {
-                    paused = true
-                    showingAnalysis = false
+                    gobanState.paused = true
+                    gobanState.showingAnalysis = false
                 }
             }) {
                 Image(systemName: "clear")
@@ -105,17 +104,16 @@ struct ToolbarItems: View {
 struct ToolbarView: View {
     @Environment(\.horizontalSizeClass) var hSizeClass
     @Environment(\.verticalSizeClass) var vSizeClass
-    @Binding var paused: Bool
-    @Binding var showingAnalysis: Bool
+    @EnvironmentObject var gobanState: GobanState
 
     var body: some View {
         if hSizeClass == .compact && vSizeClass == .regular {
             HStack {
-                ToolbarItems(paused: $paused, showingAnalysis: $showingAnalysis)
+                ToolbarItems()
             }
         } else {
             VStack {
-                ToolbarItems(paused: $paused, showingAnalysis: $showingAnalysis)
+                ToolbarItems()
             }
         }
     }
@@ -124,12 +122,12 @@ struct ToolbarView: View {
 struct ToolbarView_Previews: PreviewProvider {
     static let player = PlayerObject()
     static let config = Config()
+    static let gobanState = GobanState()
 
     static var previews: some View {
-        @State var paused = false
-        @State var showingAnalysis = true
-        ToolbarView(paused: $paused, showingAnalysis: $showingAnalysis)
+        ToolbarView()
             .environmentObject(player)
             .environmentObject(config)
+            .environmentObject(gobanState)
     }
 }

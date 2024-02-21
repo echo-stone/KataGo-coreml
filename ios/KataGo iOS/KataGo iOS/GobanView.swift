@@ -7,14 +7,18 @@
 
 import SwiftUI
 
+class GobanState: ObservableObject {
+    @Published var paused = false
+    @Published var showingAnalysis = true
+}
+
 struct GobanItems: View {
     @EnvironmentObject var stones: Stones
     @EnvironmentObject var board: ObservableBoard
     @EnvironmentObject var player: PlayerObject
     @EnvironmentObject var analysis: Analysis
     @EnvironmentObject var config: Config
-    @State var paused = false
-    @State var showingAnalysis = true
+    @StateObject var gobanState = GobanState()
     let texture = WoodImage.createTexture()
 
     var body: some View {
@@ -24,7 +28,7 @@ struct GobanItems: View {
                 ZStack {
                     BoardLineView(dimensions: dimensions, boardWidth: board.width, boardHeight: board.height)
                     StoneView(geometry: geometry)
-                    if showingAnalysis {
+                    if gobanState.showingAnalysis {
                         AnalysisView(geometry: geometry)
                     }
                 }
@@ -40,8 +44,8 @@ struct GobanItems: View {
                     }
 
                     KataGoHelper.sendCommand("showboard")
-                    if showingAnalysis {
-                        paused = false
+                    if gobanState.showingAnalysis {
+                        gobanState.paused = false
                         KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
 
                     }
@@ -49,19 +53,20 @@ struct GobanItems: View {
             }
             .onAppear() {
                 KataGoHelper.sendCommand("showboard")
-                if (!paused) && showingAnalysis {
+                if (!gobanState.paused) && gobanState.showingAnalysis {
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 }
             }
             .onChange(of: config.maxAnalysisMoves) { _ in
-                if (!paused) && showingAnalysis {
+                if (!gobanState.paused) && gobanState.showingAnalysis {
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 }
             }
 
-            ToolbarView(paused: $paused, showingAnalysis: $showingAnalysis)
+            ToolbarView()
                 .padding()
         }
+        .environmentObject(gobanState)
     }
 
     func locationToMove(location: CGPoint, dimensions: Dimensions) -> String? {
