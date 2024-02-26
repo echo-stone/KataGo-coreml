@@ -19,7 +19,7 @@ struct ToolbarItems: View {
                 let pass = "play \(nextColor) pass"
                 KataGoHelper.sendCommand(pass)
                 KataGoHelper.sendCommand("showboard")
-                if gobanState.showingAnalysis {
+                if (!gobanState.paused) && gobanState.showingAnalysis {
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 }
             }) {
