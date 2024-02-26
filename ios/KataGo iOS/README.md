@@ -99,6 +99,39 @@ Refer to the provided screenshot for guidance on configuring the code signing se
 ### Building and Running the Application
 Finalize the setup by building and running the application. This can be achieved by selecting "Product -> Run" from the Xcode menu or using the `Command + r` shortcut. This initiates the build process and launches the application on the chosen simulator or connected device, ensuring the project is correctly set up and ready for development and testing.
 
+### Install Apps from Outside the App Store
+
+**Problem: Installing Apps from Outside the App Store**
+
+* **Cause:** iOS devices are designed to prioritize security and primarily install applications from Apple's App Store. Apps compiled from source code are not automatically trusted.
+* **Symptoms:** When trying to install the app, you receive an error message similar to "Untrusted Developer."
+
+**Solution: Manually Trusting the Developer**
+
+1. **Attempt Installation:**  Try to build and run the KataGo app as instructed in this documentation. If you receive an "Untrusted Developer" error, proceed to the next steps.
+
+2. **Open Settings:**
+   * Locate the Settings app on your iPhone or iPad.
+
+3. **Find Device Management:**
+   * Navigate to either:
+     * "General" -> "Device Management" 
+     * "General" -> "VPN & Device Management" 
+     * **Note:** The exact location may vary depending on your iOS version.
+
+4. **Locate the App Profile:** 
+   * Under "Device Management" look for a profile related to the KataGo app. It might be named after you.
+
+5. **Trust the App:**
+   * Tap on the app profile.
+   * Choose the option to "Trust" or "Verify App."
+
+6. **Reattempt Installation:**  The installation process should now proceed.  
+
+**Important Notes:**
+
+* **Temporary Trust:**  Developer certificates and trusted profiles sometimes expire. You may need to repeat this process periodically.
+
 ## User Guide
 This guide will walk you through the application's primary functionalities, ensuring a seamless user experience.
 
