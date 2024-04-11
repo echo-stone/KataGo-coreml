@@ -64,6 +64,7 @@ struct ToolbarItems: View {
             Button(action: {
                 gobanState.paused = true
                 gobanState.showingAnalysis = false
+                KataGoHelper.sendCommand("stop")
             }) {
                 Image(systemName: "stop")
             }
