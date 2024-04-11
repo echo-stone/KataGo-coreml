@@ -174,8 +174,10 @@ struct ContentView: View {
         if let match = message.firstMatch(of: pattern) {
             let mean = match.1.split(separator: " ").compactMap { Float($0)
             }
-            assert(mean.count == Int(board.width * board.height))
-            return mean
+            // Return mean if it is valid
+            if mean.count == Int(board.width * board.height) {
+                return mean
+            }
         }
 
         return []
@@ -186,8 +188,10 @@ struct ContentView: View {
         if let match = message.firstMatch(of: pattern) {
             let stdev = match.1.split(separator: " ").compactMap { Float($0)
             }
-            assert(stdev.count == Int(board.width * board.height))
-            return stdev
+            // Check stdev if it is valid
+            if stdev.count == Int(board.width * board.height) {
+                return stdev
+            }
         }
 
         return []
