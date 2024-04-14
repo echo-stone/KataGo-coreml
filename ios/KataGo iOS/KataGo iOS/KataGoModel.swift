@@ -53,6 +53,9 @@ class Analysis: ObservableObject {
 }
 
 class Config: ObservableObject {
+    @Published var boardWidth: Int = defaultBoardWidth
+    @Published var boardHeight: Int = defaultBoardHeight
+    @Published var komi: Float = defaultKomi
     @Published var maxMessageCharacters: Int = defaultMaxMessageCharacters
     @Published var maxAnalysisMoves: Int = defaultMaxAnalysisMoves
     @Published var analysisInterval: Int = defaultAnalysisInterval
@@ -61,9 +64,20 @@ class Config: ObservableObject {
     func getKataAnalyzeCommand() -> String {
         return "kata-analyze interval \(analysisInterval) maxmoves \(maxAnalysisMoves) ownership true ownershipStdev true"
     }
+
+    func getKataBoardSizeCommand() -> String {
+        return "rectangular_boardsize \(boardWidth) \(boardHeight)"
+    }
+
+    func getKataKomiCommand() -> String {
+        return "komi \(komi)"
+    }
 }
 
 extension Config {
+    static let defaultBoardWidth = 19
+    static let defaultBoardHeight = 19
+    static let defaultKomi: Float = 7.0
     static let defaultMaxMessageCharacters = 200
     static let defaultMaxAnalysisMoves = 16
     static let defaultAnalysisInterval = 10

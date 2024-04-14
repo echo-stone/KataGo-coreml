@@ -59,6 +59,8 @@ struct ContentView: View {
     private func createMessageTask() {
         Task {
             messagesObject.messages.append(Message(text: "Initializing...", maxLength: config.maxMessageCharacters))
+            KataGoHelper.sendCommand(config.getKataBoardSizeCommand())
+            KataGoHelper.sendCommand(config.getKataKomiCommand())
             KataGoHelper.sendCommand("showboard")
             while true {
                 let line = await Task.detached {
