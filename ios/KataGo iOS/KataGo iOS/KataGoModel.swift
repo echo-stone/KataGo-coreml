@@ -55,6 +55,7 @@ class Analysis: ObservableObject {
 class Config: ObservableObject {
     @Published var boardWidth: Int = defaultBoardWidth
     @Published var boardHeight: Int = defaultBoardHeight
+    @Published var rule: Int = defaultRule
     @Published var komi: Float = defaultKomi
     @Published var maxMessageCharacters: Int = defaultMaxMessageCharacters
     @Published var maxAnalysisMoves: Int = defaultMaxAnalysisMoves
@@ -82,6 +83,15 @@ extension Config {
     static let defaultMaxAnalysisMoves = 16
     static let defaultAnalysisInterval = 10
     static let defaultMaxMessageLines = 100
+}
+
+extension Config {
+    static let defaultRule = 0
+    static let rules = ["chinese", "japanese", "korean", "aga", "bga", "new-zealand"]
+
+    func getKataRuleCommand() -> String {
+        return "kata-set-rules \(Config.rules[rule])"
+    }
 }
 
 struct Dimensions {

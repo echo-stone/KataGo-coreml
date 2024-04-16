@@ -16,7 +16,7 @@ struct EditButtonBar: View {
     }
 }
 
-struct ConfigItem: View {
+struct ConfigIntItem: View {
     @Environment(\.editMode) private var editMode
     let title: String
     @Binding var value: Int
@@ -59,10 +59,37 @@ struct ConfigFloatItem: View {
     }
 }
 
+struct ConfigTextItem: View {
+    @Environment(\.editMode) private var editMode
+    let title: String
+    let texts: [String]
+    @Binding var value: Int
+
+    var body: some View {
+        HStack {
+            Text(title)
+            Spacer()
+            if editMode?.wrappedValue.isEditing == true {
+                Stepper {
+                    Text(texts[value])
+                } onIncrement: {
+                    value = ((value + 1) < texts.count) ? (value + 1) : 0
+                } onDecrement: {
+                    value = ((value - 1) >= 0) ? (value - 1) : (texts.count - 1)
+                }
+            } else {
+                Text(texts[value])
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 struct ConfigItems: View {
     @EnvironmentObject var config: Config
     @State var boardWidth: Int = Config.defaultBoardWidth
     @State var boardHeight: Int = Config.defaultBoardHeight
+    @State var rule: Int = Config.defaultRule
     @State var komi: Float = Config.defaultKomi
     @State var maxMessageCharacters: Int = Config.defaultMaxMessageCharacters
     @State var maxAnalysisMoves: Int = Config.defaultMaxAnalysisMoves
@@ -71,19 +98,26 @@ struct ConfigItems: View {
 
     var body: some View {
         VStack {
-            ConfigItem(title: "Board width:", value: $boardWidth)
+            ConfigIntItem(title: "Board width:", value: $boardWidth)
                 .onChange(of: boardWidth) { newValue in
                     config.boardWidth = newValue
                     KataGoHelper.sendCommand(config.getKataBoardSizeCommand())
                 }
                 .padding(.bottom)
 
-            ConfigItem(title: "Board height:", value: $boardHeight)
+            ConfigIntItem(title: "Board height:", value: $boardHeight)
                 .onChange(of: boardHeight) { newValue in
                     config.boardHeight = newValue
                     KataGoHelper.sendCommand(config.getKataBoardSizeCommand())
                 }
                 .padding(.bottom)
+
+            ConfigTextItem(title: "Rule:", texts: Config.rules, value: $rule)
+                .onChange(of: rule) { newValue in
+                    config.rule = newValue
+                    KataGoHelper.sendCommand(config.getKataRuleCommand())
+            }
+            .padding(.bottom)
 
             ConfigFloatItem(title: "Komi:", value: $komi, step: 0.5)
                 .onChange(of: komi) { newValue in
@@ -92,25 +126,25 @@ struct ConfigItems: View {
             }
             .padding(.bottom)
 
-            ConfigItem(title: "Max message characters:", value: $maxMessageCharacters)
+            ConfigIntItem(title: "Max message characters:", value: $maxMessageCharacters)
                 .onChange(of: maxMessageCharacters) { newValue in
                     config.maxMessageCharacters = newValue
                 }
                 .padding(.bottom)
 
-            ConfigItem(title: "Max analysis moves:", value: $maxAnalysisMoves)
+            ConfigIntItem(title: "Max analysis moves:", value: $maxAnalysisMoves)
                 .onChange(of: maxAnalysisMoves) { newValue in
                     config.maxAnalysisMoves = newValue
                 }
                 .padding(.bottom)
 
-            ConfigItem(title: "Analysis interval (centiseconds):", value: $analysisInterval)
+            ConfigIntItem(title: "Analysis interval (centiseconds):", value: $analysisInterval)
                 .onChange(of: analysisInterval) { newValue in
                     config.analysisInterval = newValue
                 }
                 .padding(.bottom)
 
-            ConfigItem(title: "Max message lines:", value: $maxMessageLines)
+            ConfigIntItem(title: "Max message lines:", value: $maxMessageLines)
                 .onChange(of: maxMessageLines) { newValue in
                     config.maxMessageLines = newValue
                 }
