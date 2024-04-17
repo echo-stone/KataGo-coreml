@@ -92,6 +92,7 @@ struct ConfigItems: View {
     @State var rule: Int = Config.defaultRule
     @State var komi: Float = Config.defaultKomi
     @State var playoutDoublingAdvantage: Float = Config.defaultPlayoutDoublingAdvantage
+    @State var analysisWideRootNoise: Float = Config.defaultAnalysisWideRootNoise
     @State var maxMessageCharacters: Int = Config.defaultMaxMessageCharacters
     @State var maxAnalysisMoves: Int = Config.defaultMaxAnalysisMoves
     @State var analysisInterval: Int = Config.defaultAnalysisInterval
@@ -131,6 +132,13 @@ struct ConfigItems: View {
                 .onChange(of: playoutDoublingAdvantage) { newValue in
                     config.playoutDoublingAdvantage = newValue
                     KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
+            }
+            .padding(.bottom)
+
+            ConfigFloatItem(title: "Analysis wide root noise:", value: $analysisWideRootNoise, step: 0.0078125)
+                .onChange(of: analysisWideRootNoise) { newValue in
+                    config.analysisWideRootNoise = newValue
+                    KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
             }
             .padding(.bottom)
 

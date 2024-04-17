@@ -62,6 +62,8 @@ struct ContentView: View {
             KataGoHelper.sendCommand(config.getKataBoardSizeCommand())
             KataGoHelper.sendCommand(config.getKataRuleCommand())
             KataGoHelper.sendCommand(config.getKataKomiCommand())
+            KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
+            KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
             KataGoHelper.sendCommand("showboard")
             while true {
                 let line = await Task.detached {

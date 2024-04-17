@@ -58,6 +58,7 @@ class Config: ObservableObject {
     @Published var rule: Int = defaultRule
     @Published var komi: Float = defaultKomi
     @Published var playoutDoublingAdvantage: Float = defaultPlayoutDoublingAdvantage
+    @Published var analysisWideRootNoise: Float = defaultAnalysisWideRootNoise
     @Published var maxMessageCharacters: Int = defaultMaxMessageCharacters
     @Published var maxAnalysisMoves: Int = defaultMaxAnalysisMoves
     @Published var analysisInterval: Int = defaultAnalysisInterval
@@ -78,6 +79,10 @@ class Config: ObservableObject {
     func getKataPlayoutDoublingAdvantageCommand() -> String {
         return "kata-set-param playoutDoublingAdvantage \(playoutDoublingAdvantage)"
     }
+
+    func getKataAnalysisWideRootNoiseCommand() -> String {
+        return "kata-set-param analysisWideRootNoise \(analysisWideRootNoise)"
+    }
 }
 
 extension Config {
@@ -85,6 +90,7 @@ extension Config {
     static let defaultBoardHeight = 19
     static let defaultKomi: Float = 7.0
     static let defaultPlayoutDoublingAdvantage: Float = 0.0
+    static let defaultAnalysisWideRootNoise: Float = 0.03125
     static let defaultMaxMessageCharacters = 200
     static let defaultMaxAnalysisMoves = 16
     static let defaultAnalysisInterval = 10
