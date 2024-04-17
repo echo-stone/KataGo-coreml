@@ -57,6 +57,7 @@ class Config: ObservableObject {
     @Published var boardHeight: Int = defaultBoardHeight
     @Published var rule: Int = defaultRule
     @Published var komi: Float = defaultKomi
+    @Published var playoutDoublingAdvantage: Float = defaultPlayoutDoublingAdvantage
     @Published var maxMessageCharacters: Int = defaultMaxMessageCharacters
     @Published var maxAnalysisMoves: Int = defaultMaxAnalysisMoves
     @Published var analysisInterval: Int = defaultAnalysisInterval
@@ -73,12 +74,17 @@ class Config: ObservableObject {
     func getKataKomiCommand() -> String {
         return "komi \(komi)"
     }
+
+    func getKataPlayoutDoublingAdvantageCommand() -> String {
+        return "kata-set-param playoutDoublingAdvantage \(playoutDoublingAdvantage)"
+    }
 }
 
 extension Config {
     static let defaultBoardWidth = 19
     static let defaultBoardHeight = 19
     static let defaultKomi: Float = 7.0
+    static let defaultPlayoutDoublingAdvantage: Float = 0.0
     static let defaultMaxMessageCharacters = 200
     static let defaultMaxAnalysisMoves = 16
     static let defaultAnalysisInterval = 10

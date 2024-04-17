@@ -91,6 +91,7 @@ struct ConfigItems: View {
     @State var boardHeight: Int = Config.defaultBoardHeight
     @State var rule: Int = Config.defaultRule
     @State var komi: Float = Config.defaultKomi
+    @State var playoutDoublingAdvantage: Float = Config.defaultPlayoutDoublingAdvantage
     @State var maxMessageCharacters: Int = Config.defaultMaxMessageCharacters
     @State var maxAnalysisMoves: Int = Config.defaultMaxAnalysisMoves
     @State var analysisInterval: Int = Config.defaultAnalysisInterval
@@ -123,6 +124,13 @@ struct ConfigItems: View {
                 .onChange(of: komi) { newValue in
                     config.komi = newValue
                     KataGoHelper.sendCommand(config.getKataKomiCommand())
+            }
+            .padding(.bottom)
+
+            ConfigFloatItem(title: "Playout doubling advantage:", value: $playoutDoublingAdvantage, step: 0.125)
+                .onChange(of: playoutDoublingAdvantage) { newValue in
+                    config.playoutDoublingAdvantage = newValue
+                    KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
             }
             .padding(.bottom)
 
