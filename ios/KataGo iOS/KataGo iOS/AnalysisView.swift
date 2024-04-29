@@ -67,7 +67,7 @@ struct AnalysisView: View {
                     let winrate = Float(data["winrate"] ?? "0") ?? 0
                     let visits = Int(data["visits"] ?? "0") ?? 0
                     let scoreLead = Float(data["scoreLead"] ?? "0") ?? 0
-                    let isHidden = Float(visits) < (0.1 * Float(maxVisits))
+                    let isHidden = Float(visits) < (config.hiddenAnalysisVisitRatio * Float(maxVisits))
                     let color = computeColorByVisits(isHidden: isHidden, visits: visits, maxVisits: maxVisits)
 
                     ZStack {

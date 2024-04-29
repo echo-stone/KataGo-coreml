@@ -64,6 +64,7 @@ class Config: ObservableObject {
     @Published var analysisInterval: Int = defaultAnalysisInterval
     @Published var maxMessageLines: Int = defaultMaxMessageLines
     @Published var analysisInformation: Int = defaultAnalysisInformation
+    @Published var hiddenAnalysisVisitRatio: Float = defaultHiddenAnalysisVisitRatio
 
     func getKataAnalyzeCommand() -> String {
         return "kata-analyze interval \(analysisInterval) maxmoves \(maxAnalysisMoves) ownership true ownershipStdev true"
@@ -96,6 +97,7 @@ extension Config {
     static let defaultMaxAnalysisMoves = 16
     static let defaultAnalysisInterval = 10
     static let defaultMaxMessageLines = 100
+    static let defaultHiddenAnalysisVisitRatio: Float = 0.1015625
 }
 
 extension Config {

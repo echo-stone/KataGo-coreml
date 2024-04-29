@@ -102,6 +102,7 @@ struct ConfigItems: View {
     @State var analysisInformation: Int = Config.defaultAnalysisInformation
     @State var analysisInterval: Int = Config.defaultAnalysisInterval
     @State var maxMessageLines: Int = Config.defaultMaxMessageLines
+    @State var hiddenAnalysisVisitRatio: Float = Config.defaultHiddenAnalysisVisitRatio
 
     var body: some View {
         VStack {
@@ -152,6 +153,12 @@ struct ConfigItems: View {
                     config.maxAnalysisMoves = newValue
                 }
                 .padding(.bottom)
+
+            ConfigFloatItem(title: "Hidden analysis visit ratio:", value: $hiddenAnalysisVisitRatio, step: 0.0078125, minValue: 0.0, maxValue: 1.0)
+                .onChange(of: hiddenAnalysisVisitRatio) { _, newValue in
+                    config.hiddenAnalysisVisitRatio = newValue
+            }
+            .padding(.bottom)
 
             ConfigTextItem(title: "Analysis information:", texts: Config.analysisInformations, value: $analysisInformation)
                 .onChange(of: analysisInformation) { _, newValue in
