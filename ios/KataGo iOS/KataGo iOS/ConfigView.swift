@@ -99,6 +99,7 @@ struct ConfigItems: View {
     @State var analysisWideRootNoise: Float = Config.defaultAnalysisWideRootNoise
     @State var maxMessageCharacters: Int = Config.defaultMaxMessageCharacters
     @State var maxAnalysisMoves: Int = Config.defaultMaxAnalysisMoves
+    @State var analysisInformation: Int = Config.defaultAnalysisInformation
     @State var analysisInterval: Int = Config.defaultAnalysisInterval
     @State var maxMessageLines: Int = Config.defaultMaxMessageLines
 
@@ -143,14 +144,20 @@ struct ConfigItems: View {
                 .onChange(of: analysisWideRootNoise) { _, newValue in
                     config.analysisWideRootNoise = newValue
                     KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
-                }
-                .padding(.bottom)
+            }
+            .padding(.bottom)
 
             ConfigIntItem(title: "Max analysis moves:", value: $maxAnalysisMoves, minValue: 1, maxValue: 1_000)
                 .onChange(of: maxAnalysisMoves) { _, newValue in
                     config.maxAnalysisMoves = newValue
                 }
                 .padding(.bottom)
+
+            ConfigTextItem(title: "Analysis information:", texts: Config.analysisInformations, value: $analysisInformation)
+                .onChange(of: analysisInformation) { _, newValue in
+                    config.analysisInformation = newValue
+            }
+            .padding(.bottom)
 
             ConfigIntItem(title: "Analysis interval (centiseconds):", value: $analysisInterval, minValue: 5, maxValue: 1_000)
                 .onChange(of: analysisInterval) { _, newValue in

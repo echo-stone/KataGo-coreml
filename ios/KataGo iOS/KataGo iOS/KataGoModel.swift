@@ -63,6 +63,7 @@ class Config: ObservableObject {
     @Published var maxAnalysisMoves: Int = defaultMaxAnalysisMoves
     @Published var analysisInterval: Int = defaultAnalysisInterval
     @Published var maxMessageLines: Int = defaultMaxMessageLines
+    @Published var analysisInformation: Int = defaultAnalysisInformation
 
     func getKataAnalyzeCommand() -> String {
         return "kata-analyze interval \(analysisInterval) maxmoves \(maxAnalysisMoves) ownership true ownershipStdev true"
@@ -103,6 +104,25 @@ extension Config {
 
     func getKataRuleCommand() -> String {
         return "kata-set-rules \(Config.rules[rule])"
+    }
+}
+
+extension Config {
+    static let defaultAnalysisInformation = 0
+    static let analysisInformationDefault = "Winrate + Visits + Score"
+    static let analysisInformationWinrate = "Winrate"
+    static let analysisInformationScore = "Score"
+
+    static let analysisInformations = [analysisInformationDefault,
+                                       analysisInformationWinrate,
+                                       analysisInformationScore]
+
+    func isAnalysisInformationWinrate() -> Bool {
+        return Config.analysisInformations[analysisInformation] == Config.analysisInformationWinrate
+    }
+
+    func isAnalysisInformationScore() -> Bool {
+        return Config.analysisInformations[analysisInformation] == Config.analysisInformationScore
     }
 }
 

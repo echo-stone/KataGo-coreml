@@ -10,6 +10,7 @@ import SwiftUI
 struct AnalysisView: View {
     @EnvironmentObject var analysis: Analysis
     @EnvironmentObject var board: ObservableBoard
+    @EnvironmentObject var config: Config
     let geometry: GeometryProxy
 
     var dimensions: Dimensions {
@@ -65,6 +66,7 @@ struct AnalysisView: View {
                 if let point = moveToPoint(move: move) {
                     let winrate = Float(data["winrate"] ?? "0") ?? 0
                     let visits = Int(data["visits"] ?? "0") ?? 0
+                    let scoreLead = Float(data["scoreLead"] ?? "0") ?? 0
                     let isHidden = Float(visits) < (0.1 * Float(maxVisits))
                     let color = computeColorByVisits(isHidden: isHidden, visits: visits, maxVisits: maxVisits)
 
@@ -72,21 +74,15 @@ struct AnalysisView: View {
                         Circle()
                             .foregroundColor(color)
                         if !isHidden {
-                            VStack {
-                                Text(String(format: "%2.0f%%", winrate * 100))
-                                    .font(.system(size: 500))
-                                    .minimumScaleFactor(0.01)
-                                    .bold()
-
-                                Text(convertToSIUnits(visits))
-                                    .font(.system(size: 500))
-                                    .minimumScaleFactor(0.01)
-
-                                if let scoreLead = data["scoreLead"] {
-                                    let text = String(format: "%+.1f", (Float(scoreLead) ?? 0))
-                                    Text(text)
-                                        .font(.system(size: 500))
-                                        .minimumScaleFactor(0.01)
+                            if config.isAnalysisInformationWinrate() {
+                                winrateText(winrate)
+                            } else if config.isAnalysisInformationScore() {
+                                scoreText(scoreLead)
+                            } else {
+                                VStack {
+                                    winrateText(winrate)
+                                    visitsText(visits)
+                                    scoreText(scoreLead)
                                 }
                             }
                         }
@@ -103,6 +99,27 @@ struct AnalysisView: View {
         shadows
         ownerships
         moves
+    }
+
+    func winrateText(_ winrate: Float) -> some View {
+        return Text(String(format: "%2.0f%%", winrate * 100))
+            .font(.system(size: 500, design: .monospaced))
+            .minimumScaleFactor(0.01)
+            .bold()
+    }
+
+    func visitsText(_ visits: Int) -> some View {
+        return Text(convertToSIUnits(visits))
+            .font(.system(size: 500, design: .monospaced))
+            .minimumScaleFactor(0.01)
+    }
+
+    func scoreText(_ scoreLead: Float) -> some View {
+        let text = String(format: "%+.1f", (Float(scoreLead)))
+
+        return Text(text)
+            .font(.system(size: 500, design: .monospaced))
+            .minimumScaleFactor(0.01)
     }
 
     func convertToSIUnits(_ number: Int) -> String {
@@ -226,6 +243,7 @@ struct AnalysisView: View {
 struct AnalysisView_Previews: PreviewProvider {
     static let analysis = Analysis()
     static let board = ObservableBoard()
+    static let config = Config()
 
     static var previews: some View {
         ZStack {
@@ -237,6 +255,7 @@ struct AnalysisView_Previews: PreviewProvider {
             }
             .environmentObject(analysis)
             .environmentObject(board)
+            .environmentObject(config)
             .onAppear() {
                 AnalysisView_Previews.board.width = 2
                 AnalysisView_Previews.board.height = 2
