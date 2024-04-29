@@ -27,9 +27,9 @@ struct CommandView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
-                    .onChange(of: messagesObject.messages) { value in
+                    .onChange(of: messagesObject.messages) { _, newValue in
                         // Scroll to the last message
-                        scrollView.scrollTo(value.last?.id)
+                        scrollView.scrollTo(newValue.last?.id)
                     }
                 }
             }

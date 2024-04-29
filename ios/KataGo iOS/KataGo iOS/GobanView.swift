@@ -57,7 +57,7 @@ struct GobanItems: View {
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 }
             }
-            .onChange(of: config.maxAnalysisMoves) { _ in
+            .onChange(of: config.maxAnalysisMoves) { _, _ in
                 if (!gobanState.paused) && gobanState.showingAnalysis {
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 }

@@ -105,68 +105,68 @@ struct ConfigItems: View {
     var body: some View {
         VStack {
             ConfigIntItem(title: "Board width:", value: $boardWidth, minValue: 2, maxValue: 29)
-                .onChange(of: boardWidth) { newValue in
+                .onChange(of: boardWidth) { _, newValue in
                     config.boardWidth = newValue
                     KataGoHelper.sendCommand(config.getKataBoardSizeCommand())
                 }
                 .padding(.bottom)
 
             ConfigIntItem(title: "Board height:", value: $boardHeight, minValue: 2, maxValue: 29)
-                .onChange(of: boardHeight) { newValue in
+                .onChange(of: boardHeight) { _, newValue in
                     config.boardHeight = newValue
                     KataGoHelper.sendCommand(config.getKataBoardSizeCommand())
                 }
                 .padding(.bottom)
 
             ConfigTextItem(title: "Rule:", texts: Config.rules, value: $rule)
-                .onChange(of: rule) { newValue in
+                .onChange(of: rule) { _, newValue in
                     config.rule = newValue
                     KataGoHelper.sendCommand(config.getKataRuleCommand())
             }
             .padding(.bottom)
 
             ConfigFloatItem(title: "Komi:", value: $komi, step: 0.5, minValue: -1_000, maxValue: 1_000)
-                .onChange(of: komi) { newValue in
+                .onChange(of: komi) { _, newValue in
                     config.komi = newValue
                     KataGoHelper.sendCommand(config.getKataKomiCommand())
             }
             .padding(.bottom)
 
             ConfigFloatItem(title: "Playout doubling advantage:", value: $playoutDoublingAdvantage, step: 0.125, minValue: -3.0, maxValue: 3.0)
-                .onChange(of: playoutDoublingAdvantage) { newValue in
+                .onChange(of: playoutDoublingAdvantage) { _, newValue in
                     config.playoutDoublingAdvantage = newValue
                     KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
             }
             .padding(.bottom)
 
             ConfigFloatItem(title: "Analysis wide root noise:", value: $analysisWideRootNoise, step: 0.0078125, minValue: 0.0, maxValue: 1.0)
-                .onChange(of: analysisWideRootNoise) { newValue in
+                .onChange(of: analysisWideRootNoise) { _, newValue in
                     config.analysisWideRootNoise = newValue
                     KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
-            }
-            .padding(.bottom)
-
-            ConfigIntItem(title: "Max message characters:", value: $maxMessageCharacters, minValue: 1, maxValue: 1_000_000)
-                .onChange(of: maxMessageCharacters) { newValue in
-                    config.maxMessageCharacters = newValue
                 }
                 .padding(.bottom)
 
             ConfigIntItem(title: "Max analysis moves:", value: $maxAnalysisMoves, minValue: 1, maxValue: 1_000)
-                .onChange(of: maxAnalysisMoves) { newValue in
+                .onChange(of: maxAnalysisMoves) { _, newValue in
                     config.maxAnalysisMoves = newValue
                 }
                 .padding(.bottom)
 
             ConfigIntItem(title: "Analysis interval (centiseconds):", value: $analysisInterval, minValue: 5, maxValue: 1_000)
-                .onChange(of: analysisInterval) { newValue in
+                .onChange(of: analysisInterval) { _, newValue in
                     config.analysisInterval = newValue
                 }
                 .padding(.bottom)
 
             ConfigIntItem(title: "Max message lines:", value: $maxMessageLines, minValue: 1, maxValue: 1_000_000)
-                .onChange(of: maxMessageLines) { newValue in
+                .onChange(of: maxMessageLines) { _, newValue in
                     config.maxMessageLines = newValue
+                }
+                .padding(.bottom)
+
+            ConfigIntItem(title: "Max message characters:", value: $maxMessageCharacters, minValue: 1, maxValue: 1_000_000)
+                .onChange(of: maxMessageCharacters) { _, newValue in
+                    config.maxMessageCharacters = newValue
                 }
         }
     }
