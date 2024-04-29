@@ -20,13 +20,15 @@ struct ConfigIntItem: View {
     @Environment(\.editMode) private var editMode
     let title: String
     @Binding var value: Int
+    let minValue: Int
+    let maxValue: Int
 
     var body: some View {
         HStack {
             Text(title)
             Spacer()
             if editMode?.wrappedValue.isEditing == true {
-                Stepper(value: $value, in: 1...Int.max) {
+                Stepper(value: $value, in: minValue...maxValue) {
                     Text("\(value)")
                 }
             } else {
@@ -42,13 +44,15 @@ struct ConfigFloatItem: View {
     let title: String
     @Binding var value: Float
     let step: Float
+    let minValue: Float
+    let maxValue: Float
 
     var body: some View {
         HStack {
             Text(title)
             Spacer()
             if editMode?.wrappedValue.isEditing == true {
-                Stepper(value: $value, in: -.infinity...(.infinity), step: step) {
+                Stepper(value: $value, in: minValue...maxValue, step: step) {
                     Text("\(value.formatted(.number))")
                 }
             } else {
@@ -100,14 +104,14 @@ struct ConfigItems: View {
 
     var body: some View {
         VStack {
-            ConfigIntItem(title: "Board width:", value: $boardWidth)
+            ConfigIntItem(title: "Board width:", value: $boardWidth, minValue: 2, maxValue: 29)
                 .onChange(of: boardWidth) { newValue in
                     config.boardWidth = newValue
                     KataGoHelper.sendCommand(config.getKataBoardSizeCommand())
                 }
                 .padding(.bottom)
 
-            ConfigIntItem(title: "Board height:", value: $boardHeight)
+            ConfigIntItem(title: "Board height:", value: $boardHeight, minValue: 2, maxValue: 29)
                 .onChange(of: boardHeight) { newValue in
                     config.boardHeight = newValue
                     KataGoHelper.sendCommand(config.getKataBoardSizeCommand())
@@ -121,46 +125,46 @@ struct ConfigItems: View {
             }
             .padding(.bottom)
 
-            ConfigFloatItem(title: "Komi:", value: $komi, step: 0.5)
+            ConfigFloatItem(title: "Komi:", value: $komi, step: 0.5, minValue: -1_000, maxValue: 1_000)
                 .onChange(of: komi) { newValue in
                     config.komi = newValue
                     KataGoHelper.sendCommand(config.getKataKomiCommand())
             }
             .padding(.bottom)
 
-            ConfigFloatItem(title: "Playout doubling advantage:", value: $playoutDoublingAdvantage, step: 0.125)
+            ConfigFloatItem(title: "Playout doubling advantage:", value: $playoutDoublingAdvantage, step: 0.125, minValue: -3.0, maxValue: 3.0)
                 .onChange(of: playoutDoublingAdvantage) { newValue in
                     config.playoutDoublingAdvantage = newValue
                     KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
             }
             .padding(.bottom)
 
-            ConfigFloatItem(title: "Analysis wide root noise:", value: $analysisWideRootNoise, step: 0.0078125)
+            ConfigFloatItem(title: "Analysis wide root noise:", value: $analysisWideRootNoise, step: 0.0078125, minValue: 0.0, maxValue: 1.0)
                 .onChange(of: analysisWideRootNoise) { newValue in
                     config.analysisWideRootNoise = newValue
                     KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
             }
             .padding(.bottom)
 
-            ConfigIntItem(title: "Max message characters:", value: $maxMessageCharacters)
+            ConfigIntItem(title: "Max message characters:", value: $maxMessageCharacters, minValue: 1, maxValue: 1_000_000)
                 .onChange(of: maxMessageCharacters) { newValue in
                     config.maxMessageCharacters = newValue
                 }
                 .padding(.bottom)
 
-            ConfigIntItem(title: "Max analysis moves:", value: $maxAnalysisMoves)
+            ConfigIntItem(title: "Max analysis moves:", value: $maxAnalysisMoves, minValue: 1, maxValue: 1_000)
                 .onChange(of: maxAnalysisMoves) { newValue in
                     config.maxAnalysisMoves = newValue
                 }
                 .padding(.bottom)
 
-            ConfigIntItem(title: "Analysis interval (centiseconds):", value: $analysisInterval)
+            ConfigIntItem(title: "Analysis interval (centiseconds):", value: $analysisInterval, minValue: 5, maxValue: 1_000)
                 .onChange(of: analysisInterval) { newValue in
                     config.analysisInterval = newValue
                 }
                 .padding(.bottom)
 
-            ConfigIntItem(title: "Max message lines:", value: $maxMessageLines)
+            ConfigIntItem(title: "Max message lines:", value: $maxMessageLines, minValue: 1, maxValue: 1_000_000)
                 .onChange(of: maxMessageLines) { newValue in
                     config.maxMessageLines = newValue
                 }
