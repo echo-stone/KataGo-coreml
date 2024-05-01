@@ -53,6 +53,7 @@ class Analysis: ObservableObject {
 }
 
 class Config: ObservableObject {
+    @Published var isBoardSizeChanged: Bool = false
     @Published var boardWidth: Int = defaultBoardWidth
     @Published var boardHeight: Int = defaultBoardHeight
     @Published var rule: Int = defaultRule

@@ -8,10 +8,18 @@
 import SwiftUI
 
 struct EditButtonBar: View {
+    @Environment(\.editMode) private var editMode
+    @EnvironmentObject var config: Config
+
     var body: some View {
         HStack {
             Spacer()
-            EditButton()
+            EditButton().onChange(of: editMode?.wrappedValue) {
+                if (editMode?.wrappedValue == .inactive) && (config.isBoardSizeChanged) {
+                    KataGoHelper.sendCommand(config.getKataBoardSizeCommand())
+                    config.isBoardSizeChanged = false
+                }
+            }
         }
     }
 }
@@ -109,14 +117,14 @@ struct ConfigItems: View {
             ConfigIntItem(title: "Board width:", value: $boardWidth, minValue: 2, maxValue: 29)
                 .onChange(of: boardWidth) { _, newValue in
                     config.boardWidth = newValue
-                    KataGoHelper.sendCommand(config.getKataBoardSizeCommand())
+                    config.isBoardSizeChanged = true
                 }
                 .padding(.bottom)
 
             ConfigIntItem(title: "Board height:", value: $boardHeight, minValue: 2, maxValue: 29)
                 .onChange(of: boardHeight) { _, newValue in
                     config.boardHeight = newValue
-                    KataGoHelper.sendCommand(config.getKataBoardSizeCommand())
+                    config.isBoardSizeChanged = true
                 }
                 .padding(.bottom)
 
