@@ -178,18 +178,6 @@ struct ConfigItems: View {
                 .onChange(of: analysisInterval) { _, newValue in
                     config.analysisInterval = newValue
                 }
-                .padding(.bottom)
-
-            ConfigIntItem(title: "Max message lines:", value: $maxMessageLines, minValue: 1, maxValue: 1_000_000)
-                .onChange(of: maxMessageLines) { _, newValue in
-                    config.maxMessageLines = newValue
-                }
-                .padding(.bottom)
-
-            ConfigIntItem(title: "Max message characters:", value: $maxMessageCharacters, minValue: 1, maxValue: 1_000_000)
-                .onChange(of: maxMessageCharacters) { _, newValue in
-                    config.maxMessageCharacters = newValue
-                }
         }
     }
 }
