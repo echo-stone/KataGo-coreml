@@ -27,14 +27,14 @@ struct ContentView: View {
 
     var body: some View {
         TabView() {
-            CommandView()
-                .tabItem {
-                    Label("Command", systemImage: "text.alignleft")
-                }
-
             GobanView()
                 .tabItem {
                     Label("Goban", systemImage: "circle")
+                }
+
+            CommandView()
+                .tabItem {
+                    Label("Command", systemImage: "text.alignleft")
                 }
 
             ConfigView()
@@ -65,6 +65,8 @@ struct ContentView: View {
             KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
             KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
             KataGoHelper.sendCommand("showboard")
+            KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+
             while true {
                 let line = await Task.detached {
                     // Get a message line from KataGo
