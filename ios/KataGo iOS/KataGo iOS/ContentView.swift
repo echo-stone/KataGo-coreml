@@ -7,6 +7,39 @@
 
 import SwiftUI
 
+enum SidebarItem: Hashable {
+    case goban, command, config
+}
+
+struct DetailView: View {
+    var selectedItem: SidebarItem?
+
+    var body: some View {
+        Group {
+            switch selectedItem {
+            case .command:
+                CommandView()
+            case .config:
+                ConfigView()
+            default:
+                GobanView()
+            }
+        }
+        .navigationTitle(title(for: selectedItem))
+    }
+
+    private func title(for item: SidebarItem?) -> String {
+        switch item {
+        case .command:
+            return "Command"
+        case .config:
+            return "Config"
+        default:
+            return "Goban"
+        }
+    }
+}
+
 struct ContentView: View {
     @StateObject var stones = Stones()
     @StateObject var messagesObject = MessagesObject()
@@ -17,6 +50,7 @@ struct ContentView: View {
     @State private var isShowingBoard = false
     @State private var boardText: [String] = []
     @State var isEditing = EditMode.inactive
+    @State private var selectedItem: SidebarItem? = .goban
 
     init() {
         // Start a thread to run KataGo GTP
@@ -26,21 +60,23 @@ struct ContentView: View {
     }
 
     var body: some View {
-        TabView() {
-            GobanView()
-                .tabItem {
+        NavigationSplitView {
+            List(selection: $selectedItem) {
+                NavigationLink(value: SidebarItem.goban) {
                     Label("Goban", systemImage: "circle")
                 }
 
-            CommandView()
-                .tabItem {
+                NavigationLink(value: SidebarItem.command) {
                     Label("Command", systemImage: "text.alignleft")
                 }
 
-            ConfigView()
-                .tabItem {
+                NavigationLink(value: SidebarItem.config) {
                     Label("Config", systemImage: "slider.horizontal.3")
                 }
+            }
+            .navigationTitle("Menu")
+        } detail: {
+            DetailView(selectedItem: selectedItem)
         }
         .environmentObject(stones)
         .environmentObject(messagesObject)
