@@ -98,6 +98,8 @@ struct ContentView: View {
             KataGoHelper.sendCommand(config.getKataBoardSizeCommand())
             KataGoHelper.sendCommand(config.getKataRuleCommand())
             KataGoHelper.sendCommand(config.getKataKomiCommand())
+            // Disable friendly pass to avoid a memory shortage problem
+            KataGoHelper.sendCommand("kata-set-rule friendlyPassOk false")
             KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
             KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
             KataGoHelper.sendCommand("showboard")
