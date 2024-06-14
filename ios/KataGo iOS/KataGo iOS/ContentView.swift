@@ -201,7 +201,8 @@ struct ContentView: View {
             "move": /move (\w+\d+)/,
             "visits": /visits (\d+)/,
             "winrate": /winrate ([\d.eE]+)/,
-            "scoreLead": /scoreLead ([-\d.eE]+)/
+            "scoreLead": /scoreLead ([-\d.eE]+)/,
+            "utilityLcb": /utilityLcb ([-\d.eE]+)/
         ]
 
         var moveData: [String: String] = [:]

@@ -59,7 +59,8 @@ struct AnalysisView: View {
     }
 
     var moves: some View {
-        let maxVisits = computeMaxVisits()
+        let maxVisits = Int(computeMaxVisits())
+        let maxUtility = searchMaxAnalysisData(of: "utilityLcb")
 
         return ForEach(analysis.data, id: \.self) { data in
             if let move = data["move"] {
@@ -67,12 +68,19 @@ struct AnalysisView: View {
                     let winrate = Float(data["winrate"] ?? "0") ?? 0
                     let visits = Int(data["visits"] ?? "0") ?? 0
                     let scoreLead = Float(data["scoreLead"] ?? "0") ?? 0
+                    let utility = Float(data["utilityLcb"] ?? "0") ?? 0
                     let isHidden = Float(visits) < (config.hiddenAnalysisVisitRatio * Float(maxVisits))
                     let color = computeColorByVisits(isHidden: isHidden, visits: visits, maxVisits: maxVisits)
 
                     ZStack {
                         Circle()
                             .foregroundColor(color)
+                            .overlay {
+                                if utility == maxUtility {
+                                    Circle()
+                                        .stroke(.blue, lineWidth: dimensions.squareLengthDiv16)
+                                }
+                            }
                         if !isHidden {
                             if config.isAnalysisInformationWinrate() {
                                 winrateText(winrate)
@@ -102,7 +110,8 @@ struct AnalysisView: View {
     }
 
     func winrateText(_ winrate: Float) -> some View {
-        return Text(String(format: "%2.0f%%", winrate * 100))
+        let format = (winrate > 0.1) ? "%2.0f%%" : "%1.1f%%"
+        return Text(String(format: format, winrate * 100))
             .font(.system(size: 500, design: .monospaced))
             .minimumScaleFactor(0.01)
             .bold()
@@ -142,42 +151,19 @@ struct AnalysisView: View {
         return "\(number)"
     }
 
-    func computeColorByWinrate(isHidden: Bool, winrate: Float, minWinrate: Float, maxWinrate: Float) -> Color {
-        let opacity = isHidden ? 0.1 : 0.5
-
-        if winrate == maxWinrate {
-            return .cyan.opacity(opacity)
-        } else {
-            let ratio = min(1, max(0.01, winrate - minWinrate) / max(0.01, maxWinrate - minWinrate))
-
-            let fraction = 2 / (pow((1 / ratio) - 1, 0.9) + 1)
-
-            if fraction < 1 {
-                let hue = cbrt(fraction * fraction) / 2
-                return Color(hue: Double(hue) / 2, saturation: 1, brightness: 1).opacity(opacity)
-            } else {
-                let hue = 1 - (sqrt(2 - fraction) / 2)
-                return Color(hue: Double(hue) / 2, saturation: 1, brightness: 1).opacity(opacity)
-            }
-        }
-    }
-
     func computeBaseColorByVisits(visits: Int, maxVisits: Int) -> Color {
-        if visits == maxVisits {
-            return Color(red: 0, green: 1, blue: 1)
+        let ratio = min(1, max(0.01, Float(visits)) / max(0.01, Float(maxVisits)))
+
+        let fraction = 2 / (pow((1 / ratio) - 1, 0.9) + 1)
+
+        if fraction < 1 {
+            let hue = cbrt(fraction * fraction) / 2
+            return Color(hue: Double(hue) / 2, saturation: 1, brightness: 1)
         } else {
-            let ratio = min(1, max(0.01, Float(visits)) / max(0.01, Float(maxVisits)))
-
-            let fraction = 2 / (pow((1 / ratio) - 1, 0.9) + 1)
-
-            if fraction < 1 {
-                let hue = cbrt(fraction * fraction) / 2
-                return Color(hue: Double(hue) / 2, saturation: 1, brightness: 1)
-            } else {
-                let hue = 1 - (sqrt(2 - fraction) / 2)
-                return Color(hue: Double(hue) / 2, saturation: 1, brightness: 1)
-            }
+            let hue = 1 - (sqrt(2 - fraction) / 2)
+            return Color(hue: Double(hue) / 2, saturation: 1, brightness: 1)
         }
+
     }
 
     func computeColorByVisits(isHidden: Bool, visits: Int, maxVisits: Int) -> Color {
@@ -202,16 +188,22 @@ struct AnalysisView: View {
         return (minWinrate, maxWinrate)
     }
 
-    func computeMaxVisits() -> Int {
-        let allVisits = analysis.data.map() { data in
-            Int(data["visits"] ?? "0") ?? 0
+    func searchMaxAnalysisData(of key: String) -> Float {
+        let allAnalysisData = analysis.data.map() { data in
+            Float(data[key] ?? "0") ?? 0
         }
 
-        let maxVisits = allVisits.reduce(0) {
+        let initialValue = allAnalysisData.count > 0 ? allAnalysisData[0] : 0
+
+        let maxAnalysisData = allAnalysisData.reduce(initialValue) {
             max($0, $1)
         }
 
-        return maxVisits
+        return maxAnalysisData
+    }
+
+    func computeMaxVisits() -> Float {
+        return searchMaxAnalysisData(of: "visits")
     }
 
     func moveToPoint(move: String) -> BoardPoint? {
