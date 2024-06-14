@@ -179,6 +179,18 @@ struct ConfigItems: View {
                     config.analysisInterval = newValue
                 }
         }
+        .onAppear {
+            boardWidth = config.boardWidth
+            boardHeight = config.boardHeight
+            rule = config.rule
+            komi = config.komi
+            playoutDoublingAdvantage = config.playoutDoublingAdvantage
+            analysisWideRootNoise = config.analysisWideRootNoise
+            maxAnalysisMoves = config.maxAnalysisMoves
+            analysisInformation = config.analysisInformation
+            analysisInterval = config.analysisInterval
+            hiddenAnalysisVisitRatio = config.hiddenAnalysisVisitRatio
+        }
     }
 }
 
