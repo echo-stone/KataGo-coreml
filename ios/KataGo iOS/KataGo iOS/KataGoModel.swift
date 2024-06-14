@@ -112,7 +112,7 @@ extension Config {
 
 extension Config {
     static let defaultAnalysisInformation = 0
-    static let analysisInformationDefault = "Winrate + Visits + Score"
+    static let analysisInformationDefault = "All"
     static let analysisInformationWinrate = "Winrate"
     static let analysisInformationScore = "Score"
 
