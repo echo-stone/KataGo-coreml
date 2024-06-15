@@ -105,11 +105,9 @@ struct ConfigItems: View {
     @State var komi: Float = Config.defaultKomi
     @State var playoutDoublingAdvantage: Float = Config.defaultPlayoutDoublingAdvantage
     @State var analysisWideRootNoise: Float = Config.defaultAnalysisWideRootNoise
-    @State var maxMessageCharacters: Int = Config.defaultMaxMessageCharacters
     @State var maxAnalysisMoves: Int = Config.defaultMaxAnalysisMoves
     @State var analysisInformation: Int = Config.defaultAnalysisInformation
     @State var analysisInterval: Int = Config.defaultAnalysisInterval
-    @State var maxMessageLines: Int = Config.defaultMaxMessageLines
     @State var hiddenAnalysisVisitRatio: Float = Config.defaultHiddenAnalysisVisitRatio
 
     var body: some View {
