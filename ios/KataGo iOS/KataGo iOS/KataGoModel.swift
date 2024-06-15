@@ -24,6 +24,7 @@ struct BoardPoint: Hashable, Comparable {
 class Stones: ObservableObject {
     @Published var blackPoints: [BoardPoint] = []
     @Published var whitePoints: [BoardPoint] = []
+    @Published var moveOrder: [Character: BoardPoint] = [:]
 }
 
 enum PlayerColor {

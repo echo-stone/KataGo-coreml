@@ -135,7 +135,7 @@ struct ContentView: View {
         if isShowingBoard {
             if message.prefix("Next player".count) == "Next player" {
                 isShowingBoard = false
-                (stones.blackPoints, stones.whitePoints, board.width, board.height) = parseBoardPoints(board: boardText)
+                (stones.blackPoints, stones.whitePoints, board.width, board.height, stones.moveOrder) = parseBoardPoints(board: boardText)
                 if message.prefix("Next player: Black".count) == "Next player: Black" {
                     player.nextColorForPlayCommand = .black
                     player.nextColorFromShowBoard = .black
@@ -154,12 +154,13 @@ struct ContentView: View {
         }
     }
 
-    func parseBoardPoints(board: [String]) -> ([BoardPoint], [BoardPoint], CGFloat, CGFloat) {
+    func parseBoardPoints(board: [String]) -> ([BoardPoint], [BoardPoint], CGFloat, CGFloat, [Character: BoardPoint]) {
         var blackStones: [BoardPoint] = []
         var whiteStones: [BoardPoint] = []
 
         let height = CGFloat(board.count - 1)  // Subtracting 1 to exclude the header
         let width = CGFloat((board.last?.dropFirst(2).count ?? 0) / 2)  // Drop the first 2 characters for the y-coordinate and divide by 2 because of spaces between cells
+        var moveOrder: [Character: BoardPoint] = [:]
 
         // Start from index 1 to skip the header line
         for (lineIndex, line) in board.enumerated() where lineIndex > 0 {
@@ -167,17 +168,21 @@ struct ContentView: View {
             let y = (Int(line.prefix(2).trimmingCharacters(in: .whitespaces)) ?? 1) - 1
 
             // Start parsing after the space that follows the y-coordinate
-            for (charIndex, char) in line.dropFirst(3).enumerated() where char == "X" || char == "O" {
+            for (charIndex, char) in line.dropFirst(3).enumerated() where char == "X" || char == "O" || char.isNumber {
                 let xCoord = charIndex / 2
                 if char == "X" {
                     blackStones.append(BoardPoint(x: xCoord, y: y))
                 } else if char == "O" {
                     whiteStones.append(BoardPoint(x: xCoord, y: y))
+                } else {
+                    if char.isNumber {
+                        moveOrder[char] = BoardPoint(x: xCoord, y: y)
+                    }
                 }
             }
         }
 
-        return (blackStones, whiteStones, width, height)
+        return (blackStones, whiteStones, width, height, moveOrder)
     }
 
     func maybeCollectAnalysis(message: String) {

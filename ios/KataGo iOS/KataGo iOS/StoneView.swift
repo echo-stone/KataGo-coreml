@@ -146,6 +146,10 @@ struct StoneView_Previews: PreviewProvider {
                 StoneView_Previews.board.height = 2
                 StoneView_Previews.stones.blackPoints = [BoardPoint(x: 0, y: 0), BoardPoint(x: 1, y: 1)]
                 StoneView_Previews.stones.whitePoints = [BoardPoint(x: 0, y: 1), BoardPoint(x: 1, y: 0)]
+                StoneView_Previews.stones.moveOrder = ["1": BoardPoint(x: 0, y: 0),
+                                                       "2": BoardPoint(x: 0, y: 1),
+                                                       "3": BoardPoint(x: 1, y: 1),
+                                                       "4": BoardPoint(x: 1, y: 0)]
             }
         }
     }

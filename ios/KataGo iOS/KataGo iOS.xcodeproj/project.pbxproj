@@ -207,6 +207,7 @@
 		E118EE972B081C3300637D44 /* katago.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		E149B7F42B350EA8002B7F61 /* parallel.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E149B7F22B350EA8002B7F61 /* parallel.cpp */; };
 		E149B7F52B350EA8002B7F61 /* parallel.h in Headers */ = {isa = PBXBuildFile; fileRef = E149B7F32B350EA8002B7F61 /* parallel.h */; };
+		E18446562C1DD526004F5E3B /* MoveNumberView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18446552C1DD526004F5E3B /* MoveNumberView.swift */; };
 		E18F3E112A51466A00D335E1 /* KataGo_iOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18F3E102A51466A00D335E1 /* KataGo_iOSApp.swift */; };
 		E18F3E132A51466A00D335E1 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18F3E122A51466A00D335E1 /* ContentView.swift */; };
 		E18F3E152A51466C00D335E1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E18F3E142A51466C00D335E1 /* Assets.xcassets */; };
@@ -480,6 +481,7 @@
 		E118EF0C2B081D8500637D44 /* main.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = main.h; sourceTree = "<group>"; };
 		E149B7F22B350EA8002B7F61 /* parallel.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = parallel.cpp; sourceTree = "<group>"; };
 		E149B7F32B350EA8002B7F61 /* parallel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = parallel.h; sourceTree = "<group>"; };
+		E18446552C1DD526004F5E3B /* MoveNumberView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveNumberView.swift; sourceTree = "<group>"; };
 		E18F3E0D2A51466A00D335E1 /* KataGo iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "KataGo iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E18F3E102A51466A00D335E1 /* KataGo_iOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGo_iOSApp.swift; sourceTree = "<group>"; };
 		E18F3E122A51466A00D335E1 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -884,6 +886,7 @@
 				E1E1717D2AB9DAED004DCC3C /* ConfigView.swift */,
 				E19D2E352AC8E5DB00C2A807 /* KataGoModel.swift */,
 				E19D2E372AC97FA300C2A807 /* ToolbarView.swift */,
+				E18446552C1DD526004F5E3B /* MoveNumberView.swift */,
 			);
 			path = "KataGo iOS";
 			sourceTree = "<group>";
@@ -1354,6 +1357,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E18F3E132A51466A00D335E1 /* ContentView.swift in Sources */,
+				E18446562C1DD526004F5E3B /* MoveNumberView.swift in Sources */,
 				E19D2E362AC8E5DB00C2A807 /* KataGoModel.swift in Sources */,
 				E1D7D3AD2AA897C000556DFB /* StoneView.swift in Sources */,
 				E1D7D3B32AAA1F5600556DFB /* AnalysisView.swift in Sources */,

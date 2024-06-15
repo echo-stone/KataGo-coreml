@@ -31,6 +31,8 @@ struct GobanItems: View {
                     if gobanState.showingAnalysis {
                         AnalysisView(geometry: geometry)
                     }
+
+                    MoveNumberView(geometry: geometry)
                 }
                 .onTapGesture(coordinateSpace: .local) { location in
                     if let move = locationToMove(location: location, dimensions: dimensions) {
@@ -129,6 +131,10 @@ struct GobanView_Previews: PreviewProvider {
                 GobanView_Previews.stones.blackPoints = [BoardPoint(x: 1, y: 1), BoardPoint(x: 0, y: 1)]
                 GobanView_Previews.stones.whitePoints = [BoardPoint(x: 0, y: 0), BoardPoint(x: 1, y: 0)]
                 GobanView_Previews.analysis.data = [["move": "C1", "winrate": "0.54321012345", "visits": "1234567890", "scoreLead": "8.987654321"]]
+                GobanView_Previews.stones.moveOrder = ["1": BoardPoint(x: 0, y: 1),
+                                                       "2": BoardPoint(x: 0, y: 0),
+                                                       "3": BoardPoint(x: 1, y: 1),
+                                                       "4": BoardPoint(x: 1, y: 0)]
             }
     }
 }
