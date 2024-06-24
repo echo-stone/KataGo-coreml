@@ -19,23 +19,13 @@ struct DetailView: View {
             switch selectedItem {
             case .command:
                 CommandView()
+                    .navigationTitle("Command")
             case .config:
                 ConfigView()
+                    .navigationTitle("Config")
             default:
                 GobanView()
             }
-        }
-        .navigationTitle(title(for: selectedItem))
-    }
-
-    private func title(for item: SidebarItem?) -> String {
-        switch item {
-        case .command:
-            return "Command"
-        case .config:
-            return "Config"
-        default:
-            return "Goban"
         }
     }
 }
