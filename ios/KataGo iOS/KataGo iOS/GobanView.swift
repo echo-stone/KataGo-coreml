@@ -12,63 +12,53 @@ class GobanState: ObservableObject {
     @Published var showingAnalysis = true
 }
 
-struct GobanItems: View {
-    @EnvironmentObject var stones: Stones
+struct BoardView: View {
     @EnvironmentObject var board: ObservableBoard
     @EnvironmentObject var player: PlayerObject
-    @EnvironmentObject var analysis: Analysis
     @EnvironmentObject var config: Config
-    @StateObject var gobanState = GobanState()
-    let texture = WoodImage.createTexture()
+    @EnvironmentObject var gobanState: GobanState
 
     var body: some View {
-        Group {
-            GeometryReader { geometry in
-                let dimensions = Dimensions(geometry: geometry, board: board)
-                ZStack {
-                    BoardLineView(dimensions: dimensions, boardWidth: board.width, boardHeight: board.height)
-                    StoneView(geometry: geometry)
-                    if gobanState.showingAnalysis {
-                        AnalysisView(geometry: geometry)
-                    }
-
-                    MoveNumberView(geometry: geometry)
+        GeometryReader { geometry in
+            let dimensions = Dimensions(geometry: geometry, board: board)
+            ZStack {
+                BoardLineView(dimensions: dimensions, boardWidth: board.width, boardHeight: board.height)
+                StoneView(geometry: geometry)
+                if gobanState.showingAnalysis {
+                    AnalysisView(geometry: geometry)
                 }
-                .onTapGesture(coordinateSpace: .local) { location in
-                    if let move = locationToMove(location: location, dimensions: dimensions) {
-                        if player.nextColorForPlayCommand == .black {
-                            KataGoHelper.sendCommand("play b \(move)")
-                            player.nextColorForPlayCommand = .white
-                        } else {
-                            KataGoHelper.sendCommand("play w \(move)")
-                            player.nextColorForPlayCommand = .black
-                        }
-                    }
 
-                    KataGoHelper.sendCommand("showboard")
-                    if gobanState.showingAnalysis {
-                        gobanState.paused = false
-                        KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
-
-                    }
-                }
+                MoveNumberView(geometry: geometry)
             }
-            .onAppear() {
+            .onTapGesture(coordinateSpace: .local) { location in
+                if let move = locationToMove(location: location, dimensions: dimensions) {
+                    if player.nextColorForPlayCommand == .black {
+                        KataGoHelper.sendCommand("play b \(move)")
+                        player.nextColorForPlayCommand = .white
+                    } else {
+                        KataGoHelper.sendCommand("play w \(move)")
+                        player.nextColorForPlayCommand = .black
+                    }
+                }
+
                 KataGoHelper.sendCommand("showboard")
-                if (!gobanState.paused) && gobanState.showingAnalysis {
+                if gobanState.showingAnalysis {
+                    gobanState.paused = false
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 }
             }
-            .onChange(of: config.maxAnalysisMoves) { _, _ in
-                if (!gobanState.paused) && gobanState.showingAnalysis {
-                    KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
-                }
-            }
-
-            ToolbarView()
-                .padding()
         }
-        .environmentObject(gobanState)
+        .onAppear() {
+            KataGoHelper.sendCommand("showboard")
+            if (!gobanState.paused) && gobanState.showingAnalysis {
+                KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+            }
+        }
+        .onChange(of: config.maxAnalysisMoves) { _, _ in
+            if (!gobanState.paused) && gobanState.showingAnalysis {
+                KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+            }
+        }
     }
 
     func locationToMove(location: CGPoint, dimensions: Dimensions) -> String? {
@@ -91,6 +81,20 @@ struct GobanItems: View {
         ]
 
         return letterMap[x].map { "\($0)\(y)" }
+    }
+}
+
+struct GobanItems: View {
+    @StateObject var gobanState = GobanState()
+
+    var body: some View {
+        Group {
+            BoardView()
+
+            ToolbarView()
+                .padding()
+        }
+        .environmentObject(gobanState)
     }
 }
 

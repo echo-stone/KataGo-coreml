@@ -205,6 +205,7 @@
 		E11887F52B0831B100637D44 /* libz.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = E18F3F712A5149AB00D335E1 /* libz.tbd */; };
 		E118EE962B081C3300637D44 /* katago.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; };
 		E118EE972B081C3300637D44 /* katago.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		E12A6E9F2C322E020002DED0 /* ConfigModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E12A6E9E2C322E020002DED0 /* ConfigModel.swift */; };
 		E149B7F42B350EA8002B7F61 /* parallel.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E149B7F22B350EA8002B7F61 /* parallel.cpp */; };
 		E149B7F52B350EA8002B7F61 /* parallel.h in Headers */ = {isa = PBXBuildFile; fileRef = E149B7F32B350EA8002B7F61 /* parallel.h */; };
 		E18446562C1DD526004F5E3B /* MoveNumberView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18446552C1DD526004F5E3B /* MoveNumberView.swift */; };
@@ -479,6 +480,7 @@
 		E11887EE2B08310800637D44 /* metalbackend.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = metalbackend.swift; path = ../../../cpp/neuralnet/metalbackend.swift; sourceTree = "<group>"; };
 		E118EE902B081C3200637D44 /* katago.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = katago.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		E118EF0C2B081D8500637D44 /* main.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = main.h; sourceTree = "<group>"; };
+		E12A6E9E2C322E020002DED0 /* ConfigModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigModel.swift; sourceTree = "<group>"; };
 		E149B7F22B350EA8002B7F61 /* parallel.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = parallel.cpp; sourceTree = "<group>"; };
 		E149B7F32B350EA8002B7F61 /* parallel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = parallel.h; sourceTree = "<group>"; };
 		E18446552C1DD526004F5E3B /* MoveNumberView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveNumberView.swift; sourceTree = "<group>"; };
@@ -887,6 +889,7 @@
 				E19D2E352AC8E5DB00C2A807 /* KataGoModel.swift */,
 				E19D2E372AC97FA300C2A807 /* ToolbarView.swift */,
 				E18446552C1DD526004F5E3B /* MoveNumberView.swift */,
+				E12A6E9E2C322E020002DED0 /* ConfigModel.swift */,
 			);
 			path = "KataGo iOS";
 			sourceTree = "<group>";
@@ -1359,6 +1362,7 @@
 				E18F3E132A51466A00D335E1 /* ContentView.swift in Sources */,
 				E18446562C1DD526004F5E3B /* MoveNumberView.swift in Sources */,
 				E19D2E362AC8E5DB00C2A807 /* KataGoModel.swift in Sources */,
+				E12A6E9F2C322E020002DED0 /* ConfigModel.swift in Sources */,
 				E1D7D3AD2AA897C000556DFB /* StoneView.swift in Sources */,
 				E1D7D3B32AAA1F5600556DFB /* AnalysisView.swift in Sources */,
 				E18F3E112A51466A00D335E1 /* KataGo_iOSApp.swift in Sources */,
