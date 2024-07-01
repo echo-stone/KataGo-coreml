@@ -37,6 +37,13 @@ class PlayerObject: ObservableObject {
     @Published var nextColorFromShowBoard = PlayerColor.black
 }
 
+struct AnalysisInfo {
+    let visits: Int
+    let winrate: Float
+    let scoreLead: Float
+    let utilityLcb: Float
+}
+
 struct Ownership {
     let mean: Float
     let stdev: Float?
@@ -49,8 +56,13 @@ struct Ownership {
 
 class Analysis: ObservableObject {
     @Published var nextColorForAnalysis = PlayerColor.white
-    @Published var data: [[String: String]] = []
+    @Published var info: [BoardPoint: AnalysisInfo] = [:]
     @Published var ownership: [BoardPoint: Ownership] = [:]
+
+    func clear() {
+        info = [:]
+        ownership = [:]
+    }
 }
 
 struct Dimensions {

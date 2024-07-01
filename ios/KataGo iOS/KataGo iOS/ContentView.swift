@@ -93,6 +93,7 @@ struct ContentView: View {
             KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
             KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
             KataGoHelper.sendCommand("showboard")
+            KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
             KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
 
             while true {
@@ -125,7 +126,14 @@ struct ContentView: View {
         if isShowingBoard {
             if message.prefix("Next player".count) == "Next player" {
                 isShowingBoard = false
-                (stones.blackPoints, stones.whitePoints, board.width, board.height, stones.moveOrder) = parseBoardPoints(board: boardText)
+                var newBoardWidth: CGFloat
+                var newBoardHeight: CGFloat
+                (stones.blackPoints, stones.whitePoints, newBoardWidth, newBoardHeight, stones.moveOrder) = parseBoardPoints(board: boardText)
+                if (newBoardWidth != board.width) || (newBoardHeight != board.height) {
+                    analysis.clear()
+                }
+                board.width = newBoardWidth
+                board.height = newBoardHeight
                 if message.prefix("Next player: Black".count) == "Next player: Black" {
                     player.nextColorForPlayCommand = .black
                     player.nextColorFromShowBoard = .black
@@ -178,36 +186,118 @@ struct ContentView: View {
     func maybeCollectAnalysis(message: String) {
         if message.starts(with: /info/) {
             let splitData = message.split(separator: "info")
-            analysis.data = splitData.map {
-                extractMoveData(dataLine: String($0))
-            }
 
-            if let lastData = splitData.last {
-                analysis.ownership = extractOwnership(message: String(lastData))
-            }
+            withAnimation {
+                let analysisInfo = splitData.map {
+                    extractAnalysisInfo(dataLine: String($0))
+                }
 
-            analysis.nextColorForAnalysis = player.nextColorFromShowBoard
+                analysis.info = analysisInfo.reduce([:]) {
+                    $0.merging($1 ?? [:]) { (current, _) in
+                        current
+                    }
+                }
+
+                if let lastData = splitData.last {
+                    analysis.ownership = extractOwnership(message: String(lastData))
+                }
+
+                analysis.nextColorForAnalysis = player.nextColorFromShowBoard
+            }
         }
     }
 
-    func extractMoveData(dataLine: String) -> [String: String] {
-        // Define patterns for extracting relevant information
-        let patterns: [String: Regex] = [
-            "move": /move (\w+\d+)/,
-            "visits": /visits (\d+)/,
-            "winrate": /winrate ([\d.eE]+)/,
-            "scoreLead": /scoreLead ([-\d.eE]+)/,
-            "utilityLcb": /utilityLcb ([-\d.eE]+)/
+    func moveToPoint(move: String) -> BoardPoint? {
+        // Mapping letters A-AD (without I) to numbers 0-28
+        let letterMap: [String: Int] = [
+            "A": 0, "B": 1, "C": 2, "D": 3, "E": 4,
+            "F": 5, "G": 6, "H": 7, "J": 8, "K": 9,
+            "L": 10, "M": 11, "N": 12, "O": 13, "P": 14,
+            "Q": 15, "R": 16, "S": 17, "T": 18, "U": 19,
+            "V": 20, "W": 21, "X": 22, "Y": 23, "Z": 24,
+            "AA": 25, "AB": 26, "AC": 27, "AD": 28
         ]
 
-        var moveData: [String: String] = [:]
-        for (key, pattern) in patterns {
-            if let match = dataLine.firstMatch(of: pattern) {
-                moveData[key] = String(match.1)
+        let pattern = /([^\d\W]+)(\d+)/
+        if let match = move.firstMatch(of: pattern) {
+            if let x = letterMap[String(match.1).uppercased()],
+               let y = Int(match.2) {
+                // Subtract 1 from y to make it 0-indexed
+                return BoardPoint(x: x, y: y - 1)
+            } else {
+                return nil
+            }
+        } else {
+            return nil
+        }
+    }
+
+    func matchMovePattern(dataLine: String) -> BoardPoint? {
+        let pattern = /move (\w+\d+)/
+        if let match = dataLine.firstMatch(of: pattern) {
+            let move = String(match.1)
+            if let point = moveToPoint(move: move) {
+                return point
             }
         }
 
-        return moveData
+        return nil
+    }
+
+    func matchVisitsPattern(dataLine: String) -> Int? {
+        let pattern = /visits (\d+)/
+        if let match = dataLine.firstMatch(of: pattern) {
+            let visits = Int(match.1)
+            return visits
+        }
+
+        return nil
+    }
+
+    func matchWinratePattern(dataLine: String) -> Float? {
+        let pattern = /winrate ([\d.eE]+)/
+        if let match = dataLine.firstMatch(of: pattern) {
+            let winrate = Float(match.1)
+            return winrate
+        }
+
+        return nil
+    }
+
+    func matchScoreLeadPattern(dataLine: String) -> Float? {
+        let pattern = /scoreLead ([-\d.eE]+)/
+        if let match = dataLine.firstMatch(of: pattern) {
+            let scoreLead = Float(match.1)
+            return scoreLead
+        }
+
+        return nil
+    }
+
+    func matchUtilityLcbPattern(dataLine: String) -> Float? {
+        let pattern = /utilityLcb ([-\d.eE]+)/
+        if let match = dataLine.firstMatch(of: pattern) {
+            let scoreLead = Float(match.1)
+            return scoreLead
+        }
+
+        return nil
+    }
+
+    func extractAnalysisInfo(dataLine: String) -> [BoardPoint: AnalysisInfo]? {
+        let point = matchMovePattern(dataLine: dataLine)
+        let visits = matchVisitsPattern(dataLine: dataLine)
+        let winrate = matchWinratePattern(dataLine: dataLine)
+        let scoreLead = matchScoreLeadPattern(dataLine: dataLine)
+        let utilityLcb = matchUtilityLcbPattern(dataLine: dataLine)
+
+        if let point, let visits, let winrate, let scoreLead, let utilityLcb {
+            let analysisInfo = AnalysisInfo(visits: visits, winrate: winrate, scoreLead: scoreLead, utilityLcb: utilityLcb)
+
+            return [point: analysisInfo]
+        }
+
+        return nil
     }
 
     func extractOwnershipMean(message: String) -> [Float] {

@@ -11,6 +11,7 @@ struct AnalysisView: View {
     @EnvironmentObject var analysis: Analysis
     @EnvironmentObject var board: ObservableBoard
     @EnvironmentObject var config: Config
+    @EnvironmentObject var gobanState: GobanState
     let geometry: GeometryProxy
 
     var dimensions: Dimensions {
@@ -18,18 +19,16 @@ struct AnalysisView: View {
     }
 
     var shadows: some View {
-        ForEach(analysis.data, id: \.self) { data in
-            if let move = data["move"] {
-                if let point = moveToPoint(move: move) {
-                    // Shadow
-                    Circle()
-                        .stroke(Color.black.opacity(0.5), lineWidth: dimensions.squareLength / 32)
-                        .blur(radius: dimensions.squareLength / 32)
-                        .frame(width: dimensions.squareLength, height: dimensions.squareLength)
-                        .position(x: dimensions.marginWidth + CGFloat(point.x) * dimensions.squareLength,
-                                  y: dimensions.marginHeight + CGFloat(point.y) * dimensions.squareLength)
-                }
-            }
+        let sortedInfoKeys = analysis.info.keys.sorted()
+
+        return ForEach(sortedInfoKeys, id: \.self) { point in
+            // Shadow
+            Circle()
+                .stroke(Color.black.opacity(0.5), lineWidth: dimensions.squareLength / 32)
+                .blur(radius: dimensions.squareLength / 32)
+                .frame(width: dimensions.squareLength, height: dimensions.squareLength)
+                .position(x: dimensions.marginWidth + CGFloat(point.x) * dimensions.squareLength,
+                          y: dimensions.marginHeight + CGFloat(point.y) * dimensions.squareLength)
         }
     }
 
@@ -59,54 +58,57 @@ struct AnalysisView: View {
     }
 
     var moves: some View {
-        let maxVisits = Int(computeMaxVisits())
-        let maxUtility = searchMaxAnalysisData(of: "utilityLcb")
+        let maxVisits = computeMaxVisits()
+        let maxUtility = computeMaxUtilityLcb()
+        let sortedInfoKeys = analysis.info.keys.sorted()
 
-        return ForEach(analysis.data, id: \.self) { data in
-            if let move = data["move"] {
-                if let point = moveToPoint(move: move) {
-                    let winrate = Float(data["winrate"] ?? "0") ?? 0
-                    let visits = Int(data["visits"] ?? "0") ?? 0
-                    let scoreLead = Float(data["scoreLead"] ?? "0") ?? 0
-                    let utility = Float(data["utilityLcb"] ?? "0") ?? 0
-                    let isHidden = Float(visits) < (config.hiddenAnalysisVisitRatio * Float(maxVisits))
-                    let color = computeColorByVisits(isHidden: isHidden, visits: visits, maxVisits: maxVisits)
+        return ForEach(sortedInfoKeys, id: \.self) { point in
+            if let info = analysis.info[point] {
+                let isHidden = Float(info.visits) < (config.hiddenAnalysisVisitRatio * Float(maxVisits))
+                let color = computeColorByVisits(isHidden: isHidden, visits: info.visits, maxVisits: maxVisits)
 
-                    ZStack {
-                        Circle()
-                            .foregroundColor(color)
-                            .overlay {
-                                if utility == maxUtility {
-                                    Circle()
-                                        .stroke(.blue, lineWidth: dimensions.squareLengthDiv16)
-                                }
+                ZStack {
+                    Circle()
+                        .foregroundColor(color)
+                        .overlay {
+                            if info.utilityLcb == maxUtility {
+                                Circle()
+                                    .stroke(.blue, lineWidth: dimensions.squareLengthDiv16)
                             }
-                        if !isHidden {
-                            if config.isAnalysisInformationWinrate() {
-                                winrateText(winrate)
-                            } else if config.isAnalysisInformationScore() {
-                                scoreText(scoreLead)
-                            } else {
-                                VStack {
-                                    winrateText(winrate)
-                                    visitsText(visits)
-                                    scoreText(scoreLead)
-                                }
+                        }
+                    if !isHidden {
+                        if config.isAnalysisInformationWinrate() {
+                            winrateText(info.winrate)
+                        } else if config.isAnalysisInformationScore() {
+                            scoreText(info.scoreLead)
+                        } else {
+                            VStack {
+                                winrateText(info.winrate)
+                                visitsText(info.visits)
+                                scoreText(info.scoreLead)
                             }
                         }
                     }
-                    .frame(width: dimensions.squareLength, height: dimensions.squareLength)
-                    .position(x: dimensions.marginWidth + CGFloat(point.x) * dimensions.squareLength,
-                              y: dimensions.marginHeight + CGFloat(point.y) * dimensions.squareLength)
                 }
+                .frame(width: dimensions.squareLength, height: dimensions.squareLength)
+                .position(x: dimensions.marginWidth + CGFloat(point.x) * dimensions.squareLength,
+                          y: dimensions.marginHeight + CGFloat(point.y) * dimensions.squareLength)
             }
         }
     }
 
     var body: some View {
-        shadows
-        ownerships
-        moves
+        Group {
+            shadows
+            ownerships
+            moves
+        }
+        .onChange(of: config.maxAnalysisMoves) { _, _ in
+            if (!gobanState.paused) && gobanState.showingAnalysis {
+                KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
+                KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+            }
+        }
     }
 
     func winrateText(_ winrate: Float) -> some View {
@@ -114,12 +116,14 @@ struct AnalysisView: View {
             .font(.system(size: 500, design: .monospaced))
             .minimumScaleFactor(0.01)
             .bold()
+            .foregroundColor(.black)
     }
 
     func visitsText(_ visits: Int) -> some View {
         return Text(convertToSIUnits(visits))
             .font(.system(size: 500, design: .monospaced))
             .minimumScaleFactor(0.01)
+            .foregroundColor(.black)
     }
 
     func scoreText(_ scoreLead: Float) -> some View {
@@ -128,6 +132,7 @@ struct AnalysisView: View {
         return Text(text)
             .font(.system(size: 500, design: .monospaced))
             .minimumScaleFactor(0.01)
+            .foregroundColor(.black)
     }
 
     func convertToSIUnits(_ number: Int) -> String {
@@ -172,8 +177,10 @@ struct AnalysisView: View {
     }
 
     func computeMinMaxWinrate() -> (Float, Float) {
-        let winrates = analysis.data.map() { data in
-            Float(data["winrate"] ?? "0") ?? 0
+        let points = analysis.info.keys.sorted()
+
+        let winrates = points.map { point in
+            analysis.info[point]?.winrate ?? 0.5
         }
 
         let minWinrate = winrates.reduce(1) {
@@ -187,47 +194,32 @@ struct AnalysisView: View {
         return (minWinrate, maxWinrate)
     }
 
-    func searchMaxAnalysisData(of key: String) -> Float {
-        let allAnalysisData = analysis.data.map() { data in
-            Float(data[key] ?? "0") ?? 0
+    func computeMaxUtilityLcb() -> Float {
+        let points = analysis.info.keys.sorted()
+
+        let utilityLcbs = points.map { point in
+            analysis.info[point]?.utilityLcb ?? 0
         }
 
-        let initialValue = allAnalysisData.count > 0 ? allAnalysisData[0] : 0
-
-        let maxAnalysisData = allAnalysisData.reduce(initialValue) {
+        let maxUtilityLcb = utilityLcbs.reduce(-Float.infinity) {
             max($0, $1)
         }
 
-        return maxAnalysisData
+        return maxUtilityLcb
     }
 
-    func computeMaxVisits() -> Float {
-        return searchMaxAnalysisData(of: "visits")
-    }
+    func computeMaxVisits() -> Int {
+        let points = analysis.info.keys.sorted()
 
-    func moveToPoint(move: String) -> BoardPoint? {
-        // Mapping letters A-AD (without I) to numbers 0-28
-        let letterMap: [String: Int] = [
-            "A": 0, "B": 1, "C": 2, "D": 3, "E": 4,
-            "F": 5, "G": 6, "H": 7, "J": 8, "K": 9,
-            "L": 10, "M": 11, "N": 12, "O": 13, "P": 14,
-            "Q": 15, "R": 16, "S": 17, "T": 18, "U": 19,
-            "V": 20, "W": 21, "X": 22, "Y": 23, "Z": 24,
-            "AA": 25, "AB": 26, "AC": 27, "AD": 28
-        ]
-
-        let pattern = /([^\d\W]+)(\d+)/
-        if let match = move.firstMatch(of: pattern) {
-            if let x = letterMap[String(match.1).uppercased()],
-               let y = Int(match.2) {
-                // Subtract 1 from y to make it 0-indexed
-                return BoardPoint(x: x, y: y - 1)
-            } else {
-                return nil
-            }
-        } else {
-            return nil
+        let visits = points.map { point in
+            analysis.info[point]?.visits ?? 0
         }
+
+        let maxVisits = visits.reduce(0) {
+            max($0, $1)
+        }
+
+        return maxVisits
     }
 }
 
@@ -250,7 +242,11 @@ struct AnalysisView_Previews: PreviewProvider {
             .onAppear() {
                 AnalysisView_Previews.board.width = 2
                 AnalysisView_Previews.board.height = 2
-                AnalysisView_Previews.analysis.data = [["move": "A1", "winrate": "0.54321012345", "scoreLead": "0.123456789", "order": "0", "visits": "12345678"], ["move": "B1", "winrate": "0.4", "scoreLead": "-9.8", "order": "1", "visits": "2345678"], ["move": "A2", "winrate": "0.321", "scoreLead": "-12.345", "order": "2", "visits": "198"]]
+                AnalysisView_Previews.analysis.info = [
+                    BoardPoint(x: 0, y: 0): AnalysisInfo(visits: 12345678, winrate: 0.54321012345, scoreLead: 0.123456789, utilityLcb: -0.123456789),
+                    BoardPoint(x: 1, y: 0): AnalysisInfo(visits: 2345678, winrate: 0.4, scoreLead: -9.8, utilityLcb: -0.23456789),
+                    BoardPoint(x: 0, y: 1): AnalysisInfo(visits: 198, winrate: 0.321, scoreLead: -12.345, utilityLcb: -0.3456789)
+                ]
                 AnalysisView_Previews.analysis.ownership = [BoardPoint(x: 0, y: 0): Ownership(mean: 0.12, stdev: 0.5), BoardPoint(x: 1, y: 0): Ownership(mean: 0.987654321, stdev: 0.1), BoardPoint(x: 0, y: 1): Ownership(mean: -0.123456789, stdev: 0.4), BoardPoint(x: 1, y: 1): Ownership(mean: -0.98, stdev: 0.2)]
             }
         }

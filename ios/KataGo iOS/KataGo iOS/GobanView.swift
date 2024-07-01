@@ -29,8 +29,9 @@ struct BoardView: View {
                 }
 
                 MoveNumberView(geometry: geometry)
+                WinrateBarView(dimensions: dimensions)
             }
-            .onTapGesture(coordinateSpace: .local) { location in
+            .onTapGesture() { location in
                 if let move = locationToMove(location: location, dimensions: dimensions) {
                     if player.nextColorForPlayCommand == .black {
                         KataGoHelper.sendCommand("play b \(move)")
@@ -44,20 +45,20 @@ struct BoardView: View {
                 KataGoHelper.sendCommand("showboard")
                 if gobanState.showingAnalysis {
                     gobanState.paused = false
+                    KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 }
             }
         }
         .onAppear() {
             KataGoHelper.sendCommand("showboard")
-            if (!gobanState.paused) && gobanState.showingAnalysis {
+            if (!gobanState.paused && gobanState.showingAnalysis) {
+                KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
                 KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
             }
         }
-        .onChange(of: config.maxAnalysisMoves) { _, _ in
-            if (!gobanState.paused) && gobanState.showingAnalysis {
-                KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
-            }
+        .onDisappear() {
+            KataGoHelper.sendCommand("stop")
         }
     }
 
@@ -90,7 +91,6 @@ struct GobanItems: View {
     var body: some View {
         Group {
             BoardView()
-
             ToolbarView()
                 .padding()
         }
@@ -134,7 +134,9 @@ struct GobanView_Previews: PreviewProvider {
                 GobanView_Previews.board.height = 3
                 GobanView_Previews.stones.blackPoints = [BoardPoint(x: 1, y: 1), BoardPoint(x: 0, y: 1)]
                 GobanView_Previews.stones.whitePoints = [BoardPoint(x: 0, y: 0), BoardPoint(x: 1, y: 0)]
-                GobanView_Previews.analysis.data = [["move": "C1", "winrate": "0.54321012345", "visits": "1234567890", "scoreLead": "8.987654321"]]
+                GobanView_Previews.analysis.info = [
+                    BoardPoint(x: 2, y: 0): AnalysisInfo(visits: 1234567890, winrate: 0.789012345, scoreLead: 8.987654321, utilityLcb: -0.123456789)
+                ]
                 GobanView_Previews.stones.moveOrder = ["1": BoardPoint(x: 0, y: 1),
                                                        "2": BoardPoint(x: 0, y: 0),
                                                        "3": BoardPoint(x: 1, y: 1),

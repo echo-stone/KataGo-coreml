@@ -20,6 +20,7 @@ struct ToolbarItems: View {
                 KataGoHelper.sendCommand(pass)
                 KataGoHelper.sendCommand("showboard")
                 if (!gobanState.paused) && gobanState.showingAnalysis {
+                    KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 }
             }) {
@@ -33,6 +34,7 @@ struct ToolbarItems: View {
                 KataGoHelper.sendCommand("undo")
                 KataGoHelper.sendCommand("showboard")
                 if (!gobanState.paused) && gobanState.showingAnalysis {
+                    KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 } else {
                     gobanState.paused = true
@@ -49,6 +51,7 @@ struct ToolbarItems: View {
                 Button(action: {
                     gobanState.paused = false
                     gobanState.showingAnalysis = true
+                    KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 }) {
                     Image(systemName: "sparkle")
@@ -86,6 +89,7 @@ struct ToolbarItems: View {
                 KataGoHelper.sendCommand("genmove \(nextColor)")
                 KataGoHelper.sendCommand("showboard")
                 if (!gobanState.paused) && gobanState.showingAnalysis {
+                    KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 } else {
                     gobanState.paused = true
@@ -102,6 +106,7 @@ struct ToolbarItems: View {
                 KataGoHelper.sendCommand("clear_board")
                 KataGoHelper.sendCommand("showboard")
                 if (!gobanState.paused) && gobanState.showingAnalysis {
+                    KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 } else {
                     gobanState.paused = true
@@ -131,6 +136,7 @@ struct ToolbarView: View {
             VStack {
                 ToolbarItems()
             }
+            .frame(maxWidth: 80)
         }
     }
 }
