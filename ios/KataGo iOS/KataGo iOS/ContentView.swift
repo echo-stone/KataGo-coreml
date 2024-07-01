@@ -255,7 +255,7 @@ struct ContentView: View {
     }
 
     func matchWinratePattern(dataLine: String) -> Float? {
-        let pattern = /winrate ([\d.eE]+)/
+        let pattern = /winrate ([-\d.eE]+)/
         if let match = dataLine.firstMatch(of: pattern) {
             let winrate = Float(match.1)
             return winrate
