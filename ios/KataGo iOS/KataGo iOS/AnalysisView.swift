@@ -110,8 +110,7 @@ struct AnalysisView: View {
     }
 
     func winrateText(_ winrate: Float) -> some View {
-        let format = (winrate > 0.1) ? "%2.0f%%" : "%1.1f%%"
-        return Text(String(format: format, winrate * 100))
+        return Text(String(format: "%2.0f%%", (winrate * 100).rounded()))
             .font(.system(size: 500, design: .monospaced))
             .minimumScaleFactor(0.01)
             .bold()
@@ -124,7 +123,7 @@ struct AnalysisView: View {
     }
 
     func scoreText(_ scoreLead: Float) -> some View {
-        let text = String(format: "%+.1f", (Float(scoreLead)))
+        let text = String(format: "%+.0f", scoreLead.rounded())
 
         return Text(text)
             .font(.system(size: 500, design: .monospaced))
