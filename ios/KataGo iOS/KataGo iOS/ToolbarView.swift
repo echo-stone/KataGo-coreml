@@ -24,6 +24,8 @@ struct ToolbarItems: View {
                 }
             }) {
                 Image(systemName: "hand.raised")
+                    .resizable()
+                    .scaledToFit()
             }
             .padding()
 
@@ -38,6 +40,8 @@ struct ToolbarItems: View {
                 }
             }) {
                 Image(systemName: "backward.frame")
+                    .resizable()
+                    .scaledToFit()
             }
             .padding()
 
@@ -47,7 +51,9 @@ struct ToolbarItems: View {
                     gobanState.showingAnalysis = true
                     KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 }) {
-                    Image(systemName: "play")
+                    Image(systemName: "sparkle")
+                        .resizable()
+                        .scaledToFit()
                 }
                 .padding()
             } else {
@@ -56,7 +62,10 @@ struct ToolbarItems: View {
                     gobanState.showingAnalysis = true
                     KataGoHelper.sendCommand("stop")
                 }) {
-                    Image(systemName: "pause")
+                    Image(systemName: "sparkle")
+                        .resizable()
+                        .scaledToFit()
+                        .symbolEffect(.variableColor.iterative.reversing, isActive: true)
                 }
                 .padding()
             }
@@ -67,6 +76,8 @@ struct ToolbarItems: View {
                 KataGoHelper.sendCommand("stop")
             }) {
                 Image(systemName: "stop")
+                    .resizable()
+                    .scaledToFit()
             }
             .padding()
 
@@ -82,6 +93,8 @@ struct ToolbarItems: View {
                 }
             }) {
                 Image(systemName: "forward.frame")
+                    .resizable()
+                    .scaledToFit()
             }
             .padding()
 
@@ -96,6 +109,8 @@ struct ToolbarItems: View {
                 }
             }) {
                 Image(systemName: "clear")
+                    .resizable()
+                    .scaledToFit()
             }
             .padding()
         }
