@@ -13,8 +13,10 @@ struct WinrateBarView: View {
     let dimensions: Dimensions
 
     var body: some View {
-        let positionX = dimensions.marginWidth - dimensions.squareLength + dimensions.squareLength / 4 + dimensions.squareLength / 8
         let width = dimensions.squareLength / 2 - dimensions.squareLength / 8
+        let positionXBegin = dimensions.marginWidth - width - dimensions.squareLength / 2 - dimensions.squareLength / 4 + dimensions.squareLength / 8 + dimensions.squareLength / 16
+        let positionXEnd = positionXBegin + width
+        let positionX = (positionXBegin + positionXEnd) / 2
         let barHeight = (dimensions.boardHeight + dimensions.squareLength / 2)
         let whiteBarHeight = barHeight * CGFloat(getWhiteWinrate())
         let blackBarHeight = barHeight - whiteBarHeight
