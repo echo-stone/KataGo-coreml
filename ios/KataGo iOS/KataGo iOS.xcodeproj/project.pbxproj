@@ -483,6 +483,7 @@
 		E118EF0C2B081D8500637D44 /* main.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = main.h; sourceTree = "<group>"; };
 		E12A6E9E2C322E020002DED0 /* ConfigModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigModel.swift; sourceTree = "<group>"; };
 		E12A6EA02C325E010002DED0 /* WinrateBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WinrateBarView.swift; sourceTree = "<group>"; };
+		E12A6EA22C343D720002DED0 /* KataGo-iOS-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "KataGo-iOS-Info.plist"; sourceTree = SOURCE_ROOT; };
 		E149B7F22B350EA8002B7F61 /* parallel.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = parallel.cpp; sourceTree = "<group>"; };
 		E149B7F32B350EA8002B7F61 /* parallel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = parallel.h; sourceTree = "<group>"; };
 		E18446552C1DD526004F5E3B /* MoveNumberView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveNumberView.swift; sourceTree = "<group>"; };
@@ -875,6 +876,7 @@
 		E18F3E0F2A51466A00D335E1 /* KataGo iOS */ = {
 			isa = PBXGroup;
 			children = (
+				E12A6EA22C343D720002DED0 /* KataGo-iOS-Info.plist */,
 				E18F3E142A51466C00D335E1 /* Assets.xcassets */,
 				E18F3E122A51466A00D335E1 /* ContentView.swift */,
 				E1C682702AA2A4E7001B4F44 /* GobanView.swift */,
@@ -1768,7 +1770,7 @@
 					"../../cpp/external/tclap-1.2.2/include",
 					../../cpp/external,
 				);
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_FILE = "KataGo-iOS-Info.plist";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -1808,7 +1810,7 @@
 					"../../cpp/external/tclap-1.2.2/include",
 					../../cpp/external,
 				);
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_FILE = "KataGo-iOS-Info.plist";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
