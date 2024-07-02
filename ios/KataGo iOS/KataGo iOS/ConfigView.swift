@@ -38,6 +38,7 @@ struct ConfigIntItem: View {
             if editMode?.wrappedValue.isEditing == true {
                 Stepper(value: $value, in: minValue...maxValue) {
                     Text("\(value)")
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             } else {
                 Text("\(value)")
@@ -62,6 +63,7 @@ struct ConfigFloatItem: View {
             if editMode?.wrappedValue.isEditing == true {
                 Stepper(value: $value, in: minValue...maxValue, step: step) {
                     Text("\(value.formatted(.number))")
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             } else {
                 Text("\(value.formatted(.number))")
@@ -84,6 +86,7 @@ struct ConfigTextItem: View {
             if editMode?.wrappedValue.isEditing == true {
                 Stepper {
                     Text(texts[value])
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 } onIncrement: {
                     value = ((value + 1) < texts.count) ? (value + 1) : 0
                 } onDecrement: {
@@ -107,75 +110,64 @@ struct ConfigItems: View {
     @State var analysisWideRootNoise: Float = Config.defaultAnalysisWideRootNoise
     @State var maxAnalysisMoves: Int = Config.defaultMaxAnalysisMoves
     @State var analysisInformation: Int = Config.defaultAnalysisInformation
-    @State var analysisInterval: Int = Config.defaultAnalysisInterval
     @State var hiddenAnalysisVisitRatio: Float = Config.defaultHiddenAnalysisVisitRatio
 
     var body: some View {
-        VStack {
-            ConfigIntItem(title: "Board width:", value: $boardWidth, minValue: 2, maxValue: 29)
-                .onChange(of: boardWidth) { _, newValue in
-                    config.boardWidth = newValue
-                    config.isBoardSizeChanged = true
-                }
-                .padding(.bottom)
+        Form {
+            Section("Rule") {
+                ConfigIntItem(title: "Board width:", value: $boardWidth, minValue: 2, maxValue: 29)
+                    .onChange(of: boardWidth) { _, newValue in
+                        config.boardWidth = newValue
+                        config.isBoardSizeChanged = true
+                    }
 
-            ConfigIntItem(title: "Board height:", value: $boardHeight, minValue: 2, maxValue: 29)
-                .onChange(of: boardHeight) { _, newValue in
-                    config.boardHeight = newValue
-                    config.isBoardSizeChanged = true
-                }
-                .padding(.bottom)
+                ConfigIntItem(title: "Board height:", value: $boardHeight, minValue: 2, maxValue: 29)
+                    .onChange(of: boardHeight) { _, newValue in
+                        config.boardHeight = newValue
+                        config.isBoardSizeChanged = true
+                    }
 
-            ConfigTextItem(title: "Rule:", texts: Config.rules, value: $rule)
-                .onChange(of: rule) { _, newValue in
-                    config.rule = newValue
-                    KataGoHelper.sendCommand(config.getKataRuleCommand())
+                ConfigTextItem(title: "Rule:", texts: Config.rules, value: $rule)
+                    .onChange(of: rule) { _, newValue in
+                        config.rule = newValue
+                        KataGoHelper.sendCommand(config.getKataRuleCommand())
+                    }
+
+                ConfigFloatItem(title: "Komi:", value: $komi, step: 0.5, minValue: -1_000, maxValue: 1_000)
+                    .onChange(of: komi) { _, newValue in
+                        config.komi = newValue
+                        KataGoHelper.sendCommand(config.getKataKomiCommand())
+                    }
             }
-            .padding(.bottom)
 
-            ConfigFloatItem(title: "Komi:", value: $komi, step: 0.5, minValue: -1_000, maxValue: 1_000)
-                .onChange(of: komi) { _, newValue in
-                    config.komi = newValue
-                    KataGoHelper.sendCommand(config.getKataKomiCommand())
+            Section("Analysis") {
+                ConfigFloatItem(title: "Playout doubling advantage:", value: $playoutDoublingAdvantage, step: 0.125, minValue: -3.0, maxValue: 3.0)
+                    .onChange(of: playoutDoublingAdvantage) { _, newValue in
+                        config.playoutDoublingAdvantage = newValue
+                        KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
+                    }
+
+                ConfigFloatItem(title: "Analysis wide root noise:", value: $analysisWideRootNoise, step: 0.0078125, minValue: 0.0, maxValue: 1.0)
+                    .onChange(of: analysisWideRootNoise) { _, newValue in
+                        config.analysisWideRootNoise = newValue
+                        KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
+                    }
+
+                ConfigIntItem(title: "Max analysis moves:", value: $maxAnalysisMoves, minValue: 1, maxValue: 1_000)
+                    .onChange(of: maxAnalysisMoves) { _, newValue in
+                        config.maxAnalysisMoves = newValue
+                    }
+
+                ConfigFloatItem(title: "Hidden analysis visit ratio:", value: $hiddenAnalysisVisitRatio, step: 0.0078125, minValue: 0.0, maxValue: 1.0)
+                    .onChange(of: hiddenAnalysisVisitRatio) { _, newValue in
+                        config.hiddenAnalysisVisitRatio = newValue
+                    }
+
+                ConfigTextItem(title: "Analysis information:", texts: Config.analysisInformations, value: $analysisInformation)
+                    .onChange(of: analysisInformation) { _, newValue in
+                        config.analysisInformation = newValue
+                    }
             }
-            .padding(.bottom)
-
-            ConfigFloatItem(title: "Playout doubling advantage:", value: $playoutDoublingAdvantage, step: 0.125, minValue: -3.0, maxValue: 3.0)
-                .onChange(of: playoutDoublingAdvantage) { _, newValue in
-                    config.playoutDoublingAdvantage = newValue
-                    KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
-            }
-            .padding(.bottom)
-
-            ConfigFloatItem(title: "Analysis wide root noise:", value: $analysisWideRootNoise, step: 0.0078125, minValue: 0.0, maxValue: 1.0)
-                .onChange(of: analysisWideRootNoise) { _, newValue in
-                    config.analysisWideRootNoise = newValue
-                    KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
-            }
-            .padding(.bottom)
-
-            ConfigIntItem(title: "Max analysis moves:", value: $maxAnalysisMoves, minValue: 1, maxValue: 1_000)
-                .onChange(of: maxAnalysisMoves) { _, newValue in
-                    config.maxAnalysisMoves = newValue
-                }
-                .padding(.bottom)
-
-            ConfigFloatItem(title: "Hidden analysis visit ratio:", value: $hiddenAnalysisVisitRatio, step: 0.0078125, minValue: 0.0, maxValue: 1.0)
-                .onChange(of: hiddenAnalysisVisitRatio) { _, newValue in
-                    config.hiddenAnalysisVisitRatio = newValue
-            }
-            .padding(.bottom)
-
-            ConfigTextItem(title: "Analysis information:", texts: Config.analysisInformations, value: $analysisInformation)
-                .onChange(of: analysisInformation) { _, newValue in
-                    config.analysisInformation = newValue
-            }
-            .padding(.bottom)
-
-            ConfigIntItem(title: "Analysis interval (centiseconds):", value: $analysisInterval, minValue: 5, maxValue: 1_000)
-                .onChange(of: analysisInterval) { _, newValue in
-                    config.analysisInterval = newValue
-                }
         }
         .onAppear {
             boardWidth = config.boardWidth
@@ -186,7 +178,6 @@ struct ConfigItems: View {
             analysisWideRootNoise = config.analysisWideRootNoise
             maxAnalysisMoves = config.maxAnalysisMoves
             analysisInformation = config.analysisInformation
-            analysisInterval = config.analysisInterval
             hiddenAnalysisVisitRatio = config.hiddenAnalysisVisitRatio
         }
     }
