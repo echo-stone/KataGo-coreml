@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import KataGoHelper
 
 enum SidebarItem: Hashable {
     case goban, command, config

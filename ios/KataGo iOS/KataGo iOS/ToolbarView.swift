@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import KataGoHelper
 
 struct ToolbarItems: View {
     @EnvironmentObject var player: PlayerObject

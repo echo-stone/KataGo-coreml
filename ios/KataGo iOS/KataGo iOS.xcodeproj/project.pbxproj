@@ -207,6 +207,11 @@
 		E118EE972B081C3300637D44 /* katago.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		E12A6E9F2C322E020002DED0 /* ConfigModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E12A6E9E2C322E020002DED0 /* ConfigModel.swift */; };
 		E12A6EA12C325E010002DED0 /* WinrateBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E12A6EA02C325E010002DED0 /* WinrateBarView.swift */; };
+		E12A6F192C37FE710002DED0 /* KataGoHelper.h in Headers */ = {isa = PBXBuildFile; fileRef = E12A6F182C37FE710002DED0 /* KataGoHelper.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		E12A6F1C2C37FE710002DED0 /* KataGoHelper.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E12A6F162C37FE710002DED0 /* KataGoHelper.framework */; };
+		E12A6F1D2C37FE710002DED0 /* KataGoHelper.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E12A6F162C37FE710002DED0 /* KataGoHelper.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		E12A6F222C37FF040002DED0 /* KataGoHelper.mm in Sources */ = {isa = PBXBuildFile; fileRef = E12A6F212C37FF040002DED0 /* KataGoHelper.mm */; };
+		E12A6F292C38018D0002DED0 /* katago.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E118EE902B081C3200637D44 /* katago.framework */; platformFilter = ios; };
 		E149B7F42B350EA8002B7F61 /* parallel.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E149B7F22B350EA8002B7F61 /* parallel.cpp */; };
 		E149B7F52B350EA8002B7F61 /* parallel.h in Headers */ = {isa = PBXBuildFile; fileRef = E149B7F32B350EA8002B7F61 /* parallel.h */; };
 		E18446562C1DD526004F5E3B /* MoveNumberView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18446552C1DD526004F5E3B /* MoveNumberView.swift */; };
@@ -224,7 +229,6 @@
 		E19D2E382AC97FA300C2A807 /* ToolbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E19D2E372AC97FA300C2A807 /* ToolbarView.swift */; };
 		E1A26B4B2B47693300BA922B /* KataGoModel29x29fp16.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = E1A26B492B47684400BA922B /* KataGoModel29x29fp16.mlpackage */; };
 		E1B63BE42AABDF3500094965 /* BoardLineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B63BE32AABDF3500094965 /* BoardLineView.swift */; };
-		E1B922752A5179A7006D3137 /* KataGoHelper.mm in Sources */ = {isa = PBXBuildFile; fileRef = E1B922742A5179A7006D3137 /* KataGoHelper.mm */; };
 		E1C682712AA2A4E7001B4F44 /* GobanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C682702AA2A4E7001B4F44 /* GobanView.swift */; };
 		E1C682732AA2B122001B4F44 /* WoodView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C682722AA2B122001B4F44 /* WoodView.swift */; };
 		E1C682752AA2CC31001B4F44 /* CommandView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C682742AA2CC31001B4F44 /* CommandView.swift */; };
@@ -249,6 +253,20 @@
 			remoteInfo = KataGoSwift;
 		};
 		E118EE942B081C3300637D44 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E18F3E052A51466A00D335E1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E118EE8F2B081C3200637D44;
+			remoteInfo = katago;
+		};
+		E12A6F1A2C37FE710002DED0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E18F3E052A51466A00D335E1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E12A6F152C37FE710002DED0;
+			remoteInfo = KataGoHelper;
+		};
+		E12A6F272C3801840002DED0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = E18F3E052A51466A00D335E1 /* Project object */;
 			proxyType = 1;
@@ -280,6 +298,7 @@
 			files = (
 				E118EE972B081C3300637D44 /* katago.framework in Embed Frameworks */,
 				E11887E82B0830C900637D44 /* KataGoSwift.framework in Embed Frameworks */,
+				E12A6F1D2C37FE710002DED0 /* KataGoHelper.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -484,6 +503,9 @@
 		E12A6E9E2C322E020002DED0 /* ConfigModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigModel.swift; sourceTree = "<group>"; };
 		E12A6EA02C325E010002DED0 /* WinrateBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WinrateBarView.swift; sourceTree = "<group>"; };
 		E12A6EA22C343D720002DED0 /* KataGo-iOS-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "KataGo-iOS-Info.plist"; sourceTree = SOURCE_ROOT; };
+		E12A6F162C37FE710002DED0 /* KataGoHelper.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = KataGoHelper.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		E12A6F182C37FE710002DED0 /* KataGoHelper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = KataGoHelper.h; sourceTree = "<group>"; };
+		E12A6F212C37FF040002DED0 /* KataGoHelper.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = KataGoHelper.mm; sourceTree = "<group>"; };
 		E149B7F22B350EA8002B7F61 /* parallel.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = parallel.cpp; sourceTree = "<group>"; };
 		E149B7F32B350EA8002B7F61 /* parallel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = parallel.h; sourceTree = "<group>"; };
 		E18446552C1DD526004F5E3B /* MoveNumberView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveNumberView.swift; sourceTree = "<group>"; };
@@ -504,8 +526,6 @@
 		E19D2E372AC97FA300C2A807 /* ToolbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarView.swift; sourceTree = "<group>"; };
 		E1A26B492B47684400BA922B /* KataGoModel29x29fp16.mlpackage */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = KataGoModel29x29fp16.mlpackage; sourceTree = "<group>"; };
 		E1B63BE32AABDF3500094965 /* BoardLineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardLineView.swift; sourceTree = "<group>"; };
-		E1B922742A5179A7006D3137 /* KataGoHelper.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = KataGoHelper.mm; sourceTree = "<group>"; };
-		E1B922762A5179C6006D3137 /* KataGoHelper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = KataGoHelper.h; sourceTree = "<group>"; };
 		E1C682702AA2A4E7001B4F44 /* GobanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GobanView.swift; sourceTree = "<group>"; };
 		E1C682722AA2B122001B4F44 /* WoodView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WoodView.swift; sourceTree = "<group>"; };
 		E1C682742AA2CC31001B4F44 /* CommandView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandView.swift; sourceTree = "<group>"; };
@@ -531,11 +551,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E12A6F132C37FE710002DED0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E12A6F292C38018D0002DED0 /* katago.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E18F3E0A2A51466A00D335E1 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				E18F3F722A5149B300D335E1 /* libz.tbd in Frameworks */,
+				E12A6F1C2C37FE710002DED0 /* KataGoHelper.framework in Frameworks */,
 				E11887E72B0830C900637D44 /* KataGoSwift.framework in Frameworks */,
 				E118EE962B081C3300637D44 /* katago.framework in Frameworks */,
 			);
@@ -847,6 +876,15 @@
 			path = cpp;
 			sourceTree = "<group>";
 		};
+		E12A6F172C37FE710002DED0 /* KataGoHelper */ = {
+			isa = PBXGroup;
+			children = (
+				E12A6F182C37FE710002DED0 /* KataGoHelper.h */,
+				E12A6F212C37FF040002DED0 /* KataGoHelper.mm */,
+			);
+			path = KataGoHelper;
+			sourceTree = "<group>";
+		};
 		E18F3E042A51466A00D335E1 = {
 			isa = PBXGroup;
 			children = (
@@ -856,6 +894,7 @@
 				E18F3E2A2A51466C00D335E1 /* KataGo iOSUITests */,
 				E118EE912B081C3300637D44 /* katago */,
 				E11887E22B0830C900637D44 /* KataGoSwift */,
+				E12A6F172C37FE710002DED0 /* KataGoHelper */,
 				E18F3E0E2A51466A00D335E1 /* Products */,
 				E18F3F702A5149AB00D335E1 /* Frameworks */,
 			);
@@ -869,6 +908,7 @@
 				E18F3E272A51466C00D335E1 /* KataGo iOSUITests.xctest */,
 				E118EE902B081C3200637D44 /* katago.framework */,
 				E11887E12B0830C900637D44 /* KataGoSwift.framework */,
+				E12A6F162C37FE710002DED0 /* KataGoHelper.framework */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -881,8 +921,6 @@
 				E18F3E122A51466A00D335E1 /* ContentView.swift */,
 				E1C682702AA2A4E7001B4F44 /* GobanView.swift */,
 				E18F3E102A51466A00D335E1 /* KataGo_iOSApp.swift */,
-				E1B922762A5179C6006D3137 /* KataGoHelper.h */,
-				E1B922742A5179A7006D3137 /* KataGoHelper.mm */,
 				E18F3E162A51466C00D335E1 /* Preview Content */,
 				E1C682722AA2B122001B4F44 /* WoodView.swift */,
 				E1C682742AA2CC31001B4F44 /* CommandView.swift */,
@@ -1036,6 +1074,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E12A6F112C37FE710002DED0 /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E12A6F192C37FE710002DED0 /* KataGoHelper.h in Headers */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
@@ -1076,6 +1122,25 @@
 			productReference = E118EE902B081C3200637D44 /* katago.framework */;
 			productType = "com.apple.product-type.framework";
 		};
+		E12A6F152C37FE710002DED0 /* KataGoHelper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E12A6F202C37FE710002DED0 /* Build configuration list for PBXNativeTarget "KataGoHelper" */;
+			buildPhases = (
+				E12A6F112C37FE710002DED0 /* Headers */,
+				E12A6F122C37FE710002DED0 /* Sources */,
+				E12A6F132C37FE710002DED0 /* Frameworks */,
+				E12A6F142C37FE710002DED0 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E12A6F282C3801840002DED0 /* PBXTargetDependency */,
+			);
+			name = KataGoHelper;
+			productName = KataGoHelper;
+			productReference = E12A6F162C37FE710002DED0 /* KataGoHelper.framework */;
+			productType = "com.apple.product-type.framework";
+		};
 		E18F3E0C2A51466A00D335E1 /* KataGo iOS */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = E18F3E312A51466C00D335E1 /* Build configuration list for PBXNativeTarget "KataGo iOS" */;
@@ -1090,6 +1155,7 @@
 			dependencies = (
 				E118EE952B081C3300637D44 /* PBXTargetDependency */,
 				E11887E62B0830C900637D44 /* PBXTargetDependency */,
+				E12A6F1B2C37FE710002DED0 /* PBXTargetDependency */,
 			);
 			name = "KataGo iOS";
 			productName = "KataGo iOS";
@@ -1149,6 +1215,10 @@
 					E118EE8F2B081C3200637D44 = {
 						CreatedOnToolsVersion = 15.0.1;
 					};
+					E12A6F152C37FE710002DED0 = {
+						CreatedOnToolsVersion = 15.4;
+						LastSwiftMigration = 1540;
+					};
 					E18F3E0C2A51466A00D335E1 = {
 						CreatedOnToolsVersion = 14.3.1;
 						LastSwiftMigration = 1430;
@@ -1181,6 +1251,7 @@
 				E18F3E262A51466C00D335E1 /* KataGo iOSUITests */,
 				E118EE8F2B081C3200637D44 /* katago */,
 				E11887E02B0830C900637D44 /* KataGoSwift */,
+				E12A6F152C37FE710002DED0 /* KataGoHelper */,
 			);
 		};
 /* End PBXProject section */
@@ -1194,6 +1265,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E118EE8E2B081C3200637D44 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E12A6F142C37FE710002DED0 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -1360,6 +1438,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E12A6F122C37FE710002DED0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E12A6F222C37FF040002DED0 /* KataGoHelper.mm in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E18F3E092A51466A00D335E1 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -1377,7 +1463,6 @@
 				E1C682752AA2CC31001B4F44 /* CommandView.swift in Sources */,
 				E1B63BE42AABDF3500094965 /* BoardLineView.swift in Sources */,
 				E1C682732AA2B122001B4F44 /* WoodView.swift in Sources */,
-				E1B922752A5179A7006D3137 /* KataGoHelper.mm in Sources */,
 				E1E1717E2AB9DAED004DCC3C /* ConfigView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1416,6 +1501,16 @@
 			isa = PBXTargetDependency;
 			target = E118EE8F2B081C3200637D44 /* katago */;
 			targetProxy = E118EE942B081C3300637D44 /* PBXContainerItemProxy */;
+		};
+		E12A6F1B2C37FE710002DED0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E12A6F152C37FE710002DED0 /* KataGoHelper */;
+			targetProxy = E12A6F1A2C37FE710002DED0 /* PBXContainerItemProxy */;
+		};
+		E12A6F282C3801840002DED0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E118EE8F2B081C3200637D44 /* katago */;
+			targetProxy = E12A6F272C3801840002DED0 /* PBXContainerItemProxy */;
 		};
 		E18F3E1F2A51466C00D335E1 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -1621,6 +1716,93 @@
 			};
 			name = Release;
 		};
+		E12A6F1E2C37FE710002DED0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = 4L5BJK5M8K;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+				PRODUCT_BUNDLE_IDENTIFIER = ccy.KataGoHelper;
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_INSTALL_OBJC_HEADER = NO;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
+			};
+			name = Debug;
+		};
+		E12A6F1F2C37FE710002DED0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = 4L5BJK5M8K;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+				PRODUCT_BUNDLE_IDENTIFIER = ccy.KataGoHelper;
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_INSTALL_OBJC_HEADER = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
+			};
+			name = Release;
+		};
 		E18F3E2F2A51466C00D335E1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1784,8 +1966,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "tw.ccy.KataGo-iOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = ../../cpp/neuralnet/metalbridge.h;
-				SWIFT_OBJC_INTERFACE_HEADER_NAME = metalswift.h;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				SYSTEM_HEADER_SEARCH_PATHS = "../../cpp/external/filesystem-1.5.8/include";
@@ -1824,8 +2004,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "tw.ccy.KataGo-iOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = ../../cpp/neuralnet/metalbridge.h;
-				SWIFT_OBJC_INTERFACE_HEADER_NAME = metalswift.h;
 				SWIFT_VERSION = 5.0;
 				SYSTEM_HEADER_SEARCH_PATHS = "../../cpp/external/filesystem-1.5.8/include";
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -1927,6 +2105,15 @@
 			buildConfigurations = (
 				E118EE992B081C3300637D44 /* Debug */,
 				E118EE9A2B081C3300637D44 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E12A6F202C37FE710002DED0 /* Build configuration list for PBXNativeTarget "KataGoHelper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E12A6F1E2C37FE710002DED0 /* Debug */,
+				E12A6F1F2C37FE710002DED0 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

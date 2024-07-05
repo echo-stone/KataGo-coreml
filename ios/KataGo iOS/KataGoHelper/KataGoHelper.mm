@@ -1,14 +1,14 @@
 //
 //  KataGoHelper.m
-//  KataGo iOS
+//  KataGoHelper
 //
-//  Created by Chin-Chang Yang on 2023/7/2.
+//  Created by Chin-Chang Yang on 2024/7/5.
 //
 
 #import "KataGoHelper.h"
-#import "../../cpp/main.h"
+#import "../../../cpp/main.h"
 #import <sstream>
-#import "../../cpp/neuralnet/coremlbackend.h"
+#import "../../../cpp/neuralnet/coremlbackend.h"
 
 using namespace std;
 

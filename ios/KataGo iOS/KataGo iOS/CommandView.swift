@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import KataGoHelper
 
 struct CommandView: View {
     @EnvironmentObject var messagesObject: MessagesObject

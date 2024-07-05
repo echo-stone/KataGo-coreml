@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import KataGoHelper
 
 struct EditButtonBar: View {
     @Environment(\.editMode) private var editMode

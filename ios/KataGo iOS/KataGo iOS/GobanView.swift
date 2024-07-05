@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import KataGoHelper
 
 class GobanState: ObservableObject {
     @Published var paused = false
