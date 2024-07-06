@@ -1,14 +1,14 @@
 //
-//  KataGoHelper.m
+//  KataGoCpp.cpp
 //  KataGoHelper
 //
-//  Created by Chin-Chang Yang on 2024/7/5.
+//  Created by Chin-Chang Yang on 2024/7/6.
 //
 
-#import "KataGoHelper.h"
-#import "../../../cpp/main.h"
-#import <sstream>
-#import "../../../cpp/neuralnet/coremlbackend.h"
+#include "KataGoCpp.hpp"
+
+#include "../../../cpp/main.h"
+#include "../../../cpp/neuralnet/coremlbackend.h"
 
 using namespace std;
 
@@ -67,20 +67,7 @@ ThreadSafeStreamBuf tsbToKataGo;
 // Output stream to KataGo
 ostream outToKataGo(&tsbToKataGo);
 
-@implementation KataGoHelper
-
-/// Run KataGo main command GTP with default model and config
-+ (void)runGtp {
-    NSBundle* mainBundle = [NSBundle mainBundle];
-
-    // Get the default model path
-    NSString* modelPath = [mainBundle pathForResource:@"default_model"
-                                               ofType:@"bin.gz"];
-
-    // Get the default config path
-    NSString* configPath = [mainBundle pathForResource:@"default_gtp"
-                                                ofType:@"cfg"];
-
+void KataGoRunGtp(string modelPath, string configPath) {
     // Replace the global cout object with the custom one
     cout.rdbuf(&tsbFromKataGo);
 
@@ -92,9 +79,9 @@ ostream outToKataGo(&tsbToKataGo);
     // Call the main command gtp
     subArgs.push_back(string("gtp"));
     subArgs.push_back(string("-model"));
-    subArgs.push_back(string([modelPath UTF8String]));
+    subArgs.push_back(modelPath);
     subArgs.push_back(string("-config"));
-    subArgs.push_back(string([configPath UTF8String]));
+    subArgs.push_back(configPath);
     MainCmds::gtp(subArgs);
 #else
     // Call the main command benchmark
@@ -109,20 +96,15 @@ ostream outToKataGo(&tsbToKataGo);
 #endif
 }
 
-+ (NSString * _Nonnull)getMessageLine {
+string KataGoGetMessageLine() {
     // Get a line from the input stream from KataGo
     string cppLine;
     getline(inFromKataGo, cppLine);
 
-    // Convert the C++ std:string into an NSString
-    NSString* messageLine = [NSString stringWithUTF8String:cppLine.c_str()];
-
-    return messageLine;
+    return cppLine;
 }
 
-+ (void)sendCommand:(NSString * _Nonnull)command {
+void KataGoSendCommand(string command) {
     // Write GTP commands to the outToKataGo
-    outToKataGo << string([command UTF8String]) << endl;
+    outToKataGo << command << endl;
 }
-
-@end
