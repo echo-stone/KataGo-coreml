@@ -13,5 +13,6 @@ struct KataGo_iOSApp: App {
         WindowGroup {
             ContentView()
         }
+        .modelContainer(for: GameRecord.self)
     }
 }

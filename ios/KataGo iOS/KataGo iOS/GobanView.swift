@@ -44,6 +44,8 @@ struct BoardView: View {
                 }
 
                 KataGoHelper.sendCommand("showboard")
+                KataGoHelper.sendCommand("printsgf")
+
                 if gobanState.showingAnalysis {
                     gobanState.paused = false
                     KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())

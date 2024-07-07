@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 import KataGoHelper
 
 enum SidebarItem: Hashable {
@@ -42,6 +43,8 @@ struct ContentView: View {
     @State private var boardText: [String] = []
     @State var isEditing = EditMode.inactive
     @State private var selectedItem: SidebarItem? = .goban
+    @Query var gameRecords: [GameRecord]
+    @Environment(\.modelContext) private var modelContext
 
     init() {
         // Start a thread to run KataGo GTP
@@ -93,6 +96,7 @@ struct ContentView: View {
             KataGoHelper.sendCommand("kata-set-rule friendlyPassOk false")
             KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
             KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
+            maybeLoadSgf()
             KataGoHelper.sendCommand("showboard")
             KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
             KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
@@ -115,9 +119,33 @@ struct ContentView: View {
                 // Collect analysis information
                 maybeCollectAnalysis(message: line)
 
+                // Collect SGF information
+                maybeCollectSgf(message: line)
+
                 // Remove when there are too many messages
                 while messagesObject.messages.count > config.maxMessageLines {
                     messagesObject.messages.removeFirst()
+                }
+            }
+        }
+    }
+
+    func maybeLoadSgf() {
+        if !gameRecords.isEmpty {
+            let sgf = gameRecords[0].sgf
+            let supportDirectory = try? FileManager.default.url(for: .documentDirectory,
+                                                                in: .userDomainMask,
+                                                                appropriateFor: nil,
+                                                                create: true)
+
+            if let supportDirectory {
+                let file = supportDirectory.appendingPathComponent("temp.sgf")
+                do {
+                    try sgf.write(to: file, atomically: false, encoding: .utf8)
+                    let path = file.path()
+                    KataGoHelper.sendCommand("loadsgf \(path)")
+                } catch {
+                    // Do nothing
                 }
             }
         }
@@ -346,6 +374,20 @@ struct ContentView: View {
         }
 
         return [:]
+    }
+
+    func maybeCollectSgf(message: String) {
+        let sgfPrefix = "= (;FF[4]GM[1]"
+        if message.hasPrefix(sgfPrefix) {
+            if let startOfSgf = message.firstIndex(of: "(") {
+                let sgfString = String(message[startOfSgf...])
+                if gameRecords.isEmpty {
+                    modelContext.insert(GameRecord(sgf: sgfString))
+                } else {
+                    gameRecords[0].sgf = sgfString
+                }
+            }
+        }
     }
 }
 
