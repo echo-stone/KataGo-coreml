@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-import KataGoHelper
+import KataGoInterface
 
 struct EditButtonBar: View {
     @Environment(\.editMode) private var editMode
@@ -18,6 +18,7 @@ struct EditButtonBar: View {
             EditButton().onChange(of: editMode?.wrappedValue) {
                 if (editMode?.wrappedValue == .inactive) && (config.isBoardSizeChanged) {
                     KataGoHelper.sendCommand(config.getKataBoardSizeCommand())
+                    KataGoHelper.sendCommand("printsgf")
                     config.isBoardSizeChanged = false
                 }
             }

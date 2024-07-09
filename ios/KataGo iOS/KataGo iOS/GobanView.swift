@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-import KataGoHelper
+import KataGoInterface
 
 class GobanState: ObservableObject {
     @Published var paused = false
@@ -90,11 +90,12 @@ struct BoardView: View {
 
 struct GobanItems: View {
     @StateObject var gobanState = GobanState()
+    var gameRecord: GameRecord?
 
     var body: some View {
         Group {
             BoardView()
-            ToolbarView()
+            ToolbarView(gameRecord: gameRecord)
                 .padding()
         }
         .environmentObject(gobanState)
@@ -104,15 +105,16 @@ struct GobanItems: View {
 struct GobanView: View {
     @Environment(\.horizontalSizeClass) var hSizeClass
     @Environment(\.verticalSizeClass) var vSizeClass
+    var gameRecord: GameRecord?
 
     var body: some View {
         if hSizeClass == .compact && vSizeClass == .regular {
             VStack {
-                GobanItems()
+                GobanItems(gameRecord: gameRecord)
             }
         } else {
             HStack {
-                GobanItems()
+                GobanItems(gameRecord: gameRecord)
             }
         }
     }

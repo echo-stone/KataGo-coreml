@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-import KataGoHelper
+import KataGoInterface
 
 struct AnalysisView: View {
     @EnvironmentObject var analysis: Analysis

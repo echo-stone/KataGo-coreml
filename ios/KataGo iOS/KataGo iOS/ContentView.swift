@@ -7,7 +7,7 @@
 
 import SwiftUI
 import SwiftData
-import KataGoHelper
+import KataGoInterface
 
 enum SidebarItem: Hashable {
     case goban, command, config
@@ -15,6 +15,7 @@ enum SidebarItem: Hashable {
 
 struct DetailView: View {
     var selectedItem: SidebarItem?
+    var gameRecords: [GameRecord]
 
     var body: some View {
         Group {
@@ -26,7 +27,8 @@ struct DetailView: View {
                 ConfigView()
                     .navigationTitle("Config")
             default:
-                GobanView()
+                let gameRecord = (gameRecords.isEmpty) ? nil : gameRecords[0]
+                GobanView(gameRecord: gameRecord)
             }
         }
     }
@@ -70,7 +72,7 @@ struct ContentView: View {
             }
             .navigationTitle("Menu")
         } detail: {
-            DetailView(selectedItem: selectedItem)
+            DetailView(selectedItem: selectedItem, gameRecords: gameRecords)
         }
         .environmentObject(stones)
         .environmentObject(messagesObject)
@@ -98,6 +100,7 @@ struct ContentView: View {
             KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
             maybeLoadSgf()
             KataGoHelper.sendCommand("showboard")
+            KataGoHelper.sendCommand("printsgf")
             KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
             KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
 
@@ -133,7 +136,9 @@ struct ContentView: View {
     func maybeLoadSgf() {
         if !gameRecords.isEmpty {
             let sgf = gameRecords[0].sgf
-            let supportDirectory = try? FileManager.default.url(for: .documentDirectory,
+
+            let supportDirectory =
+            try? FileManager.default.url(for: .documentDirectory,
                                                                 in: .userDomainMask,
                                                                 appropriateFor: nil,
                                                                 create: true)
@@ -381,10 +386,13 @@ struct ContentView: View {
         if message.hasPrefix(sgfPrefix) {
             if let startOfSgf = message.firstIndex(of: "(") {
                 let sgfString = String(message[startOfSgf...])
+                let lastMoveIndex = SgfHelper(sgf: sgfString).getLastMoveIndex() ?? -1
+                let currentIndex = lastMoveIndex + 1
                 if gameRecords.isEmpty {
-                    modelContext.insert(GameRecord(sgf: sgfString))
+                    modelContext.insert(GameRecord(sgf: sgfString, currentIndex: currentIndex))
                 } else {
                     gameRecords[0].sgf = sgfString
+                    gameRecords[0].currentIndex = currentIndex
                 }
             }
         }
