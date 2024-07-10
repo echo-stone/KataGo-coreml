@@ -57,7 +57,7 @@ extension Config {
     static let defaultKomi: Float = 7.0
     static let defaultPlayoutDoublingAdvantage: Float = 0.0
     static let defaultAnalysisWideRootNoise: Float = 0.03125
-    static let defaultMaxMessageCharacters = 1000
+    static let defaultMaxMessageCharacters = 5000
     static let defaultMaxAnalysisMoves = 50
     static let defaultAnalysisInterval = 50
     static let defaultMaxMessageLines = 1000
