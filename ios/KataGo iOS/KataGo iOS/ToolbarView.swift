@@ -17,35 +17,14 @@ struct ToolbarItems: View {
 
     var body: some View {
         Group {
-            Button(action: {
-                let nextColor = (player.nextColorForPlayCommand == .black) ? "b" : "w"
-                let pass = "play \(nextColor) pass"
-                KataGoHelper.sendCommand(pass)
-                KataGoHelper.sendCommand("showboard")
-                KataGoHelper.sendCommand("printsgf")
-                if (!gobanState.paused) && gobanState.showingAnalysis {
-                    KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
-                    KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
-                }
-            }) {
+            Button(action: passAction) {
                 Image(systemName: "hand.raised")
                     .resizable()
                     .scaledToFit()
             }
             .padding()
 
-            Button(action: {
-                gameRecord?.undo()
-                KataGoHelper.sendCommand("undo")
-                KataGoHelper.sendCommand("showboard")
-                if (!gobanState.paused) && gobanState.showingAnalysis {
-                    KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
-                    KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
-                } else {
-                    gobanState.paused = true
-                    gobanState.showingAnalysis = false
-                }
-            }) {
+            Button(action: backwardAction) {
                 Image(systemName: "backward.frame")
                     .resizable()
                     .scaledToFit()
@@ -53,23 +32,14 @@ struct ToolbarItems: View {
             .padding()
 
             if gobanState.paused {
-                Button(action: {
-                    gobanState.paused = false
-                    gobanState.showingAnalysis = true
-                    KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
-                    KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
-                }) {
+                Button(action: startAnalysisAction) {
                     Image(systemName: "sparkle")
                         .resizable()
                         .scaledToFit()
                 }
                 .padding()
             } else {
-                Button(action: {
-                    gobanState.paused = true
-                    gobanState.showingAnalysis = true
-                    KataGoHelper.sendCommand("stop")
-                }) {
+                Button(action: pauseAnalysisAction) {
                     Image(systemName: "sparkle")
                         .resizable()
                         .scaledToFit()
@@ -78,63 +48,107 @@ struct ToolbarItems: View {
                 .padding()
             }
 
-            Button(action: {
-                gobanState.paused = true
-                gobanState.showingAnalysis = false
-                KataGoHelper.sendCommand("stop")
-            }) {
+            Button(action: stopAction) {
                 Image(systemName: "stop")
                     .resizable()
                     .scaledToFit()
             }
             .padding()
 
-            Button(action: {
-                if let gameRecord {
-                    let currentIndex = gameRecord.currentIndex
-                    let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
-                    if let nextMove = sgfHelper.getMove(at: currentIndex) {
-                        if let move = locationToMove(location: nextMove.location) {
-                            gameRecord.currentIndex = currentIndex + 1
-                            let nextPlayer = nextMove.player == Player.black ? "b" : "w"
-                            KataGoHelper.sendCommand("play \(nextPlayer) \(move)")
-                            player.nextColorForPlayCommand = (nextPlayer == "b") ? .white : .black
-                        }
-                    }
-                }
-
-                KataGoHelper.sendCommand("showboard")
-                if (!gobanState.paused) && gobanState.showingAnalysis {
-                    KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
-                    KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
-                } else {
-                    gobanState.paused = true
-                    gobanState.showingAnalysis = false
-                }
-            }) {
+            Button(action: forwardAction) {
                 Image(systemName: "forward.frame")
                     .resizable()
                     .scaledToFit()
             }
             .padding()
 
-            Button(action: {
-                gameRecord?.currentIndex = 0
-                KataGoHelper.sendCommand("clear_board")
-                KataGoHelper.sendCommand("showboard")
-                if (!gobanState.paused) && gobanState.showingAnalysis {
-                    KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
-                    KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
-                } else {
-                    gobanState.paused = true
-                    gobanState.showingAnalysis = false
-                }
-            }) {
+            Button(action: clearBoardAction) {
                 Image(systemName: "clear")
                     .resizable()
                     .scaledToFit()
             }
             .padding()
+        }
+    }
+
+    func passAction() {
+        let nextColor = (player.nextColorForPlayCommand == .black) ? "b" : "w"
+        let pass = "play \(nextColor) pass"
+        KataGoHelper.sendCommand(pass)
+        KataGoHelper.sendCommand("showboard")
+        KataGoHelper.sendCommand("printsgf")
+        if (!gobanState.paused) && gobanState.showingAnalysis {
+            KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
+            KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+        }
+    }
+
+    func backwardAction() {
+        gameRecord?.undo()
+        KataGoHelper.sendCommand("undo")
+        KataGoHelper.sendCommand("showboard")
+        if (!gobanState.paused) && gobanState.showingAnalysis {
+            KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
+            KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+        } else {
+            gobanState.paused = true
+            gobanState.showingAnalysis = false
+        }
+    }
+
+    func startAnalysisAction() {
+        gobanState.paused = false
+        gobanState.showingAnalysis = true
+        KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
+        KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+    }
+
+    func pauseAnalysisAction() {
+        gobanState.paused = true
+        gobanState.showingAnalysis = true
+        KataGoHelper.sendCommand("stop")
+    }
+
+    func stopAction() {
+        gobanState.paused = true
+        gobanState.showingAnalysis = false
+        KataGoHelper.sendCommand("stop")
+    }
+
+    func forwardAction() {
+        if let gameRecord {
+            let currentIndex = gameRecord.currentIndex
+            let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
+            if let nextMove = sgfHelper.getMove(at: currentIndex) {
+                if let move = locationToMove(location: nextMove.location) {
+                    gameRecord.currentIndex = currentIndex + 1
+                    let nextPlayer = nextMove.player == Player.black ? "b" : "w"
+                    KataGoHelper.sendCommand("play \(nextPlayer) \(move)")
+                    player.nextColorForPlayCommand = (nextPlayer == "b") ? .white : .black
+                }
+            }
+        }
+
+        KataGoHelper.sendCommand("showboard")
+        if (!gobanState.paused) && gobanState.showingAnalysis {
+            KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
+            KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+        } else {
+            gobanState.paused = true
+            gobanState.showingAnalysis = false
+        }
+    }
+
+    func clearBoardAction() {
+        gameRecord?.currentIndex = 0
+        KataGoHelper.sendCommand("clear_board")
+        KataGoHelper.sendCommand("showboard")
+        if (!gobanState.paused) && gobanState.showingAnalysis {
+            KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
+            KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+        } else {
+            gobanState.paused = true
+            gobanState.showingAnalysis = false
         }
     }
 
