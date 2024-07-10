@@ -78,8 +78,7 @@ struct ToolbarItems: View {
         KataGoHelper.sendCommand("showboard")
         KataGoHelper.sendCommand("printsgf")
         if (!gobanState.paused) && gobanState.showingAnalysis {
-            KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
-            KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+            gobanState.requestAnalysis(config: config)
         }
     }
 
@@ -88,8 +87,7 @@ struct ToolbarItems: View {
         KataGoHelper.sendCommand("undo")
         KataGoHelper.sendCommand("showboard")
         if (!gobanState.paused) && gobanState.showingAnalysis {
-            KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
-            KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+            gobanState.requestAnalysis(config: config)
         } else {
             gobanState.paused = true
             gobanState.showingAnalysis = false
@@ -99,8 +97,7 @@ struct ToolbarItems: View {
     func startAnalysisAction() {
         gobanState.paused = false
         gobanState.showingAnalysis = true
-        KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
-        KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+        gobanState.requestAnalysis(config: config)
     }
 
     func pauseAnalysisAction() {
@@ -131,8 +128,7 @@ struct ToolbarItems: View {
 
         KataGoHelper.sendCommand("showboard")
         if (!gobanState.paused) && gobanState.showingAnalysis {
-            KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
-            KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+            gobanState.requestAnalysis(config: config)
         } else {
             gobanState.paused = true
             gobanState.showingAnalysis = false
@@ -144,8 +140,7 @@ struct ToolbarItems: View {
         KataGoHelper.sendCommand("clear_board")
         KataGoHelper.sendCommand("showboard")
         if (!gobanState.paused) && gobanState.showingAnalysis {
-            KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
-            KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+            gobanState.requestAnalysis(config: config)
         } else {
             gobanState.paused = true
             gobanState.showingAnalysis = false

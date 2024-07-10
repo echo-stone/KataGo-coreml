@@ -11,6 +11,20 @@ import KataGoInterface
 class GobanState: ObservableObject {
     @Published var paused = false
     @Published var showingAnalysis = true
+    @Published var waitingForAnalysis = false
+
+    func requestAnalysis(config: Config) {
+        KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
+        waitingForAnalysis = true
+
+        Task {
+            while (waitingForAnalysis) {
+                await Task.yield()
+            }
+
+            KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+        }
+    }
 }
 
 struct BoardView: View {
@@ -48,16 +62,14 @@ struct BoardView: View {
 
                 if gobanState.showingAnalysis {
                     gobanState.paused = false
-                    KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
-                    KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+                    gobanState.requestAnalysis(config: config)
                 }
             }
         }
         .onAppear() {
             KataGoHelper.sendCommand("showboard")
             if (!gobanState.paused && gobanState.showingAnalysis) {
-                KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
-                KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+                gobanState.requestAnalysis(config: config)
             }
         }
         .onDisappear() {
@@ -89,7 +101,7 @@ struct BoardView: View {
 }
 
 struct GobanItems: View {
-    @StateObject var gobanState = GobanState()
+    @EnvironmentObject var gobanState: GobanState
     var gameRecord: GameRecord?
 
     var body: some View {

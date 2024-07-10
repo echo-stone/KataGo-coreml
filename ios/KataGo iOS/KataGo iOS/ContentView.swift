@@ -47,6 +47,7 @@ struct ContentView: View {
     @State private var selectedItem: SidebarItem? = .goban
     @Query var gameRecords: [GameRecord]
     @Environment(\.modelContext) private var modelContext
+    @StateObject var gobanState = GobanState()
 
     init() {
         // Start a thread to run KataGo GTP
@@ -81,6 +82,7 @@ struct ContentView: View {
         .environmentObject(analysis)
         .environmentObject(config)
         .environment(\.editMode, $isEditing)
+        .environmentObject(gobanState)
         .onAppear() {
             // Get messages from KataGo and append to the list of messages
             createMessageTask()
@@ -101,8 +103,7 @@ struct ContentView: View {
             maybeLoadSgf()
             KataGoHelper.sendCommand("showboard")
             KataGoHelper.sendCommand("printsgf")
-            KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
-            KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+            gobanState.requestAnalysis(config: config)
 
             while true {
                 let line = await Task.detached {
@@ -238,6 +239,8 @@ struct ContentView: View {
 
                 analysis.nextColorForAnalysis = player.nextColorFromShowBoard
             }
+
+            gobanState.waitingForAnalysis = false
         }
     }
 

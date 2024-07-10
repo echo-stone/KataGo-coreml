@@ -106,8 +106,7 @@ struct AnalysisView: View {
         }
         .onChange(of: config.maxAnalysisMoves) { _, _ in
             if (!gobanState.paused) && gobanState.showingAnalysis {
-                KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
-                KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+                gobanState.requestAnalysis(config: config)
             }
         }
     }
