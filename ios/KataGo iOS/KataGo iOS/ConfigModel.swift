@@ -21,6 +21,7 @@ class Config: ObservableObject {
     @Published var maxMessageLines: Int = defaultMaxMessageLines
     @Published var analysisInformation: Int = defaultAnalysisInformation
     @Published var hiddenAnalysisVisitRatio: Float = defaultHiddenAnalysisVisitRatio
+    @Published var stoneStyle = defaultStoneStyle
 
     func getKataAnalyzeCommand(analysisInterval: Int) -> String {
         return "kata-analyze interval \(analysisInterval) maxmoves \(maxAnalysisMoves) ownership true ownershipStdev true"
@@ -89,5 +90,20 @@ extension Config {
 
     func isAnalysisInformationScore() -> Bool {
         return Config.analysisInformations[analysisInformation] == Config.analysisInformationScore
+    }
+}
+
+extension Config {
+    static let fastStoneStyle = "Fast"
+    static let classicStoneStyle = "Classic"
+    static let stoneStyles = [fastStoneStyle, classicStoneStyle]
+    static let defaultStoneStyle = 0
+
+    func isFastStoneStyle() -> Bool {
+        return Config.stoneStyles[stoneStyle] == Config.fastStoneStyle
+    }
+
+    func isClassicStoneStyle() -> Bool {
+        return Config.stoneStyles[stoneStyle] == Config.classicStoneStyle
     }
 }

@@ -113,6 +113,7 @@ struct ConfigItems: View {
     @State var maxAnalysisMoves: Int = Config.defaultMaxAnalysisMoves
     @State var analysisInformation: Int = Config.defaultAnalysisInformation
     @State var hiddenAnalysisVisitRatio: Float = Config.defaultHiddenAnalysisVisitRatio
+    @State var stoneStyle = Config.defaultStoneStyle
 
     var body: some View {
         Form {
@@ -170,6 +171,13 @@ struct ConfigItems: View {
                         config.analysisInformation = newValue
                     }
             }
+
+            Section("View") {
+                ConfigTextItem(title: "Stone style:", texts: Config.stoneStyles, value: $stoneStyle)
+                    .onChange(of: stoneStyle) { _, newValue in
+                        config.stoneStyle = stoneStyle
+                    }
+            }
         }
         .onAppear {
             boardWidth = config.boardWidth
@@ -181,6 +189,7 @@ struct ConfigItems: View {
             maxAnalysisMoves = config.maxAnalysisMoves
             analysisInformation = config.analysisInformation
             hiddenAnalysisVisitRatio = config.hiddenAnalysisVisitRatio
+            stoneStyle = config.stoneStyle
         }
     }
 }

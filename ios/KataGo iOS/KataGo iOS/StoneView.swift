@@ -10,6 +10,7 @@ import SwiftUI
 struct StoneView: View {
     @EnvironmentObject var stones: Stones
     @EnvironmentObject var board: ObservableBoard
+    @EnvironmentObject var config: Config
     let geometry: GeometryProxy
 
     var body: some View {
@@ -118,13 +119,51 @@ struct StoneView: View {
 
     private func drawStones(dimensions: Dimensions) -> some View {
         ZStack {
-            drawShadows(dimensions: dimensions)
+            if config.isClassicStoneStyle() {
+                drawShadows(dimensions: dimensions)
 
-            Group {
-                drawBlackStones(dimensions: dimensions)
-                drawWhiteStones(dimensions: dimensions)
+                Group {
+                    drawBlackStones(dimensions: dimensions)
+                    drawWhiteStones(dimensions: dimensions)
+                }
+            } else {
+                Group {
+                    drawFastBlackStones(dimensions: dimensions)
+                    drawFastWhiteStones(dimensions: dimensions)
+                }
             }
         }
+    }
+
+    private func drawFastBlackStones(dimensions: Dimensions) -> some View {
+        Group {
+            ForEach(stones.blackPoints, id: \.self) { point in
+                drawFastStoneBase(stoneColor: .black,
+                                  x: point.x,
+                                  y: point.y,
+                                  dimensions: dimensions)
+            }
+        }
+    }
+
+    private func drawFastWhiteStones(dimensions: Dimensions) -> some View {
+        Group {
+            ForEach(stones.whitePoints, id: \.self) { point in
+                drawFastStoneBase(stoneColor: Color(white: 0.9),
+                                  x: point.x,
+                                  y: point.y,
+                                  dimensions: dimensions)
+            }
+        }
+    }
+
+    private func drawFastStoneBase(stoneColor: Color, x: Int, y: Int, dimensions: Dimensions) -> some View {
+        Circle()
+            .foregroundColor(stoneColor)
+            .frame(width: dimensions.stoneLength, height: dimensions.stoneLength)
+            .position(x: dimensions.marginWidth + CGFloat(x) * dimensions.squareLength,
+                      y: dimensions.marginHeight + CGFloat(y) * dimensions.squareLength)
+            .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv16)
     }
 }
 
