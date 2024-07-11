@@ -31,7 +31,7 @@ class Config: ObservableObject {
     }
 
     func getKataFastAnalyzeCommand() -> String {
-        return getKataAnalyzeCommand(analysisInterval: 1);
+        return getKataAnalyzeCommand(analysisInterval: 10);
     }
 
     func getKataBoardSizeCommand() -> String {

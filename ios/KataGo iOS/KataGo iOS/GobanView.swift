@@ -16,14 +16,6 @@ class GobanState: ObservableObject {
     func requestAnalysis(config: Config) {
         KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
         waitingForAnalysis = true
-
-        Task {
-            while (waitingForAnalysis) {
-                await Task.yield()
-            }
-
-            KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
-        }
     }
 }
 

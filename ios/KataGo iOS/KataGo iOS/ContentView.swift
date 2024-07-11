@@ -87,6 +87,11 @@ struct ContentView: View {
             // Get messages from KataGo and append to the list of messages
             createMessageTask()
         }
+        .onChange(of: gobanState.waitingForAnalysis) { waitedForAnalysis, waitingForAnalysis in
+            if (waitedForAnalysis && !waitingForAnalysis) {
+                KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+            }
+        }
     }
 
     /// Create message task
