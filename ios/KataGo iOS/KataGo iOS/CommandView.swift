@@ -10,7 +10,6 @@ import KataGoInterface
 
 struct CommandView: View {
     @EnvironmentObject var messagesObject: MessagesObject
-    @EnvironmentObject var stones: Stones
     @EnvironmentObject var config: Config
     @State private var command = ""
 

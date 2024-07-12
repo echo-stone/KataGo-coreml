@@ -10,8 +10,6 @@ import SwiftUI
 struct BoardLineView: View {
     let dimensions: Dimensions
     let texture = WoodImage.createTexture()
-    let boardWidth: CGFloat
-    let boardHeight: CGFloat
 
     var body: some View {
         ZStack {
@@ -31,10 +29,10 @@ struct BoardLineView: View {
 
     private func drawLines(dimensions: Dimensions) -> some View {
         Group {
-            ForEach(0..<Int(boardHeight), id: \.self) { i in
+            ForEach(0..<Int(dimensions.height), id: \.self) { i in
                 horizontalLine(i: i, dimensions: dimensions)
             }
-            ForEach(0..<Int(boardWidth), id: \.self) { i in
+            ForEach(0..<Int(dimensions.width), id: \.self) { i in
                 verticalLine(i: i, dimensions: dimensions)
             }
         }
@@ -73,13 +71,13 @@ struct BoardLineView: View {
 
     private func drawStarPoints(dimensions: Dimensions) -> some View {
         Group {
-            if boardWidth == 19 && boardHeight == 19 {
+            if dimensions.width == 19 && dimensions.height == 19 {
                 // Draw star points for 19x19 board
                 drawStarPointsForSize(points: [BoardPoint(x: 3, y: 3), BoardPoint(x: 3, y: 9), BoardPoint(x: 3, y: 15), BoardPoint(x: 9, y: 3), BoardPoint(x: 9, y: 9), BoardPoint(x: 9, y: 15), BoardPoint(x: 15, y: 3), BoardPoint(x: 15, y: 9), BoardPoint(x: 15, y: 15)], dimensions: dimensions)
-            } else if boardWidth == 13 && boardHeight == 13 {
+            } else if dimensions.width == 13 && dimensions.height == 13 {
                 // Draw star points for 13x13 board
                 drawStarPointsForSize(points: [BoardPoint(x: 6, y: 6), BoardPoint(x: 3, y: 3), BoardPoint(x: 3, y: 9), BoardPoint(x: 9, y: 3), BoardPoint(x: 9, y: 9)], dimensions: dimensions)
-            } else if boardWidth == 9 && boardHeight == 9 {
+            } else if dimensions.width == 9 && dimensions.height == 9 {
                 // Draw star points for 9x9 board
                 drawStarPointsForSize(points: [BoardPoint(x: 4, y: 4), BoardPoint(x: 2, y: 2), BoardPoint(x: 2, y: 6), BoardPoint(x: 6, y: 2), BoardPoint(x: 6, y: 6)], dimensions: dimensions)
             }
@@ -91,8 +89,11 @@ struct BoardLineView_Previews: PreviewProvider {
     static let board = ObservableBoard()
     static var previews: some View {
         GeometryReader { geometry in
-            let dimensions = Dimensions(geometry: geometry, board: board)
-            BoardLineView(dimensions: dimensions, boardWidth: board.width, boardHeight: board.height)
+            let dimensions = Dimensions(geometry: geometry,
+                                        width: board.width,
+                                        height: board.height)
+
+            BoardLineView(dimensions: dimensions)
         }
         .onAppear() {
             BoardLineView_Previews.board.width = 13

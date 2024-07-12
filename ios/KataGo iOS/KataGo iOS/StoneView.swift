@@ -11,10 +11,9 @@ struct StoneView: View {
     @EnvironmentObject var stones: Stones
     @EnvironmentObject var board: ObservableBoard
     @EnvironmentObject var config: Config
-    let geometry: GeometryProxy
+    let dimensions: Dimensions
 
     var body: some View {
-        let dimensions = Dimensions(geometry: geometry, board: board)
         drawStones(dimensions: dimensions)
     }
 
@@ -176,7 +175,9 @@ struct StoneView_Previews: PreviewProvider {
                 .foregroundColor(.brown)
 
             GeometryReader { geometry in
-                StoneView(geometry: geometry)
+                StoneView(dimensions: Dimensions(geometry: geometry,
+                                                 width: board.width,
+                                                 height: board.height))
             }
             .environmentObject(stones)
             .environmentObject(board)

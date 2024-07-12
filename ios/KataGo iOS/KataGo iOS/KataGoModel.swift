@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import KataGoInterface
 
 class ObservableBoard: ObservableObject {
     @Published var width: CGFloat = 19
@@ -76,16 +77,16 @@ struct Dimensions {
     let marginWidth: CGFloat
     let marginHeight: CGFloat
     let stoneLength: CGFloat
+    let width: CGFloat
+    let height: CGFloat
 
-    init(geometry: GeometryProxy, board: ObservableBoard) {
-        self.init(geometry: geometry, width: board.width, height: board.height)
-    }
-
-    private init(geometry: GeometryProxy, width: CGFloat, height: CGFloat) {
+    init(geometry: GeometryProxy, width: CGFloat, height: CGFloat) {
         let totalWidth = geometry.size.width
         let totalHeight = geometry.size.height
         let squareWidth = totalWidth / (width + 1)
         let squareHeight = totalHeight / (height + 1)
+        self.width = width
+        self.height = height
         squareLength = min(squareWidth, squareHeight)
         squareLengthDiv2 = squareLength / 2
         squareLengthDiv4 = squareLength / 4
@@ -118,4 +119,15 @@ struct Message: Identifiable, Equatable, Hashable {
 
 class MessagesObject: ObservableObject {
     @Published var messages: [Message] = []
+}
+
+class GobanState: ObservableObject {
+    @Published var paused = false
+    @Published var showingAnalysis = true
+    @Published var waitingForAnalysis = false
+
+    func requestAnalysis(config: Config) {
+        KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
+        waitingForAnalysis = true
+    }
 }

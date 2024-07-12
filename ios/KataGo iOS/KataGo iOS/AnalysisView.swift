@@ -13,11 +13,7 @@ struct AnalysisView: View {
     @EnvironmentObject var board: ObservableBoard
     @EnvironmentObject var config: Config
     @EnvironmentObject var gobanState: GobanState
-    let geometry: GeometryProxy
-
-    var dimensions: Dimensions {
-        Dimensions(geometry: geometry, board: board)
-    }
+    let dimensions: Dimensions
 
     var shadows: some View {
         let sortedInfoKeys = analysis.info.keys.sorted()
@@ -234,7 +230,9 @@ struct AnalysisView_Previews: PreviewProvider {
                 .foregroundColor(.brown)
 
             GeometryReader { geometry in
-                AnalysisView(geometry: geometry)
+                AnalysisView(dimensions: Dimensions(geometry: geometry,
+                                                    width: board.width,
+                                                    height: board.height))
             }
             .environmentObject(analysis)
             .environmentObject(board)

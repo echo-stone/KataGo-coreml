@@ -9,7 +9,6 @@ import SwiftUI
 
 struct WinrateBarView: View {
     @EnvironmentObject var analysis: Analysis
-    @EnvironmentObject var board: ObservableBoard
     let dimensions: Dimensions
 
     var body: some View {

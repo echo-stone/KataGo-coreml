@@ -10,10 +10,9 @@ import SwiftUI
 struct MoveNumberView: View {
     @EnvironmentObject var stones: Stones
     @EnvironmentObject var board: ObservableBoard
-    let geometry: GeometryProxy
+    let dimensions: Dimensions
 
     var body: some View {
-        let dimensions = Dimensions(geometry: geometry, board: board)
         drawMoveOrder(dimensions: dimensions)
     }
 
@@ -47,7 +46,10 @@ struct MoveNumberView_Previews: PreviewProvider {
                 .foregroundColor(.brown)
 
             GeometryReader { geometry in
-                MoveNumberView(geometry: geometry)
+                let dimensions = Dimensions(geometry: geometry,
+                                            width: board.width,
+                                            height: board.height)
+                MoveNumberView(dimensions: dimensions)
             }
             .environmentObject(stones)
             .environmentObject(board)

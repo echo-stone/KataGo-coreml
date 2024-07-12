@@ -8,17 +8,6 @@
 import SwiftUI
 import KataGoInterface
 
-class GobanState: ObservableObject {
-    @Published var paused = false
-    @Published var showingAnalysis = true
-    @Published var waitingForAnalysis = false
-
-    func requestAnalysis(config: Config) {
-        KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())
-        waitingForAnalysis = true
-    }
-}
-
 struct BoardView: View {
     @EnvironmentObject var board: ObservableBoard
     @EnvironmentObject var player: PlayerObject
@@ -27,15 +16,17 @@ struct BoardView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let dimensions = Dimensions(geometry: geometry, board: board)
+            let dimensions = Dimensions(geometry: geometry,
+                                        width: board.width,
+                                        height: board.height)
             ZStack {
-                BoardLineView(dimensions: dimensions, boardWidth: board.width, boardHeight: board.height)
-                StoneView(geometry: geometry)
+                BoardLineView(dimensions: dimensions)
+                StoneView(dimensions: dimensions)
                 if gobanState.showingAnalysis {
-                    AnalysisView(geometry: geometry)
+                    AnalysisView(dimensions: dimensions)
                 }
 
-                MoveNumberView(geometry: geometry)
+                MoveNumberView(dimensions: dimensions)
                 WinrateBarView(dimensions: dimensions)
             }
             .onTapGesture() { location in
@@ -93,7 +84,6 @@ struct BoardView: View {
 }
 
 struct GobanItems: View {
-    @EnvironmentObject var gobanState: GobanState
     var gameRecord: GameRecord?
 
     var body: some View {
@@ -102,7 +92,6 @@ struct GobanItems: View {
             ToolbarView(gameRecord: gameRecord)
                 .padding()
         }
-        .environmentObject(gobanState)
     }
 }
 
