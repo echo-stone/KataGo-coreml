@@ -125,6 +125,7 @@ class GobanState: ObservableObject {
     @Published var paused = false
     @Published var showingAnalysis = true
     @Published var waitingForAnalysis = false
+    @Published var requestingClearAnalysis = false
 
     func requestAnalysis(config: Config) {
         KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())

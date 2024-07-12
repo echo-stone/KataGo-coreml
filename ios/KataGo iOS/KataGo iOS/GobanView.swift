@@ -46,6 +46,8 @@ struct BoardView: View {
                 if gobanState.showingAnalysis {
                     gobanState.paused = false
                     gobanState.requestAnalysis(config: config)
+                } else {
+                    gobanState.requestingClearAnalysis = true
                 }
             }
         }
