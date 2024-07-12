@@ -48,6 +48,7 @@ struct ContentView: View {
     @Query var gameRecords: [GameRecord]
     @Environment(\.modelContext) private var modelContext
     @StateObject var gobanState = GobanState()
+    @StateObject var winrate = Winrate()
 
     init() {
         // Start a thread to run KataGo GTP
@@ -83,6 +84,7 @@ struct ContentView: View {
         .environmentObject(config)
         .environment(\.editMode, $isEditing)
         .environmentObject(gobanState)
+        .environmentObject(winrate)
         .onAppear() {
             // Get messages from KataGo and append to the list of messages
             createMessageTask()
@@ -223,6 +225,28 @@ struct ContentView: View {
         return (blackStones, whiteStones, width, height, moveOrder)
     }
 
+    func getBlackWinrate() -> Float {
+        guard !analysis.info.isEmpty else { return 0.5 }
+        let points = analysis.info.keys.sorted()
+
+        let visits = points.map { point in
+            analysis.info[point]?.visits ?? 0
+        }
+
+        let sumVisits = visits.reduce(1, +)
+
+        let weightedWinrates = points.map() { point in
+            let winrate = analysis.info[point]?.winrate ?? 0.5
+            let visit = analysis.info[point]?.visits ?? 0
+            return winrate * Float(visit) / Float(sumVisits)
+        }
+
+        let winrate = weightedWinrates.reduce(0, +)
+        let blackWinrate = (analysis.nextColorForAnalysis == .black) ? winrate : (1 - winrate)
+
+        return blackWinrate
+    }
+
     func maybeCollectAnalysis(message: String) {
         if message.starts(with: /info/) {
             let splitData = message.split(separator: "info")
@@ -243,6 +267,7 @@ struct ContentView: View {
                 }
 
                 analysis.nextColorForAnalysis = player.nextColorFromShowBoard
+                winrate.black = getBlackWinrate()
             }
 
             gobanState.waitingForAnalysis = false

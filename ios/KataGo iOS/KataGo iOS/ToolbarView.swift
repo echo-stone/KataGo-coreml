@@ -13,7 +13,6 @@ struct ToolbarItems: View {
     @EnvironmentObject var config: Config
     @EnvironmentObject var gobanState: GobanState
     @EnvironmentObject var board: ObservableBoard
-    @EnvironmentObject var analysis: Analysis
     var gameRecord: GameRecord?
 
     var body: some View {
@@ -81,7 +80,7 @@ struct ToolbarItems: View {
         if (!gobanState.paused) && gobanState.showingAnalysis {
             gobanState.requestAnalysis(config: config)
         } else {
-            analysis.clear()
+            gobanState.requestingClearAnalysis = true
         }
     }
 
@@ -94,16 +93,11 @@ struct ToolbarItems: View {
         } else {
             gobanState.paused = true
             gobanState.showingAnalysis = false
-            analysis.clear()
+            gobanState.requestingClearAnalysis = true
         }
     }
 
     func startAnalysisAction() {
-        if gobanState.requestingClearAnalysis {
-            analysis.clear()
-            gobanState.requestingClearAnalysis = false
-        }
-
         gobanState.paused = false
         gobanState.showingAnalysis = true
         gobanState.requestAnalysis(config: config)
@@ -141,7 +135,7 @@ struct ToolbarItems: View {
         } else {
             gobanState.paused = true
             gobanState.showingAnalysis = false
-            analysis.clear()
+            gobanState.requestingClearAnalysis = true
         }
     }
 
@@ -154,7 +148,7 @@ struct ToolbarItems: View {
         } else {
             gobanState.paused = true
             gobanState.showingAnalysis = false
-            analysis.clear()
+            gobanState.requestingClearAnalysis = true
         }
     }
 

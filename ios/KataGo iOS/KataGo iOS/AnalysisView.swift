@@ -105,6 +105,12 @@ struct AnalysisView: View {
                 gobanState.requestAnalysis(config: config)
             }
         }
+        .onAppear() {
+            if gobanState.requestingClearAnalysis {
+                analysis.clear()
+                gobanState.requestingClearAnalysis = false
+            }
+        }
     }
 
     func winrateText(_ winrate: Float) -> some View {

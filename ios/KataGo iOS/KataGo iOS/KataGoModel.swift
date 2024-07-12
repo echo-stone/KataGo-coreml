@@ -132,3 +132,11 @@ class GobanState: ObservableObject {
         waitingForAnalysis = true
     }
 }
+
+class Winrate: ObservableObject {
+    @Published var black: Float = 0.5
+
+    var white: Float {
+        1 - black
+    }
+}
