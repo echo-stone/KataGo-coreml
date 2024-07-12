@@ -10,10 +10,18 @@ import Foundation
 public struct Location {
     public let x: Int
     public let y: Int
+    public let pass: Bool
+
+    public init() {
+        self.x = -1
+        self.y = -1
+        self.pass = true
+    }
 
     public init(x: Int, y: Int) {
         self.x = x
         self.y = y
+        self.pass = false
     }
 }
 
@@ -40,15 +48,12 @@ public class SgfHelper {
     }
 
     public func getMove(at index: Int) -> Move? {
-        if sgfCpp.isValidIndex(Int32(index)) {
-            let moveCpp = sgfCpp.getMoveAt(Int32(index))
-            let location = Location(x: Int(moveCpp.x), y: Int(moveCpp.y))
-            let player: Player = (moveCpp.player == PlayerCpp.black) ? .black : .white
-            let move = Move(location: location, player: player)
-            return move
-        } else {
-            return nil
-        }
+        guard sgfCpp.isValidIndex(Int32(index)) else { return nil }
+        let moveCpp = sgfCpp.getMoveAt(Int32(index))
+        let location = moveCpp.pass ? Location() : Location(x: Int(moveCpp.x), y: Int(moveCpp.y))
+        let player: Player = (moveCpp.player == PlayerCpp.black) ? .black : .white
+        let move = Move(location: location, player: player)
+        return move
     }
 
     public func getLastMoveIndex() -> Int? {

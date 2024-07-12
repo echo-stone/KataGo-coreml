@@ -8,14 +8,22 @@
 #include "SgfCpp.hpp"
 #include "../../../cpp/dataio/sgf.h"
 
+LocCpp::LocCpp() {
+    this->x = -1;
+    this->y = -1;
+    this->pass = true;
+}
+
 LocCpp::LocCpp(const int x, const int y) {
     this->x = x;
     this->y = y;
+    this->pass = false;
 }
 
 LocCpp::LocCpp(const LocCpp& loc) {
     this->x = loc.x;
     this->y = loc.y;
+    this->pass = loc.pass;
 }
 
 int LocCpp::getX() const {
@@ -24,6 +32,10 @@ int LocCpp::getX() const {
 
 int LocCpp::getY() const {
     return y;
+}
+
+bool LocCpp::getPass() const {
+    return pass;
 }
 
 MoveCpp::MoveCpp(const LocCpp& loc, const PlayerCpp player): loc(loc) {
@@ -36,6 +48,10 @@ int MoveCpp::getX() const {
 
 int MoveCpp::getY() const {
     return loc.getY();
+}
+
+bool MoveCpp::getPass() const {
+    return loc.getPass();
 }
 
 PlayerCpp MoveCpp::getPlayer() const {
@@ -75,9 +91,18 @@ MoveCpp SgfCpp::getMoveAt(const int index) const {
         auto xSize = getXSize();
         auto& moves = ((CompactSgf *) sgf)->moves;
         auto move = moves[index];
-        auto x = Location::getX(move.loc, xSize);
-        auto y = Location::getY(move.loc, xSize);
-        auto locCpp = LocCpp(x, y);
+
+        auto initializeLocCpp = [&](const Move& move) {
+            if (move.loc == Board::PASS_LOC) {
+                return LocCpp();
+            } else {
+                auto x = Location::getX(move.loc, xSize);
+                auto y = Location::getY(move.loc, xSize);
+                return LocCpp(x, y);
+            }
+        };
+
+        auto locCpp = initializeLocCpp(move);
         auto player = (move.pla == P_BLACK) ? PlayerCpp::black : PlayerCpp::white;
         auto moveCpp = MoveCpp(locCpp, player);
         return moveCpp;

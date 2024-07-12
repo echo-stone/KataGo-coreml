@@ -15,13 +15,16 @@ using namespace std;
 
 class LocCpp {
 public:
+    LocCpp();
     LocCpp(const int x, const int y);
     LocCpp(const LocCpp& loc);
     int getX() const SWIFT_COMPUTED_PROPERTY;
     int getY() const SWIFT_COMPUTED_PROPERTY;
+    bool getPass() const SWIFT_COMPUTED_PROPERTY;
 private:
     int x;
     int y;
+    bool pass;
 };
 
 enum class PlayerCpp {
@@ -34,6 +37,7 @@ public:
     MoveCpp(const LocCpp& loc, const PlayerCpp player);
     int getX() const SWIFT_COMPUTED_PROPERTY;
     int getY() const SWIFT_COMPUTED_PROPERTY;
+    bool getPass() const SWIFT_COMPUTED_PROPERTY;
     PlayerCpp getPlayer() const SWIFT_COMPUTED_PROPERTY;
 private:
     LocCpp loc;

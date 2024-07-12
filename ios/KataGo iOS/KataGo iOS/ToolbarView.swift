@@ -148,6 +148,7 @@ struct ToolbarItems: View {
     }
 
     func locationToMove(location: Location) -> String? {
+        guard !location.pass else { return "pass" }
         let x = location.x
         let y = Int(board.height) - location.y
 
