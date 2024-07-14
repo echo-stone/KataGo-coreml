@@ -23,7 +23,8 @@ struct BoardLineView: View {
         Group {
             Image(uiImage: texture)
                 .resizable()
-                .frame(width: (dimensions.boardWidth + dimensions.squareLength / 2), height: dimensions.boardHeight + (dimensions.squareLength / 2))
+                .frame(width: dimensions.gobanWidth,
+                       height: dimensions.gobanHeight)
         }
     }
 
@@ -40,16 +41,18 @@ struct BoardLineView: View {
 
     private func horizontalLine(i: Int, dimensions: Dimensions) -> some View {
         Path { path in
-            path.move(to: CGPoint(x: dimensions.marginWidth, y: dimensions.marginHeight + CGFloat(i) * dimensions.squareLength))
-            path.addLine(to: CGPoint(x: dimensions.marginWidth + dimensions.boardWidth - dimensions.squareLength, y: dimensions.marginHeight + CGFloat(i) * dimensions.squareLength))
+            let y = dimensions.boardLineStartY + CGFloat(i) * dimensions.squareLength
+            path.move(to: CGPoint(x: dimensions.boardLineStartX, y: y))
+            path.addLine(to: CGPoint(x: dimensions.boardLineStartX + dimensions.boardLineBoundWidth, y: y))
         }
         .stroke(Color.black)
     }
 
     private func verticalLine(i: Int, dimensions: Dimensions) -> some View {
         Path { path in
-            path.move(to: CGPoint(x: dimensions.marginWidth + CGFloat(i) * dimensions.squareLength, y: dimensions.marginHeight))
-            path.addLine(to: CGPoint(x: dimensions.marginWidth + CGFloat(i) * dimensions.squareLength, y: dimensions.marginHeight + dimensions.boardHeight - dimensions.squareLength))
+            let x = dimensions.boardLineStartX + CGFloat(i) * dimensions.squareLength
+            path.move(to: CGPoint(x: x, y: dimensions.boardLineStartY))
+            path.addLine(to: CGPoint(x: x, y: dimensions.boardLineStartY + dimensions.boardLineBoundHeight))
         }
         .stroke(Color.black)
     }
@@ -57,10 +60,10 @@ struct BoardLineView: View {
     private func drawStarPoint(x: Int, y: Int, dimensions: Dimensions) -> some View {
         // Big black dot
         Circle()
-            .frame(width: dimensions.squareLength / 4, height: dimensions.squareLength / 4)
+            .frame(width: dimensions.squareLengthDiv4, height: dimensions.squareLengthDiv4)
             .foregroundColor(Color.black)
-            .position(x: dimensions.marginWidth + CGFloat(x) * dimensions.squareLength,
-                      y: dimensions.marginHeight + CGFloat(y) * dimensions.squareLength)
+            .position(x: dimensions.boardLineStartX + CGFloat(x) * dimensions.squareLength,
+                      y: dimensions.boardLineStartY + CGFloat(y) * dimensions.squareLength)
     }
 
     private func drawStarPointsForSize(points: [BoardPoint], dimensions: Dimensions) -> some View {

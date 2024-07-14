@@ -24,8 +24,8 @@ struct AnalysisView: View {
                 .stroke(Color.black.opacity(0.5), lineWidth: dimensions.squareLength / 32)
                 .blur(radius: dimensions.squareLength / 32)
                 .frame(width: dimensions.squareLength, height: dimensions.squareLength)
-                .position(x: dimensions.marginWidth + CGFloat(point.x) * dimensions.squareLength,
-                          y: dimensions.marginHeight + CGFloat(point.y) * dimensions.squareLength)
+                .position(x: dimensions.boardLineStartX + CGFloat(point.x) * dimensions.squareLength,
+                          y: dimensions.boardLineStartY + CGFloat(point.y) * dimensions.squareLength)
         }
     }
 
@@ -48,8 +48,8 @@ struct AnalysisView: View {
                 Rectangle()
                     .foregroundColor(Color(hue: 0, saturation: 0, brightness: whiteness).opacity(0.8))
                     .frame(width: dimensions.squareLength * scale, height: dimensions.squareLength * scale)
-                    .position(x: dimensions.marginWidth + CGFloat(point.x) * dimensions.squareLength,
-                              y: dimensions.marginHeight + CGFloat(point.y) * dimensions.squareLength)
+                    .position(x: dimensions.boardLineStartX + CGFloat(point.x) * dimensions.squareLength,
+                              y: dimensions.boardLineStartY + CGFloat(point.y) * dimensions.squareLength)
             }
         }
     }
@@ -88,8 +88,8 @@ struct AnalysisView: View {
                     }
                 }
                 .frame(width: dimensions.squareLength, height: dimensions.squareLength)
-                .position(x: dimensions.marginWidth + CGFloat(point.x) * dimensions.squareLength,
-                          y: dimensions.marginHeight + CGFloat(point.y) * dimensions.squareLength)
+                .position(x: dimensions.boardLineStartX + CGFloat(point.x) * dimensions.squareLength,
+                          y: dimensions.boardLineStartY + CGFloat(point.y) * dimensions.squareLength)
             }
         }
     }

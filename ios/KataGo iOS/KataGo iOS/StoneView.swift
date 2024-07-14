@@ -21,8 +21,8 @@ struct StoneView: View {
         Circle()
             .foregroundColor(stoneColor)
             .frame(width: dimensions.stoneLength, height: dimensions.stoneLength)
-            .position(x: dimensions.marginWidth + CGFloat(x) * dimensions.squareLength,
-                      y: dimensions.marginHeight + CGFloat(y) * dimensions.squareLength)
+            .position(x: dimensions.boardLineStartX + CGFloat(x) * dimensions.squareLength,
+                      y: dimensions.boardLineStartY + CGFloat(y) * dimensions.squareLength)
     }
 
     private func drawLightEffect(stoneColor: Color, x: Int, y: Int, dimensions: Dimensions) -> some View {
@@ -31,16 +31,16 @@ struct StoneView: View {
             .offset(x: -dimensions.squareLengthDiv8, y: -dimensions.squareLengthDiv8)
             .padding(dimensions.squareLengthDiv4)
             .frame(width: dimensions.stoneLength, height: dimensions.stoneLength)
-            .position(x: dimensions.marginWidth + CGFloat(x) * dimensions.squareLength,
-                      y: dimensions.marginHeight + CGFloat(y) * dimensions.squareLength)
+            .position(x: dimensions.boardLineStartX + CGFloat(x) * dimensions.squareLength,
+                      y: dimensions.boardLineStartY + CGFloat(y) * dimensions.squareLength)
             .overlay {
                 // Mask some light
                 Circle()
                     .foregroundColor(stoneColor)
                     .blur(radius: dimensions.squareLengthDiv16)
                     .frame(width: dimensions.squareLengthDiv2, height: dimensions.squareLengthDiv2)
-                    .position(x: dimensions.marginWidth + CGFloat(x) * dimensions.squareLength,
-                              y: dimensions.marginHeight + CGFloat(y) * dimensions.squareLength)
+                    .position(x: dimensions.boardLineStartX + CGFloat(x) * dimensions.squareLength,
+                              y: dimensions.boardLineStartY + CGFloat(y) * dimensions.squareLength)
             }
     }
 
@@ -91,16 +91,16 @@ struct StoneView: View {
             Circle()
                 .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv8, y: dimensions.squareLengthDiv8)
                 .frame(width: dimensions.stoneLength, height: dimensions.stoneLength)
-                .position(x: dimensions.marginWidth + CGFloat(x) * dimensions.squareLength,
-                          y: dimensions.marginHeight + CGFloat(y) * dimensions.squareLength)
+                .position(x: dimensions.boardLineStartX + CGFloat(x) * dimensions.squareLength,
+                          y: dimensions.boardLineStartY + CGFloat(y) * dimensions.squareLength)
 
             // Centered shadow
             Circle()
                 .stroke(Color.black.opacity(0.5), lineWidth: dimensions.squareLengthDiv16)
                 .blur(radius: dimensions.squareLengthDiv16)
                 .frame(width: dimensions.stoneLength, height: dimensions.stoneLength)
-                .position(x: dimensions.marginWidth + CGFloat(x) * dimensions.squareLength,
-                          y: dimensions.marginHeight + CGFloat(y) * dimensions.squareLength)
+                .position(x: dimensions.boardLineStartX + CGFloat(x) * dimensions.squareLength,
+                          y: dimensions.boardLineStartY + CGFloat(y) * dimensions.squareLength)
         }
     }
 
@@ -160,8 +160,8 @@ struct StoneView: View {
         Circle()
             .foregroundColor(stoneColor)
             .frame(width: dimensions.stoneLength, height: dimensions.stoneLength)
-            .position(x: dimensions.marginWidth + CGFloat(x) * dimensions.squareLength,
-                      y: dimensions.marginHeight + CGFloat(y) * dimensions.squareLength)
+            .position(x: dimensions.boardLineStartX + CGFloat(x) * dimensions.squareLength,
+                      y: dimensions.boardLineStartY + CGFloat(y) * dimensions.squareLength)
             .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv16)
     }
 }

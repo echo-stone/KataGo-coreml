@@ -29,8 +29,8 @@ struct MoveNumberView: View {
                         .minimumScaleFactor(0.01)
                         .bold()
                         .frame(width: dimensions.squareLength, height: dimensions.squareLength)
-                        .position(x: dimensions.marginWidth + CGFloat(point.x) * dimensions.squareLength,
-                                  y: dimensions.marginHeight + CGFloat(point.y) * dimensions.squareLength)
+                        .position(x: dimensions.boardLineStartX + CGFloat(point.x) * dimensions.squareLength,
+                                  y: dimensions.boardLineStartY + CGFloat(point.y) * dimensions.squareLength)
                 }
             }
         }

@@ -72,13 +72,15 @@ struct Dimensions {
     let squareLengthDiv4: CGFloat
     let squareLengthDiv8: CGFloat
     let squareLengthDiv16: CGFloat
-    let boardWidth: CGFloat
-    let boardHeight: CGFloat
-    let marginWidth: CGFloat
-    let marginHeight: CGFloat
+    let boardLineStartX: CGFloat
+    let boardLineStartY: CGFloat
     let stoneLength: CGFloat
     let width: CGFloat
     let height: CGFloat
+    let gobanWidth: CGFloat
+    let gobanHeight: CGFloat
+    let boardLineBoundWidth: CGFloat
+    let boardLineBoundHeight: CGFloat
 
     init(geometry: GeometryProxy, width: CGFloat, height: CGFloat) {
         let totalWidth = geometry.size.width
@@ -92,10 +94,13 @@ struct Dimensions {
         squareLengthDiv4 = squareLength / 4
         squareLengthDiv8 = squareLength / 8
         squareLengthDiv16 = squareLength / 16
-        boardWidth = width * squareLength
-        boardHeight = height * squareLength
-        marginWidth = (totalWidth - boardWidth + squareLength) / 2
-        marginHeight = (totalHeight - boardHeight + squareLength) / 2
+        let gobanPadding = squareLength / 2
+        gobanWidth = (width * squareLength) + gobanPadding
+        gobanHeight = (height * squareLength) + gobanPadding
+        boardLineBoundWidth = (width - 1) * squareLength
+        boardLineBoundHeight = (height - 1) * squareLength
+        boardLineStartX = (totalWidth - boardLineBoundWidth) / 2
+        boardLineStartY = (totalHeight - boardLineBoundHeight) / 2
         stoneLength = squareLength * 0.95
     }
 }

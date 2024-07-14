@@ -67,8 +67,8 @@ struct BoardView: View {
             return Int(round((point - margin) / length))
         }
 
-        let y = calculateCoordinate(location.y, dimensions.marginHeight, dimensions.squareLength) + 1
-        let x = calculateCoordinate(location.x, dimensions.marginWidth, dimensions.squareLength)
+        let y = calculateCoordinate(location.y, dimensions.boardLineStartY, dimensions.squareLength) + 1
+        let x = calculateCoordinate(location.x, dimensions.boardLineStartX, dimensions.squareLength)
 
         guard (1...Int(board.height)).contains(y), (0..<Int(board.width)).contains(x) else { return nil }
 
