@@ -18,7 +18,8 @@ struct BoardView: View {
         GeometryReader { geometry in
             let dimensions = Dimensions(geometry: geometry,
                                         width: board.width,
-                                        height: board.height)
+                                        height: board.height,
+                                        showCoordinate: config.showCoordinate)
             ZStack {
                 BoardLineView(dimensions: dimensions)
                 StoneView(dimensions: dimensions)
@@ -72,16 +73,7 @@ struct BoardView: View {
 
         guard (1...Int(board.height)).contains(y), (0..<Int(board.width)).contains(x) else { return nil }
 
-        let letterMap: [Int: String] = [
-            0: "A", 1: "B", 2: "C", 3: "D", 4: "E",
-            5: "F", 6: "G", 7: "H", 8: "J", 9: "K",
-            10: "L", 11: "M", 12: "N", 13: "O", 14: "P",
-            15: "Q", 16: "R", 17: "S", 18: "T", 19: "U",
-            20: "V", 21: "W", 22: "X", 23: "Y", 24: "Z",
-            25: "AA", 26: "AB", 27: "AC", 28: "AD"
-        ]
-
-        return letterMap[x].map { "\($0)\(y)" }
+        return Coordinate.xLabelMap[x].map { "\($0)\(y)" }
     }
 }
 

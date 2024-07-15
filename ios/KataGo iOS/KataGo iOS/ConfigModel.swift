@@ -22,7 +22,10 @@ class Config: ObservableObject {
     @Published var analysisInformation: Int = defaultAnalysisInformation
     @Published var hiddenAnalysisVisitRatio: Float = defaultHiddenAnalysisVisitRatio
     @Published var stoneStyle = defaultStoneStyle
+    @Published var showCoordinate = defaultShowCoordinate
+}
 
+extension Config {
     func getKataAnalyzeCommand(analysisInterval: Int) -> String {
         return "kata-analyze interval \(analysisInterval) maxmoves \(maxAnalysisMoves) ownership true ownershipStdev true"
     }
@@ -106,4 +109,8 @@ extension Config {
     func isClassicStoneStyle() -> Bool {
         return Config.stoneStyles[stoneStyle] == Config.classicStoneStyle
     }
+}
+
+extension Config {
+    static let defaultShowCoordinate = false
 }

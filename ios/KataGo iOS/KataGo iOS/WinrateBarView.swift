@@ -12,14 +12,14 @@ struct WinrateBarView: View {
     let dimensions: Dimensions
 
     var body: some View {
-        let width = dimensions.squareLength / 2 - dimensions.squareLength / 8
-        let positionXBegin = dimensions.boardLineStartX - width - dimensions.squareLength / 2 - dimensions.squareLength / 4 + dimensions.squareLength / 8 + dimensions.squareLength / 16
+        let width = dimensions.squareLengthDiv2 - dimensions.squareLengthDiv8
+        let positionXBegin = dimensions.gobanStartX - width + dimensions.squareLengthDiv8 + dimensions.squareLengthDiv16
         let positionXEnd = positionXBegin + width
         let positionX = (positionXBegin + positionXEnd) / 2
         let barHeight = dimensions.gobanHeight
         let whiteBarHeight = barHeight * CGFloat(winrate.white)
         let blackBarHeight = barHeight - whiteBarHeight
-        let whiteBarPositionYBegin = dimensions.boardLineStartY - dimensions.squareLength / 2 - dimensions.squareLength / 4
+        let whiteBarPositionYBegin = dimensions.gobanStartY
         let whiteBarPositionYEnd = whiteBarPositionYBegin + whiteBarHeight
         let blackBarPositionYBegin = whiteBarPositionYEnd
         let blackBarPositionYEnd = blackBarPositionYBegin + blackBarHeight

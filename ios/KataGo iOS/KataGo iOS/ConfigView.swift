@@ -102,6 +102,36 @@ struct ConfigTextItem: View {
     }
 }
 
+struct ConfigBoolItem: View {
+    @Environment(\.editMode) private var editMode
+    let title: String
+    @Binding var value: Bool
+
+    var label: String {
+        value ? "Yes" : "No"
+    }
+
+    var body: some View {
+        HStack {
+            Text(title)
+            Spacer()
+            if editMode?.wrappedValue.isEditing == true {
+                Stepper {
+                    Text(label)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                } onIncrement: {
+                    value.toggle()
+                } onDecrement: {
+                    value.toggle()
+                }
+            } else {
+                Text(label)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 struct ConfigItems: View {
     @EnvironmentObject var config: Config
     @State var boardWidth: Int = Config.defaultBoardWidth
@@ -114,6 +144,7 @@ struct ConfigItems: View {
     @State var analysisInformation: Int = Config.defaultAnalysisInformation
     @State var hiddenAnalysisVisitRatio: Float = Config.defaultHiddenAnalysisVisitRatio
     @State var stoneStyle = Config.defaultStoneStyle
+    @State var showCoordinate = Config.defaultShowCoordinate
 
     var body: some View {
         Form {
@@ -177,6 +208,11 @@ struct ConfigItems: View {
                     .onChange(of: stoneStyle) { _, newValue in
                         config.stoneStyle = stoneStyle
                     }
+
+                ConfigBoolItem(title: "Show coordinate", value: $showCoordinate)
+                    .onChange(of: showCoordinate) { _, newValue in
+                        config.showCoordinate = showCoordinate
+                    }
             }
         }
         .onAppear {
@@ -190,6 +226,7 @@ struct ConfigItems: View {
             analysisInformation = config.analysisInformation
             hiddenAnalysisVisitRatio = config.hiddenAnalysisVisitRatio
             stoneStyle = config.stoneStyle
+            showCoordinate = config.showCoordinate
         }
     }
 }

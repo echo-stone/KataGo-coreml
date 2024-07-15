@@ -16,7 +16,35 @@ struct BoardLineView: View {
             drawBoardBackground(texture: texture, dimensions: dimensions)
             drawLines(dimensions: dimensions)
             drawStarPoints(dimensions: dimensions)
+
+            if dimensions.coordinate {
+                drawCoordinate(dimensions: dimensions)
+            }
         }
+    }
+
+    private func drawCoordinate(dimensions: Dimensions) -> some View {
+        Group {
+            ForEach(0..<Int(dimensions.width), id: \.self) { i in
+                horizontalCoordinate(i: i, dimensions: dimensions)
+            }
+
+            ForEach(0..<Int(dimensions.height), id: \.self) { i in
+                verticalCoordinate(i: i, dimensions: dimensions)
+            }
+        }
+    }
+
+    private func horizontalCoordinate(i: Int, dimensions: Dimensions) -> some View {
+        Text(Coordinate.xLabelMap[i] ?? "")
+            .position(x: dimensions.boardLineStartX + (CGFloat(i) * dimensions.squareLength),
+                      y: dimensions.boardLineStartY - dimensions.squareLength)
+    }
+
+    private func verticalCoordinate(i: Int, dimensions: Dimensions) -> some View {
+        Text(String(i + 1))
+            .position(x: dimensions.boardLineStartX - dimensions.squareLength,
+                      y: dimensions.boardLineStartY + (CGFloat(i) * dimensions.squareLength))
     }
 
     private func drawBoardBackground(texture: UIImage, dimensions: Dimensions) -> some View {
