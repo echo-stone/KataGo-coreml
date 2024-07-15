@@ -37,12 +37,22 @@ struct BoardLineView: View {
 
     private func horizontalCoordinate(i: Int, dimensions: Dimensions) -> some View {
         Text(Coordinate.xLabelMap[i] ?? "")
+            .foregroundStyle(.black)
+            .font(.system(size: 500, design: .monospaced))
+            .minimumScaleFactor(0.01)
+            .bold()
+            .frame(width: dimensions.squareLength, height: dimensions.squareLength)
             .position(x: dimensions.boardLineStartX + (CGFloat(i) * dimensions.squareLength),
                       y: dimensions.boardLineStartY - dimensions.squareLength)
     }
 
     private func verticalCoordinate(i: Int, dimensions: Dimensions) -> some View {
         Text(String(i + 1))
+            .foregroundStyle(.black)
+            .font(.system(size: 500, design: .monospaced))
+            .minimumScaleFactor(0.01)
+            .bold()
+            .frame(width: dimensions.squareLength, height: dimensions.squareLength)
             .position(x: dimensions.boardLineStartX - dimensions.squareLength,
                       y: dimensions.boardLineStartY + (CGFloat(i) * dimensions.squareLength))
     }
@@ -120,7 +130,8 @@ struct BoardLineView: View {
     GeometryReader { geometry in
         let dimensions = Dimensions(geometry: geometry,
                                     width: 9,
-                                    height: 9)
+                                    height: 9,
+                                    showCoordinate: true)
 
         BoardLineView(dimensions: dimensions)
     }
