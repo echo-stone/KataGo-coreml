@@ -22,7 +22,10 @@ struct BoardView: View {
                                         showCoordinate: config.showCoordinate)
             ZStack {
                 BoardLineView(dimensions: dimensions)
-                StoneView(dimensions: dimensions)
+
+                StoneView(dimensions: dimensions,
+                          isClassicStoneStyle: config.isClassicStoneStyle())
+
                 if gobanState.showingAnalysis {
                     AnalysisView(dimensions: dimensions)
                 }
@@ -107,32 +110,70 @@ struct GobanView: View {
     }
 }
 
-struct GobanView_Previews: PreviewProvider {
-    static let stones = Stones()
-    static let board = ObservableBoard()
-    static let analysis = Analysis()
-    static let player = PlayerObject()
-    static let config = Config()
+#Preview {
+    let stones = Stones()
+    let board = ObservableBoard()
+    let analysis = Analysis()
+    let player = PlayerObject()
+    let config = Config()
+    let gobanState = GobanState()
+    let winrate = Winrate()
 
-    static var previews: some View {
-        GobanView()
-            .environmentObject(stones)
-            .environmentObject(board)
-            .environmentObject(analysis)
-            .environmentObject(player)
-            .environmentObject(config)
-            .onAppear() {
-                GobanView_Previews.board.width = 3
-                GobanView_Previews.board.height = 3
-                GobanView_Previews.stones.blackPoints = [BoardPoint(x: 1, y: 1), BoardPoint(x: 0, y: 1)]
-                GobanView_Previews.stones.whitePoints = [BoardPoint(x: 0, y: 0), BoardPoint(x: 1, y: 0)]
-                GobanView_Previews.analysis.info = [
-                    BoardPoint(x: 2, y: 0): AnalysisInfo(visits: 1234567890, winrate: 0.789012345, scoreLead: 8.987654321, utilityLcb: -0.123456789)
-                ]
-                GobanView_Previews.stones.moveOrder = ["1": BoardPoint(x: 0, y: 1),
-                                                       "2": BoardPoint(x: 0, y: 0),
-                                                       "3": BoardPoint(x: 1, y: 1),
-                                                       "4": BoardPoint(x: 1, y: 0)]
-            }
-    }
+    return GobanView()
+        .environmentObject(stones)
+        .environmentObject(board)
+        .environmentObject(analysis)
+        .environmentObject(player)
+        .environmentObject(config)
+        .environmentObject(gobanState)
+        .environmentObject(winrate)
+        .onAppear() {
+            board.width = 3
+            board.height = 3
+            stones.blackPoints = [BoardPoint(x: 1, y: 1), BoardPoint(x: 0, y: 1)]
+            stones.whitePoints = [BoardPoint(x: 0, y: 0), BoardPoint(x: 1, y: 0)]
+            analysis.info = [
+                BoardPoint(x: 2, y: 0): AnalysisInfo(visits: 1234567890, winrate: 0.789012345, scoreLead: 8.987654321, utilityLcb: -0.123456789)
+            ]
+            stones.moveOrder = ["1": BoardPoint(x: 0, y: 1),
+                                "2": BoardPoint(x: 0, y: 0),
+                                "3": BoardPoint(x: 1, y: 1),
+                                "4": BoardPoint(x: 1, y: 0)]
+            winrate.black = 0.789012345
+        }
+}
+
+#Preview {
+    let stones = Stones()
+    let board = ObservableBoard()
+    let analysis = Analysis()
+    let player = PlayerObject()
+    let config = Config()
+    let gobanState = GobanState()
+    let winrate = Winrate()
+
+    return GobanView()
+        .environmentObject(stones)
+        .environmentObject(board)
+        .environmentObject(analysis)
+        .environmentObject(player)
+        .environmentObject(config)
+        .environmentObject(gobanState)
+        .environmentObject(winrate)
+        .onAppear() {
+            board.width = 3
+            board.height = 3
+            stones.blackPoints = [BoardPoint(x: 1, y: 1), BoardPoint(x: 0, y: 1)]
+            stones.whitePoints = [BoardPoint(x: 0, y: 0), BoardPoint(x: 1, y: 0)]
+            analysis.info = [
+                BoardPoint(x: 2, y: 0): AnalysisInfo(visits: 1234567890, winrate: 0.789012345, scoreLead: 8.987654321, utilityLcb: -0.123456789)
+            ]
+            stones.moveOrder = ["1": BoardPoint(x: 0, y: 1),
+                                "2": BoardPoint(x: 0, y: 0),
+                                "3": BoardPoint(x: 1, y: 1),
+                                "4": BoardPoint(x: 1, y: 0)]
+            winrate.black = 0.789012345
+            config.showCoordinate = true
+            config.stoneStyle = 1
+        }
 }

@@ -9,9 +9,8 @@ import SwiftUI
 
 struct StoneView: View {
     @EnvironmentObject var stones: Stones
-    @EnvironmentObject var board: ObservableBoard
-    @EnvironmentObject var config: Config
     let dimensions: Dimensions
+    let isClassicStoneStyle: Bool
 
     var body: some View {
         drawStones(dimensions: dimensions)
@@ -118,7 +117,7 @@ struct StoneView: View {
 
     private func drawStones(dimensions: Dimensions) -> some View {
         ZStack {
-            if config.isClassicStoneStyle() {
+            if isClassicStoneStyle {
                 drawShadows(dimensions: dimensions)
 
                 Group {
@@ -166,31 +165,52 @@ struct StoneView: View {
     }
 }
 
-struct StoneView_Previews: PreviewProvider {
-    static let stones = Stones()
-    static let board = ObservableBoard()
-    static var previews: some View {
-        ZStack {
-            Rectangle()
-                .foregroundColor(.brown)
+#Preview {
+    let stones = Stones()
 
-            GeometryReader { geometry in
-                StoneView(dimensions: Dimensions(geometry: geometry,
-                                                 width: board.width,
-                                                 height: board.height))
-            }
-            .environmentObject(stones)
-            .environmentObject(board)
-            .onAppear() {
-                StoneView_Previews.board.width = 2
-                StoneView_Previews.board.height = 2
-                StoneView_Previews.stones.blackPoints = [BoardPoint(x: 0, y: 0), BoardPoint(x: 1, y: 1)]
-                StoneView_Previews.stones.whitePoints = [BoardPoint(x: 0, y: 1), BoardPoint(x: 1, y: 0)]
-                StoneView_Previews.stones.moveOrder = ["1": BoardPoint(x: 0, y: 0),
-                                                       "2": BoardPoint(x: 0, y: 1),
-                                                       "3": BoardPoint(x: 1, y: 1),
-                                                       "4": BoardPoint(x: 1, y: 0)]
-            }
+    return ZStack {
+        Rectangle()
+            .foregroundColor(.brown)
+
+        GeometryReader { geometry in
+            StoneView(dimensions: Dimensions(geometry: geometry,
+                                             width: 2,
+                                             height: 2),
+                      isClassicStoneStyle: false)
+        }
+        .environmentObject(stones)
+        .onAppear() {
+            stones.blackPoints = [BoardPoint(x: 0, y: 0), BoardPoint(x: 1, y: 1)]
+            stones.whitePoints = [BoardPoint(x: 0, y: 1), BoardPoint(x: 1, y: 0)]
+            stones.moveOrder = ["1": BoardPoint(x: 0, y: 0),
+                                "2": BoardPoint(x: 0, y: 1),
+                                "3": BoardPoint(x: 1, y: 1),
+                                "4": BoardPoint(x: 1, y: 0)]
+        }
+    }
+}
+
+#Preview {
+    let stones = Stones()
+
+    return ZStack {
+        Rectangle()
+            .foregroundColor(.brown)
+
+        GeometryReader { geometry in
+            StoneView(dimensions: Dimensions(geometry: geometry,
+                                             width: 2,
+                                             height: 2),
+                      isClassicStoneStyle: true)
+        }
+        .environmentObject(stones)
+        .onAppear() {
+            stones.blackPoints = [BoardPoint(x: 0, y: 0), BoardPoint(x: 1, y: 1)]
+            stones.whitePoints = [BoardPoint(x: 0, y: 1), BoardPoint(x: 1, y: 0)]
+            stones.moveOrder = ["1": BoardPoint(x: 0, y: 0),
+                                "2": BoardPoint(x: 0, y: 1),
+                                "3": BoardPoint(x: 1, y: 1),
+                                "4": BoardPoint(x: 1, y: 0)]
         }
     }
 }

@@ -116,19 +116,43 @@ struct BoardLineView: View {
     }
 }
 
-struct BoardLineView_Previews: PreviewProvider {
-    static let board = ObservableBoard()
-    static var previews: some View {
-        GeometryReader { geometry in
-            let dimensions = Dimensions(geometry: geometry,
-                                        width: board.width,
-                                        height: board.height)
+#Preview {
+    GeometryReader { geometry in
+        let dimensions = Dimensions(geometry: geometry,
+                                    width: 9,
+                                    height: 9)
 
-            BoardLineView(dimensions: dimensions)
-        }
-        .onAppear() {
-            BoardLineView_Previews.board.width = 13
-            BoardLineView_Previews.board.height = 13
-        }
+        BoardLineView(dimensions: dimensions)
+    }
+}
+
+#Preview {
+    GeometryReader { geometry in
+        let dimensions = Dimensions(geometry: geometry,
+                                    width: 13,
+                                    height: 13)
+
+        BoardLineView(dimensions: dimensions)
+    }
+}
+
+#Preview {
+    GeometryReader { geometry in
+        let dimensions = Dimensions(geometry: geometry,
+                                    width: 19,
+                                    height: 19)
+
+        BoardLineView(dimensions: dimensions)
+    }
+}
+
+#Preview {
+    GeometryReader { geometry in
+        let dimensions = Dimensions(geometry: geometry,
+                                    width: 29,
+                                    height: 29,
+                                    showCoordinate: true)
+
+        BoardLineView(dimensions: dimensions)
     }
 }

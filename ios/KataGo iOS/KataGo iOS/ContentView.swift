@@ -419,8 +419,10 @@ struct ContentView: View {
     }
 }
 
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView()
-    }
+#Preview {
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: GameRecord.self, configurations: config)
+
+    return ContentView()
+        .modelContainer(container)
 }

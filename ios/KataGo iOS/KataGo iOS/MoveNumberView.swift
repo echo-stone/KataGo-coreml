@@ -9,7 +9,6 @@ import SwiftUI
 
 struct MoveNumberView: View {
     @EnvironmentObject var stones: Stones
-    @EnvironmentObject var board: ObservableBoard
     let dimensions: Dimensions
 
     var body: some View {
@@ -37,32 +36,27 @@ struct MoveNumberView: View {
     }
 }
 
-struct MoveNumberView_Previews: PreviewProvider {
-    static let stones = Stones()
-    static let board = ObservableBoard()
-    static var previews: some View {
-        ZStack {
-            Rectangle()
-                .foregroundColor(.brown)
+#Preview {
+    let stones = Stones()
 
-            GeometryReader { geometry in
-                let dimensions = Dimensions(geometry: geometry,
-                                            width: board.width,
-                                            height: board.height)
-                MoveNumberView(dimensions: dimensions)
-            }
-            .environmentObject(stones)
-            .environmentObject(board)
-            .onAppear() {
-                MoveNumberView_Previews.board.width = 2
-                MoveNumberView_Previews.board.height = 2
-                MoveNumberView_Previews.stones.blackPoints = [BoardPoint(x: 0, y: 0), BoardPoint(x: 1, y: 1)]
-                MoveNumberView_Previews.stones.whitePoints = [BoardPoint(x: 0, y: 1), BoardPoint(x: 1, y: 0)]
-                MoveNumberView_Previews.stones.moveOrder = ["1": BoardPoint(x: 0, y: 0),
-                                                       "2": BoardPoint(x: 0, y: 1),
-                                                       "3": BoardPoint(x: 1, y: 1),
-                                                       "4": BoardPoint(x: 1, y: 0)]
-            }
+    return ZStack {
+        Rectangle()
+            .foregroundColor(.brown)
+
+        GeometryReader { geometry in
+            let dimensions = Dimensions(geometry: geometry,
+                                        width: 2,
+                                        height: 2)
+            MoveNumberView(dimensions: dimensions)
+        }
+        .environmentObject(stones)
+        .onAppear() {
+            stones.blackPoints = [BoardPoint(x: 0, y: 0), BoardPoint(x: 1, y: 1)]
+            stones.whitePoints = [BoardPoint(x: 0, y: 1), BoardPoint(x: 1, y: 0)]
+            stones.moveOrder = ["1": BoardPoint(x: 0, y: 0),
+                                "2": BoardPoint(x: 0, y: 1),
+                                "3": BoardPoint(x: 1, y: 1),
+                                "4": BoardPoint(x: 1, y: 0)]
         }
     }
 }

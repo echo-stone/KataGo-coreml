@@ -10,7 +10,6 @@ import KataGoInterface
 
 struct AnalysisView: View {
     @EnvironmentObject var analysis: Analysis
-    @EnvironmentObject var board: ObservableBoard
     @EnvironmentObject var config: Config
     @EnvironmentObject var gobanState: GobanState
     let dimensions: Dimensions
@@ -225,34 +224,30 @@ struct AnalysisView: View {
     }
 }
 
-struct AnalysisView_Previews: PreviewProvider {
-    static let analysis = Analysis()
-    static let board = ObservableBoard()
-    static let config = Config()
+#Preview {
+    let analysis = Analysis()
+    let config = Config()
+    let gobanState = GobanState()
 
-    static var previews: some View {
-        ZStack {
-            Rectangle()
-                .foregroundColor(.brown)
+    return ZStack {
+        Rectangle()
+            .foregroundColor(.brown)
 
-            GeometryReader { geometry in
-                AnalysisView(dimensions: Dimensions(geometry: geometry,
-                                                    width: board.width,
-                                                    height: board.height))
-            }
-            .environmentObject(analysis)
-            .environmentObject(board)
-            .environmentObject(config)
-            .onAppear() {
-                AnalysisView_Previews.board.width = 2
-                AnalysisView_Previews.board.height = 2
-                AnalysisView_Previews.analysis.info = [
-                    BoardPoint(x: 0, y: 0): AnalysisInfo(visits: 12345678, winrate: 0.54321012345, scoreLead: 0.123456789, utilityLcb: -0.123456789),
-                    BoardPoint(x: 1, y: 0): AnalysisInfo(visits: 2345678, winrate: 0.4, scoreLead: -9.8, utilityLcb: -0.23456789),
-                    BoardPoint(x: 0, y: 1): AnalysisInfo(visits: 198, winrate: 0.321, scoreLead: -12.345, utilityLcb: -0.3456789)
-                ]
-                AnalysisView_Previews.analysis.ownership = [BoardPoint(x: 0, y: 0): Ownership(mean: 0.12, stdev: 0.5), BoardPoint(x: 1, y: 0): Ownership(mean: 0.987654321, stdev: 0.1), BoardPoint(x: 0, y: 1): Ownership(mean: -0.123456789, stdev: 0.4), BoardPoint(x: 1, y: 1): Ownership(mean: -0.98, stdev: 0.2)]
-            }
+        GeometryReader { geometry in
+            AnalysisView(dimensions: Dimensions(geometry: geometry,
+                                                width: 2,
+                                                height: 2))
+        }
+        .environmentObject(analysis)
+        .environmentObject(config)
+        .environmentObject(gobanState)
+        .onAppear() {
+            analysis.info = [
+                BoardPoint(x: 0, y: 0): AnalysisInfo(visits: 12345678, winrate: 0.54321012345, scoreLead: 0.123456789, utilityLcb: -0.123456789),
+                BoardPoint(x: 1, y: 0): AnalysisInfo(visits: 2345678, winrate: 0.4, scoreLead: -9.8, utilityLcb: -0.23456789),
+                BoardPoint(x: 0, y: 1): AnalysisInfo(visits: 198, winrate: 0.321, scoreLead: -12.345, utilityLcb: -0.3456789)
+            ]
+            analysis.ownership = [BoardPoint(x: 0, y: 0): Ownership(mean: 0.12, stdev: 0.5), BoardPoint(x: 1, y: 0): Ownership(mean: 0.987654321, stdev: 0.1), BoardPoint(x: 0, y: 1): Ownership(mean: -0.123456789, stdev: 0.4), BoardPoint(x: 1, y: 1): Ownership(mean: -0.98, stdev: 0.2)]
         }
     }
 }

@@ -39,3 +39,22 @@ struct WinrateBarView: View {
         }
     }
 }
+
+#Preview {
+    let winrate = Winrate()
+
+    return ZStack {
+        Rectangle()
+            .foregroundColor(.brown)
+
+        GeometryReader { geometry in
+            let dimensions = Dimensions(geometry: geometry,
+                                        width: 2,
+                                        height: 2,
+                                        showCoordinate: false)
+            BoardLineView(dimensions: dimensions)
+            WinrateBarView(dimensions: dimensions)
+        }
+        .environmentObject(winrate)
+    }
+}
