@@ -9,31 +9,6 @@ import SwiftUI
 import SwiftData
 import KataGoInterface
 
-enum SidebarItem: Hashable {
-    case goban, command, config
-}
-
-struct DetailView: View {
-    var selectedItem: SidebarItem?
-    var gameRecords: [GameRecord]
-
-    var body: some View {
-        Group {
-            switch selectedItem {
-            case .command:
-                CommandView()
-                    .navigationTitle("Command")
-            case .config:
-                ConfigView()
-                    .navigationTitle("Config")
-            default:
-                let gameRecord = (gameRecords.isEmpty) ? nil : gameRecords[0]
-                GobanView(gameRecord: gameRecord)
-            }
-        }
-    }
-}
-
 struct ContentView: View {
     @StateObject var stones = Stones()
     @StateObject var messagesObject = MessagesObject()
@@ -43,12 +18,11 @@ struct ContentView: View {
     @StateObject var config = Config()
     @State private var isShowingBoard = false
     @State private var boardText: [String] = []
-    @State var isEditing = EditMode.inactive
-    @State private var selectedItem: SidebarItem? = .goban
     @Query var gameRecords: [GameRecord]
     @Environment(\.modelContext) private var modelContext
     @StateObject var gobanState = GobanState()
     @StateObject var winrate = Winrate()
+    @State private var navigationContext = NavigationContext()
 
     init() {
         // Start a thread to run KataGo GTP
@@ -59,22 +33,24 @@ struct ContentView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $selectedItem) {
-                NavigationLink(value: SidebarItem.goban) {
-                    Label("Goban", systemImage: "circle")
+            List(selection: $navigationContext.selectedGameRecord) {
+                ForEach(gameRecords) { gameRecord in
+                    NavigationLink("Goban", value: gameRecord)
                 }
+                .onDelete(perform: { indexSet in
+                    for index in indexSet {
+                        let gameRecordToDelete = gameRecords[index]
+                        if navigationContext.selectedGameRecord?.persistentModelID == gameRecordToDelete.persistentModelID {
+                            navigationContext.selectedGameRecord = nil
+                        }
 
-                NavigationLink(value: SidebarItem.command) {
-                    Label("Command", systemImage: "text.alignleft")
-                }
-
-                NavigationLink(value: SidebarItem.config) {
-                    Label("Config", systemImage: "slider.horizontal.3")
-                }
+                        modelContext.delete(gameRecordToDelete)
+                    }
+                })
             }
             .navigationTitle("Menu")
         } detail: {
-            DetailView(selectedItem: selectedItem, gameRecords: gameRecords)
+            GobanView(gameRecord: navigationContext.selectedGameRecord)
         }
         .environmentObject(stones)
         .environmentObject(messagesObject)
@@ -82,9 +58,9 @@ struct ContentView: View {
         .environmentObject(player)
         .environmentObject(analysis)
         .environmentObject(config)
-        .environment(\.editMode, $isEditing)
         .environmentObject(gobanState)
         .environmentObject(winrate)
+        .environment(navigationContext)
         .onAppear() {
             // Get messages from KataGo and append to the list of messages
             createMessageTask()
@@ -107,6 +83,7 @@ struct ContentView: View {
             KataGoHelper.sendCommand("kata-set-rule friendlyPassOk false")
             KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
             KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
+            if !gameRecords.isEmpty { navigationContext.selectedGameRecord = gameRecords[0] }
             maybeLoadSgf()
             KataGoHelper.sendCommand("showboard")
             KataGoHelper.sendCommand("printsgf")
@@ -142,14 +119,14 @@ struct ContentView: View {
     }
 
     func maybeLoadSgf() {
-        if !gameRecords.isEmpty {
-            let sgf = gameRecords[0].sgf
+        if let gameRecord = navigationContext.selectedGameRecord {
+            let sgf = gameRecord.sgf
 
             let supportDirectory =
             try? FileManager.default.url(for: .documentDirectory,
-                                                                in: .userDomainMask,
-                                                                appropriateFor: nil,
-                                                                create: true)
+                                         in: .userDomainMask,
+                                         appropriateFor: nil,
+                                         create: true)
 
             if let supportDirectory {
                 let file = supportDirectory.appendingPathComponent("temp.sgf")
@@ -410,9 +387,9 @@ struct ContentView: View {
                 let currentIndex = lastMoveIndex + 1
                 if gameRecords.isEmpty {
                     modelContext.insert(GameRecord(sgf: sgfString, currentIndex: currentIndex))
-                } else {
-                    gameRecords[0].sgf = sgfString
-                    gameRecords[0].currentIndex = currentIndex
+                } else if let gameRecord = navigationContext.selectedGameRecord {
+                    gameRecord.sgf = sgfString
+                    gameRecord.currentIndex = currentIndex
                 }
             }
         }

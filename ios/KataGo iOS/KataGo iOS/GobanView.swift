@@ -80,12 +80,85 @@ struct BoardView: View {
     }
 }
 
-struct GobanItems: View {
-    var gameRecord: GameRecord?
+struct TopToolbarView: View {
+    @Binding var isCommandPresented: Bool
+    @Binding var isConfigPresented: Bool
+    @EnvironmentObject var config: Config
 
     var body: some View {
-        Group {
+        HStack {
+            Button(action: {
+                withAnimation {
+                    isCommandPresented.toggle()
+                    isConfigPresented = false
+                }
+            }) {
+                if isCommandPresented {
+                    Image(systemName: "doc.plaintext.fill")
+                } else {
+                    Image(systemName: "doc.plaintext")
+                }
+            }
+
+            Button(action: {
+                withAnimation {
+                    isCommandPresented = false
+                    isConfigPresented.toggle()
+                }
+            }) {
+                if isConfigPresented {
+                    Image(systemName: "gearshape.fill")
+                } else {
+                    Image(systemName: "gearshape")
+                }
+            }
+            .onChange(of: isConfigPresented) { _, isConfigPresentedNow in
+                if !isConfigPresentedNow && (config.isBoardSizeChanged) {
+                    KataGoHelper.sendCommand(config.getKataBoardSizeCommand())
+                    KataGoHelper.sendCommand("printsgf")
+                    config.isBoardSizeChanged = false
+                }
+            }
+        }
+    }
+}
+
+struct TopToolbarContent: ToolbarContent {
+    @Binding var isCommandPresented: Bool
+    @Binding var isConfigPresented: Bool
+
+    var body: some ToolbarContent {
+        ToolbarItem {
+            TopToolbarView(isCommandPresented: $isCommandPresented,
+                           isConfigPresented: $isConfigPresented)
+        }
+    }
+}
+
+struct GobanItems: View {
+    var gameRecord: GameRecord?
+    @State var isCommandPresented = false
+    @State var isConfigPresented = false
+
+    var body: some View {
+        if isCommandPresented {
+            CommandView()
+                .toolbar {
+                    TopToolbarContent(isCommandPresented: $isCommandPresented,
+                                      isConfigPresented: $isConfigPresented)
+                }
+        } else if isConfigPresented {
+            ConfigView()
+                .toolbar {
+                    TopToolbarContent(isCommandPresented: $isCommandPresented,
+                                      isConfigPresented: $isConfigPresented)
+                }
+        } else {
             BoardView()
+                .toolbar {
+                    TopToolbarContent(isCommandPresented: $isCommandPresented,
+                                      isConfigPresented: $isConfigPresented)
+                }
             ToolbarView(gameRecord: gameRecord)
                 .padding()
         }
@@ -98,14 +171,18 @@ struct GobanView: View {
     var gameRecord: GameRecord?
 
     var body: some View {
-        if hSizeClass == .compact && vSizeClass == .regular {
-            VStack {
-                GobanItems(gameRecord: gameRecord)
+        if let gameRecord {
+            if hSizeClass == .compact && vSizeClass == .regular {
+                VStack {
+                    GobanItems(gameRecord: gameRecord)
+                }
+            } else {
+                HStack {
+                    GobanItems(gameRecord: gameRecord)
+                }
             }
         } else {
-            HStack {
-                GobanItems(gameRecord: gameRecord)
-            }
+            ContentUnavailableView("Select a game record", systemImage: "sidebar.left")
         }
     }
 }

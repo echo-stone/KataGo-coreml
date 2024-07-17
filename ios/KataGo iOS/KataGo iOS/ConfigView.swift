@@ -8,26 +8,7 @@
 import SwiftUI
 import KataGoInterface
 
-struct EditButtonBar: View {
-    @Environment(\.editMode) private var editMode
-    @EnvironmentObject var config: Config
-
-    var body: some View {
-        HStack {
-            Spacer()
-            EditButton().onChange(of: editMode?.wrappedValue) {
-                if (editMode?.wrappedValue == .inactive) && (config.isBoardSizeChanged) {
-                    KataGoHelper.sendCommand(config.getKataBoardSizeCommand())
-                    KataGoHelper.sendCommand("printsgf")
-                    config.isBoardSizeChanged = false
-                }
-            }
-        }
-    }
-}
-
 struct ConfigIntItem: View {
-    @Environment(\.editMode) private var editMode
     let title: String
     @Binding var value: Int
     let minValue: Int
@@ -37,13 +18,9 @@ struct ConfigIntItem: View {
         HStack {
             Text(title)
             Spacer()
-            if editMode?.wrappedValue.isEditing == true {
-                Stepper(value: $value, in: minValue...maxValue) {
-                    Text("\(value)")
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                }
-            } else {
+            Stepper(value: $value, in: minValue...maxValue) {
                 Text("\(value)")
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -51,7 +28,6 @@ struct ConfigIntItem: View {
 }
 
 struct ConfigFloatItem: View {
-    @Environment(\.editMode) private var editMode
     let title: String
     @Binding var value: Float
     let step: Float
@@ -62,13 +38,9 @@ struct ConfigFloatItem: View {
         HStack {
             Text(title)
             Spacer()
-            if editMode?.wrappedValue.isEditing == true {
-                Stepper(value: $value, in: minValue...maxValue, step: step) {
-                    Text("\(value.formatted(.number))")
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                }
-            } else {
+            Stepper(value: $value, in: minValue...maxValue, step: step) {
                 Text("\(value.formatted(.number))")
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -76,7 +48,6 @@ struct ConfigFloatItem: View {
 }
 
 struct ConfigTextItem: View {
-    @Environment(\.editMode) private var editMode
     let title: String
     let texts: [String]
     @Binding var value: Int
@@ -85,17 +56,13 @@ struct ConfigTextItem: View {
         HStack {
             Text(title)
             Spacer()
-            if editMode?.wrappedValue.isEditing == true {
-                Stepper {
-                    Text(texts[value])
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                } onIncrement: {
-                    value = ((value + 1) < texts.count) ? (value + 1) : 0
-                } onDecrement: {
-                    value = ((value - 1) >= 0) ? (value - 1) : (texts.count - 1)
-                }
-            } else {
+            Stepper {
                 Text(texts[value])
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            } onIncrement: {
+                value = ((value + 1) < texts.count) ? (value + 1) : 0
+            } onDecrement: {
+                value = ((value - 1) >= 0) ? (value - 1) : (texts.count - 1)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -103,7 +70,6 @@ struct ConfigTextItem: View {
 }
 
 struct ConfigBoolItem: View {
-    @Environment(\.editMode) private var editMode
     let title: String
     @Binding var value: Bool
 
@@ -115,17 +81,13 @@ struct ConfigBoolItem: View {
         HStack {
             Text(title)
             Spacer()
-            if editMode?.wrappedValue.isEditing == true {
-                Stepper {
-                    Text(label)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                } onIncrement: {
-                    value.toggle()
-                } onDecrement: {
-                    value.toggle()
-                }
-            } else {
+            Stepper {
                 Text(label)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            } onIncrement: {
+                value.toggle()
+            } onDecrement: {
+                value.toggle()
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -234,8 +196,6 @@ struct ConfigItems: View {
 struct ConfigView: View {
     var body: some View {
         VStack {
-            EditButtonBar()
-                .padding()
             ConfigItems()
                 .padding()
         }
@@ -247,7 +207,6 @@ struct ConfigView: View {
 }
 
 struct ConfigView_Previews: PreviewProvider {
-    static let isEditing = EditMode.inactive
     static let config = Config()
     static var previews: some View {
         ConfigView()
