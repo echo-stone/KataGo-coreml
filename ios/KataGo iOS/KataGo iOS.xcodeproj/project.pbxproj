@@ -218,6 +218,8 @@
 		E149B7F42B350EA8002B7F61 /* parallel.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E149B7F22B350EA8002B7F61 /* parallel.cpp */; };
 		E149B7F52B350EA8002B7F61 /* parallel.h in Headers */ = {isa = PBXBuildFile; fileRef = E149B7F32B350EA8002B7F61 /* parallel.h */; };
 		E16BC8292C48083900EA3A1E /* NavigationContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16BC8282C48083900EA3A1E /* NavigationContext.swift */; };
+		E16BC8372C4CB28900EA3A1E /* misc.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16BC8362C4CB28900EA3A1E /* misc.swift */; };
+		E16BC8392C4CB2FF00EA3A1E /* sgfmetadata.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E16BC8382C4CB2FF00EA3A1E /* sgfmetadata.cpp */; };
 		E18446562C1DD526004F5E3B /* MoveNumberView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18446552C1DD526004F5E3B /* MoveNumberView.swift */; };
 		E18F3E112A51466A00D335E1 /* KataGo_iOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18F3E102A51466A00D335E1 /* KataGo_iOSApp.swift */; };
 		E18F3E132A51466A00D335E1 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18F3E122A51466A00D335E1 /* ContentView.swift */; };
@@ -519,6 +521,8 @@
 		E149B7F22B350EA8002B7F61 /* parallel.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = parallel.cpp; sourceTree = "<group>"; };
 		E149B7F32B350EA8002B7F61 /* parallel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = parallel.h; sourceTree = "<group>"; };
 		E16BC8282C48083900EA3A1E /* NavigationContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationContext.swift; sourceTree = "<group>"; };
+		E16BC8362C4CB28900EA3A1E /* misc.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = misc.swift; path = ../../../cpp/neuralnet/misc.swift; sourceTree = "<group>"; };
+		E16BC8382C4CB2FF00EA3A1E /* sgfmetadata.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = sgfmetadata.cpp; sourceTree = "<group>"; };
 		E18446552C1DD526004F5E3B /* MoveNumberView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveNumberView.swift; sourceTree = "<group>"; };
 		E18F3E0D2A51466A00D335E1 /* KataGo iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "KataGo iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E18F3E102A51466A00D335E1 /* KataGo_iOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGo_iOSApp.swift; sourceTree = "<group>"; };
@@ -721,21 +725,22 @@
 		E11837FE2B081DA700637D44 /* neuralnet */ = {
 			isa = PBXGroup;
 			children = (
-				E11837FF2B081DA700637D44 /* desc.h */,
+				E118381A2B081DA700637D44 /* activations.h */,
 				E11838002B081DA700637D44 /* coremlbackend.cpp */,
-				E11838092B081DA700637D44 /* desc.cpp */,
 				E11838102B081DA700637D44 /* coremlbackend.h */,
-				E11838112B081DA700637D44 /* openclhelpers.cpp */,
+				E11838092B081DA700637D44 /* desc.cpp */,
+				E11837FF2B081DA700637D44 /* desc.h */,
+				E11838252B081DA700637D44 /* metalbackend.cpp */,
 				E11838122B081DA700637D44 /* metalbackend.h */,
-				E11838142B081DA700637D44 /* nninterface.h */,
 				E11838172B081DA700637D44 /* modelversion.cpp */,
 				E11838182B081DA700637D44 /* modelversion.h */,
-				E11838192B081DA700637D44 /* nninputs.cpp */,
-				E118381A2B081DA700637D44 /* activations.h */,
-				E11838202B081DA700637D44 /* nninputs.h */,
-				E11838242B081DA700637D44 /* nneval.h */,
-				E11838252B081DA700637D44 /* metalbackend.cpp */,
 				E11838262B081DA700637D44 /* nneval.cpp */,
+				E11838242B081DA700637D44 /* nneval.h */,
+				E11838192B081DA700637D44 /* nninputs.cpp */,
+				E11838202B081DA700637D44 /* nninputs.h */,
+				E11838142B081DA700637D44 /* nninterface.h */,
+				E11838112B081DA700637D44 /* openclhelpers.cpp */,
+				E16BC8382C4CB2FF00EA3A1E /* sgfmetadata.cpp */,
 			);
 			path = neuralnet;
 			sourceTree = "<group>";
@@ -855,10 +860,11 @@
 		E11887E22B0830C900637D44 /* KataGoSwift */ = {
 			isa = PBXGroup;
 			children = (
+				E11887E32B0830C900637D44 /* KataGoSwift.h */,
 				E11887ED2B08310800637D44 /* coremlbackend.swift */,
 				E11887EC2B08310800637D44 /* coremlmodel.swift */,
 				E11887EE2B08310800637D44 /* metalbackend.swift */,
-				E11887E32B0830C900637D44 /* KataGoSwift.h */,
+				E16BC8362C4CB28900EA3A1E /* misc.swift */,
 			);
 			path = KataGoSwift;
 			sourceTree = "<group>";
@@ -1351,6 +1357,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E11887F02B08310800637D44 /* coremlbackend.swift in Sources */,
+				E16BC8372C4CB28900EA3A1E /* misc.swift in Sources */,
 				E11887F12B08310800637D44 /* metalbackend.swift in Sources */,
 				E11887EF2B08310800637D44 /* coremlmodel.swift in Sources */,
 			);
@@ -1415,6 +1422,7 @@
 				E11881472B081E3D00637D44 /* testmisc.cpp in Sources */,
 				E11880832B081E3A00637D44 /* testsearchcommon.cpp in Sources */,
 				E11881BF2B081E3F00637D44 /* play.cpp in Sources */,
+				E16BC8392C4CB2FF00EA3A1E /* sgfmetadata.cpp in Sources */,
 				E11881842B081E3E00637D44 /* searchresults.cpp in Sources */,
 				E11880792B081E3A00637D44 /* testtime.cpp in Sources */,
 				E11880642B081E3900637D44 /* rand_helpers.cpp in Sources */,
