@@ -21,13 +21,12 @@ SWMatMulLayerDesc matMulLayerDescToSwift(const MatMulLayerDesc * desc);
 SWGlobalPoolingResidualBlockDesc globalPoolingResidualBlockDescToSwift(const GlobalPoolingResidualBlockDesc* desc);
 swift::Array<BlockDescriptor> residualBlocksToSwift(const vector<pair<int, unique_ptr_void>>& blocks);
 SWNestedBottleneckResidualBlockDesc nestedBottleneckResidualBlockDescToSwift(const NestedBottleneckResidualBlockDesc* desc);
+swift::Optional<SWSGFMetadataEncoderDesc> sGFMetadataEncoderDescToSwift(const SGFMetadataEncoderDesc * desc);
 SWTrunkDesc trunkDescToSwift(const TrunkDesc * trunk);
 SWPolicyHeadDesc policyHeadDescToSwift(const PolicyHeadDesc * policyHead);
 SWMatBiasLayerDesc matBiasLayerDescToSwift(const MatBiasLayerDesc * desc);
 SWValueHeadDesc valueHeadDescToSwift(const ValueHeadDesc * valueHead);
-
-void createMetalComputeHandle(const ModelDesc* modelDesc,
-                              int serverThreadIdx);
+SWModelDesc modelDescToSwift(const ModelDesc* modelDesc);
 
 bool testEvaluateConv(const ConvLayerDesc* desc,
                       int batchSize,
@@ -158,6 +157,16 @@ struct ComputeContext {
   bool useCpuAndNeuralEngine;
 
   /**
+   * @brief ComputeContext ID
+   */
+  int identifier;
+
+  /**
+   * @brief Metal compute context instance
+   */
+  MetalComputeContext metalComputeContext;
+
+  /**
    * @brief Constructs a ComputeContext object.
    * This constructor creates a ComputeContext object and sets the configuration settings for neural network
    * computations, including whether to use FP16 mode and whether to use the NHWC format for input tensors.
@@ -186,8 +195,8 @@ struct ComputeContext {
 
   /**
    * @brief Deletes the copy constructor.
-   * 
-   * @return ComputeContext& 
+   *
+   * @return ComputeContext&
    */
   ComputeContext& operator=(const ComputeContext&) = delete;
 };
@@ -198,6 +207,8 @@ struct ComputeContext {
  * parameters and settings that determine how the computation is performed.
  */
 struct ComputeHandle {
+  int identifier;
+
   /**
    * @brief The x length of the neural network computation context.
    */
@@ -219,6 +230,11 @@ struct ComputeHandle {
   int version;
 
   /**
+   * @brief The version of the metadata encoder.
+   */
+  int metaEncoderVersion;
+
+  /**
    * @brief Whether the input data uses NHWC format.
    */
   bool inputsUseNHWC;
@@ -227,11 +243,6 @@ struct ComputeHandle {
    * @brief Whether to use 16-bit floating-point precision for computation.
    */
   bool useFP16;
-
-  /**
-   * @brief Whether to use Metal for computations (as opposed to CoreML).
-   */
-  bool useMetal;
 
   /**
    * @brief The x length of the CoreML model.
@@ -252,6 +263,16 @@ struct ComputeHandle {
    * @brief The index of the CoreML model.
    */
   int modelIndex;
+
+  /**
+   * @brief The Metal handle instance.
+   */
+  swift::Optional<MetalComputeHandle> metalhandle;
+
+  /**
+   * @brief The CoreML backend instance.
+   */
+  swift::Optional<CoreMLBackend> coremlbackend;
 
   /**
    * @brief Construct a new ComputeHandle object.
@@ -298,6 +319,7 @@ struct InputBuffers {
   size_t singleSpatialElts;
   size_t singleInputElts;
   size_t singleInputGlobalElts;
+  size_t singleInputMetaElts;
   size_t singleNnPolicyResultElts;
   size_t singleModelPolicyResultElts;
   size_t singlePolicyPassResultElts;
@@ -313,6 +335,7 @@ struct InputBuffers {
   size_t rowSpatialBufferElts;
   size_t userInputBufferElts;
   size_t userInputGlobalBufferElts;
+  size_t userInputMetaBufferElts;
   size_t policyResultBufferElts;
   size_t policyPassResultBufferElts;
   size_t policyProbsBufferElts;
@@ -325,6 +348,7 @@ struct InputBuffers {
   float* rowSpatialBuffer;
   float* userInputBuffer;
   float* userInputGlobalBuffer;
+  float* userInputMetaBuffer;
   float* policyResults;
   float* policyPassResults;
   float* policyProbsBuffer;

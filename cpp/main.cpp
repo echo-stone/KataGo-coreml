@@ -145,6 +145,8 @@ static int handleSubcommand(const string& subcommand, const vector<string>& args
     return MainCmds::viewstartposes(subArgs);
   else if(subcommand == "demoplay")
     return MainCmds::demoplay(subArgs);
+  else if(subcommand == "writetrainingdata")
+    return MainCmds::writetrainingdata(subArgs);
   else if(subcommand == "sampleinitializations")
     return MainCmds::sampleinitializations(subArgs);
   else if(subcommand == "runbeginsearchspeedtest")
@@ -208,11 +210,11 @@ int main(int argc, const char* const* argv) {
 
 
 string Version::getKataGoVersion() {
-  return string("1.14.1-coreml1");
+  return string("1.15.1-coreml2");
 }
 
 string Version::getKataGoVersionForHelp() {
-  return string("KataGo v1.14.1-coreml1");
+  return string("KataGo v1.15.1-coreml2");
 }
 
 string Version::getKataGoVersionFullInfo() {

@@ -427,6 +427,7 @@ int MainCmds::demoplay(const vector<string>& args) {
 
   //Check for unused config keys
   cfg.warnUnusedKeys(cerr,&logger);
+  Setup::maybeWarnHumanSLParams(params,nnEval,NULL,cerr,&logger);
 
   AsyncBot* bot = new AsyncBot(params, nnEval, &logger, searchRandSeed);
   bot->setAlwaysIncludeOwnerMap(true);
@@ -574,6 +575,47 @@ int MainCmds::printclockinfo(const vector<string>& args) {
   return 0;
 }
 
+static void handleStartAnnotations(Sgf* rootSgf) {
+  std::function<bool(Sgf*)> hasStartNode = [&hasStartNode](Sgf* sgf) {
+    for(SgfNode* node : sgf->nodes) {
+      if(node->hasProperty("C")) {
+        std::string comment = node->getSingleProperty("C");
+        if(comment.find("%START%") != std::string::npos) {
+          return true;
+        }
+      }
+    }
+    for(Sgf* child : sgf->children) {
+      if(hasStartNode(child)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  std::function<void(Sgf*)> markNodes = [&markNodes](Sgf* sgf) {
+    bool isInStartSubtree = false;
+    for(SgfNode* node : sgf->nodes) {
+      if(node->hasProperty("C")) {
+        std::string comment = node->getSingleProperty("C");
+        if(comment.find("%START%") != std::string::npos) {
+          isInStartSubtree = true;
+          break;
+        }
+      }
+      node->appendComment("%NOSAMPLE%");
+      node->appendComment("%NOHINT%");
+    }
+    if(!isInStartSubtree) {
+      for(Sgf* child : sgf->children)
+        markNodes(child);
+    }
+  };
+
+  if(hasStartNode(rootSgf)) {
+    markNodes(rootSgf);
+  }
+}
 
 int MainCmds::samplesgfs(const vector<string>& args) {
   Board::initHash();
@@ -912,6 +954,8 @@ int MainCmds::samplesgfs(const vector<string>& args) {
       return;
     }
 
+    handleStartAnnotations(sgf);
+
     if(valueFluctuationNNEval == NULL) {
       bool hashParent = false;
       Rand iterRand;
@@ -1157,6 +1201,7 @@ int MainCmds::samplesgfs(const vector<string>& args) {
     Parallel::iterRange(
       numThreads,
       sgfFiles.size(),
+      logger,
       std::function<void(int,size_t)>(processSgfFile)
     );
   };
@@ -1183,6 +1228,7 @@ int MainCmds::samplesgfs(const vector<string>& args) {
     Parallel::iterRange(
       numThreads,
       sgfs.size(),
+      logger,
       std::function<void(int,size_t)>(processSgf)
     );
     for(size_t j = 0; j<sgfs.size(); j++) {
@@ -1477,33 +1523,17 @@ int MainCmds::dataminesgfs(const vector<string>& args) {
 
   GameInitializer* gameInit = new GameInitializer(cfg,logger);
   cfg.warnUnusedKeys(cerr,&logger);
+  Setup::maybeWarnHumanSLParams(params,nnEval,NULL,cerr,&logger);
 
   vector<string> sgfFiles;
   FileHelpers::collectSgfsFromDirsOrFiles(sgfDirs,sgfFiles);
-  logger.write("Found " + Global::int64ToString((int64_t)sgfFiles.size()) + " sgf files!");
-
-  std::set<string> sgfsSet;
-  {
-    vector<string> sgfsFiles;
-    FileHelpers::collectMultiSgfsFromDirsOrFiles(sgfsDirs,sgfsFiles);
-    logger.write("Found " + Global::int64ToString((int64_t)sgfsFiles.size()) + " sgfs files!");
-    for(const string& s: sgfsFiles) {
-      sgfFiles.push_back(s);
-      sgfsSet.insert(s);
-    }
-  }
+  FileHelpers::collectMultiSgfsFromDirsOrFiles(sgfsDirs,sgfFiles);
+  logger.write("Found " + Global::int64ToString((int64_t)sgfFiles.size()) + " sgf(s) files!");
 
   if(forTesting)
     std::sort(sgfFiles.begin(),sgfFiles.end());
-
-  vector<size_t> permutation(sgfFiles.size());
-  for(size_t i = 0; i<sgfFiles.size(); i++)
-    permutation[i] = i;
-  if(!forTesting) {
-    for(size_t i = 1; i<sgfFiles.size(); i++) {
-      size_t r = (size_t)seedRand.nextUInt64(i+1);
-      std::swap(permutation[i],permutation[r]);
-    }
+  else {
+    seedRand.shuffle(sgfFiles);
   }
 
   set<Hash128> excludeHashes = Sgf::readExcludes(excludeHashesFiles);
@@ -2198,42 +2228,14 @@ int MainCmds::dataminesgfs(const vector<string>& args) {
     if(numSgfsBegun % std::min((size_t)20, 1 + sgfFiles.size() / 60) == 0)
       logSgfProgress();
 
-    const string& fileName = sgfFiles[permutation[i]];
+    const string& fileName = sgfFiles[i];
 
-    std::vector<Sgf*> sgfs;
-    if(sgfsSet.find(fileName) != sgfsSet.end()) {
-      try {
-        sgfs = Sgf::loadSgfsFile(fileName);
-      }
-      catch(const StringError& e) {
-        logger.write("Invalid SGFS " + fileName + ": " + e.what());
-        continue;
-      }
-    }
-    else {
-      Sgf* sgf = NULL;
-      try {
-        sgf = Sgf::loadFile(fileName);
-      }
-      catch(const StringError& e) {
-        logger.write("Invalid SGF " + fileName + ": " + e.what());
-        continue;
-      }
-      sgfs.push_back(sgf);
-    }
-
-    vector<size_t> subPermutation(sgfs.size());
-    for(size_t j = 0; j<sgfs.size(); j++)
-      subPermutation[j] = j;
-    if(!forTesting) {
-      for(size_t j = 1; j<sgfs.size(); j++) {
-        size_t r = (size_t)seedRand.nextUInt64(j+1);
-        std::swap(subPermutation[j],subPermutation[r]);
-      }
-    }
+    std::vector<Sgf*> sgfs = Sgf::loadSgfOrSgfsLogAndIgnoreErrors(fileName,logger);
+    if(!forTesting)
+      seedRand.shuffle(sgfs);
 
     for(size_t j = 0; j<sgfs.size(); j++) {
-      Sgf* sgf = sgfs[subPermutation[j]];
+      Sgf* sgf = sgfs[j];
 
       if(contains(excludeHashes,sgf->hash)) {
         logger.write("Filtering due to exclude: " + fileName);
@@ -2262,6 +2264,7 @@ int MainCmds::dataminesgfs(const vector<string>& args) {
       }
 
       logger.write("Starting " + fileName);
+      handleStartAnnotations(sgf);
 
       if(gameMode) {
         sgfQueue.waitPush(sgf);

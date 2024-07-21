@@ -170,6 +170,7 @@ void CoreMLProcess::getCoreMLOutput(
   NNResultBuf** inputBufs,
   vector<NNOutput*>& outputs) {
   int batchSize = numBatchEltsFilled;
+  auto coremlbackend = gpuHandle->coremlbackend;
   int nnXLen = gpuHandle->nnXLen;
   int nnYLen = gpuHandle->nnYLen;
   int modelXLen = gpuHandle->modelXLen;
@@ -180,12 +181,14 @@ void CoreMLProcess::getCoreMLOutput(
   size_t singleSpatialElts = inputBuffers->singleSpatialElts;
   size_t singleInputElts = inputBuffers->singleInputElts;
   size_t singleInputGlobalElts = inputBuffers->singleInputGlobalElts;
+  size_t singleInputMetaElts = inputBuffers->singleInputMetaElts;
 
   assert(batchSize <= inputBuffers->maxBatchSize);
   assert(batchSize > 0);
+  assert(coremlbackend);
   assert((numSpatialFeatures * modelXLen * modelYLen) == inputBuffers->singleInputElts);
   assert(numGlobalFeatures == inputBuffers->singleInputGlobalElts);
-  assert(version == getCoreMLBackendVersion(gpuHandle->modelIndex));
+  assert(version == coremlbackend.get().getVersion());
   assert(singleInputElts == (modelXLen * modelYLen * 22));
   assert(singleInputGlobalElts == 19);
   assert(inputBuffers->singleModelPolicyResultElts == ((modelXLen * modelYLen) + 1));
@@ -199,10 +202,13 @@ void CoreMLProcess::getCoreMLOutput(
     float* rowSpatialBuffer = &inputBuffers->rowSpatialBuffer[singleSpatialElts * row];
     float* rowSpatialInput = &inputBuffers->userInputBuffer[singleInputElts * row];
     float* rowGlobalInput = &inputBuffers->userInputGlobalBuffer[singleInputGlobalElts * row];
-    const float* rowGlobal = inputBufs[row]->rowGlobal;
-    const float* rowSpatial = inputBufs[row]->rowSpatial;
+    float* rowMetaInput = &inputBuffers->userInputMetaBuffer[singleInputMetaElts * row];
+    const float* rowGlobal = inputBufs[row]->rowGlobalBuf.data();
+    const float* rowSpatial = inputBufs[row]->rowSpatialBuf.data();
+    const float* rowMeta = inputBufs[row]->rowMetaBuf.data();
 
-    std::copy(&rowGlobal[0], &rowGlobal[numGlobalFeatures], rowGlobalInput);
+    std::copy(&rowGlobal[0], &rowGlobal[singleInputGlobalElts], rowGlobalInput);
+    std::copy(&rowMeta[0], &rowMeta[singleInputMetaElts], rowMetaInput);
 
     SymmetryHelpers::copyInputsWithSymmetry(
       rowSpatial,
@@ -225,15 +231,15 @@ void CoreMLProcess::getCoreMLOutput(
     }
   }
 
-  getCoreMLHandleBatchOutput(inputBuffers->userInputBuffer,
-                             inputBuffers->userInputGlobalBuffer,
-                             inputBuffers->policyResults,
-                             inputBuffers->valueResults,
-                             inputBuffers->ownershipResults,
-                             inputBuffers->scoreValuesResults,
-                             inputBuffers->moreMiscValuesResults,
-                             gpuHandle->modelIndex,
-                             batchSize);
+  coremlbackend.get().getBatchOutput(inputBuffers->userInputBuffer,
+                                     inputBuffers->userInputGlobalBuffer,
+                                     inputBuffers->userInputMetaBuffer,
+                                     inputBuffers->policyResults,
+                                     inputBuffers->valueResults,
+                                     inputBuffers->ownershipResults,
+                                     inputBuffers->scoreValuesResults,
+                                     inputBuffers->moreMiscValuesResults,
+                                     batchSize);
 
   // Fill results by CoreML model output
   for(size_t row = 0; row < batchSize; row++) {

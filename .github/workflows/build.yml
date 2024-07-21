@@ -10,7 +10,7 @@ jobs:
     runs-on: macos-13
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Run Xcode build
       run: |
@@ -20,6 +20,7 @@ jobs:
     - name: Setup configuration
       run: |
         ln -s ../../../../../configs/misc/coreml_example.cfg cpp/xcode/DerivedData/Build/Products/Debug/gtp.cfg
+        ln -s ../../../../../configs/misc/metal_gtp.cfg cpp/xcode/DerivedData/Build/Products/Debug/metal_gtp.cfg
 
     - name: Setup network
       run: |
@@ -27,6 +28,13 @@ jobs:
         cd models
         wget https://github.com/ChinChangYang/KataGo/releases/download/v1.13.2-coreml1/kata1-b18c384nbt-s7709731328-d3715293823.bin.gz
         ln -s ../../../../../../models/kata1-b18c384nbt-s7709731328-d3715293823.bin.gz ../cpp/xcode/DerivedData/Build/Products/Debug/model.bin.gz
+
+    - name: Setup network of version 8
+      run: |
+        mkdir -p models
+        cd models
+        wget https://github.com/lightvector/KataGo/releases/download/v1.4.5/g170-b40c256x2-s5095420928-d1229425124.bin.gz
+        ln -s ../../../../../../models/g170-b40c256x2-s5095420928-d1229425124.bin.gz ../cpp/xcode/DerivedData/Build/Products/Debug/modelv8.bin.gz
 
     - name: Setup CoreML model FP16
       run: |
@@ -43,6 +51,14 @@ jobs:
         wget https://github.com/ChinChangYang/KataGo/releases/download/v1.13.2-coreml1/KataGoModel19x19fp32v14s7709731328.mlpackage.zip
         unzip KataGoModel19x19fp32v14s7709731328.mlpackage.zip
         ln -s ../../../../../../models/KataGoModel19x19fp32v14s7709731328.mlpackage ../cpp/xcode/DerivedData/Build/Products/Debug/KataGoModel19x19fp32.mlpackage
+
+    - name: Setup CoreML model FP32 meta
+      run: |
+        mkdir -p models
+        cd models
+        wget https://github.com/ChinChangYang/KataGo/releases/download/v1.15.1-coreml1/KataGoModel19x19fp32meta1.mlpackage.zip
+        unzip KataGoModel19x19fp32meta1.mlpackage.zip
+        ln -s ../../../../../../models/KataGoModel19x19fp32meta1.mlpackage ../cpp/xcode/DerivedData/Build/Products/Debug/KataGoModel19x19fp32meta1.mlpackage
 
     - name: Setup test data
       run: |
@@ -66,7 +82,7 @@ jobs:
     runs-on: macos-13
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Setup ninja
       run: |

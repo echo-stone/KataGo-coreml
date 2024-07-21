@@ -165,7 +165,8 @@ Loc PlayUtils::chooseRandomPolicyMove(
 
   //Just in case the policy map is somehow not consistent with the board position
   if(numLegalMoves > 0) {
-    uint32_t n = Search::chooseIndexWithTemperature(gameRand, relProbs, numLegalMoves, temperature);
+    double onlyBelowProb = 1.0;
+    uint32_t n = Search::chooseIndexWithTemperature(gameRand, relProbs, numLegalMoves, temperature, onlyBelowProb, NULL);
     return locs[n];
   }
   return Board::NULL_LOC;
@@ -988,17 +989,16 @@ PlayUtils::BenchmarkResults PlayUtils::benchmarkSearchOnPositionsAndPrint(
 
 void PlayUtils::printGenmoveLog(
   ostream& out,
-  const AsyncBot* bot,
+  const Search* search,
   const NNEvaluator* nnEval,
   Loc moveLoc,
   double timeTaken,
   Player perspective,
   bool logSearchInfoForChosenMove
 ) {
-  const Search* search = bot->getSearch();
-  const Board& board = bot->getRootBoard();
-  Board::printBoard(out, board, moveLoc, &(bot->getRootHist().moveHistory));
-  out << bot->getRootHist().rules << "\n";
+  const Board& board = search->getRootBoard();
+  Board::printBoard(out, board, moveLoc, &(search->getRootHist().moveHistory));
+  out << search->getRootHist().rules << "\n";
   if(!std::isnan(timeTaken))
     out << "Time taken: " << timeTaken << "\n";
   out << "Root visits: " << search->getRootVisits() << "\n";
