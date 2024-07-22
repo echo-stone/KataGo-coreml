@@ -29,7 +29,7 @@ class Config: ObservableObject {
 
 extension Config {
     func getKataAnalyzeCommand(analysisInterval: Int) -> String {
-        return "kata-analyze interval \(analysisInterval) maxmoves \(maxAnalysisMoves) ownership true ownershipStdev true"
+        return "kata-analyze interval \(analysisInterval) maxmoves \(maxAnalysisMoves) rootInfo true ownership true ownershipStdev true"
     }
 
     func getKataAnalyzeCommand() -> String {

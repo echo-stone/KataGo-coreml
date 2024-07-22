@@ -58,6 +58,7 @@ struct Ownership {
 class Analysis: ObservableObject {
     @Published var nextColorForAnalysis = PlayerColor.white
     @Published var info: [BoardPoint: AnalysisInfo] = [:]
+    @Published var rootInfo: AnalysisInfo?
     @Published var ownership: [BoardPoint: Ownership] = [:]
 
     func clear() {
