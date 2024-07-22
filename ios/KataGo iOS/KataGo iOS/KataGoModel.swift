@@ -137,11 +137,16 @@ class MessagesObject: ObservableObject {
     @Published var messages: [Message] = []
 }
 
+enum AnalysisStatus {
+    case clear
+    case pause
+    case run
+}
+
 class GobanState: ObservableObject {
-    @Published var paused = false
-    @Published var showingAnalysis = true
     @Published var waitingForAnalysis = false
     @Published var requestingClearAnalysis = false
+    @Published var analysisStatus = AnalysisStatus.run
 
     func requestAnalysis(config: Config) {
         KataGoHelper.sendCommand(config.getKataFastAnalyzeCommand())

@@ -26,7 +26,7 @@ struct BoardView: View {
                 StoneView(dimensions: dimensions,
                           isClassicStoneStyle: config.isClassicStoneStyle())
 
-                if gobanState.showingAnalysis {
+                if gobanState.analysisStatus != .clear {
                     AnalysisView(dimensions: dimensions)
                 }
 
@@ -47,8 +47,7 @@ struct BoardView: View {
                 KataGoHelper.sendCommand("showboard")
                 KataGoHelper.sendCommand("printsgf")
 
-                if gobanState.showingAnalysis {
-                    gobanState.paused = false
+                if gobanState.analysisStatus != .clear {
                     gobanState.requestAnalysis(config: config)
                 } else {
                     gobanState.requestingClearAnalysis = true
@@ -57,7 +56,7 @@ struct BoardView: View {
         }
         .onAppear() {
             KataGoHelper.sendCommand("showboard")
-            if (!gobanState.paused && gobanState.showingAnalysis) {
+            if (gobanState.analysisStatus == .run) {
                 gobanState.requestAnalysis(config: config)
             }
         }

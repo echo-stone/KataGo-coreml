@@ -67,7 +67,11 @@ struct ContentView: View {
         }
         .onChange(of: gobanState.waitingForAnalysis) { waitedForAnalysis, waitingForAnalysis in
             if (waitedForAnalysis && !waitingForAnalysis) {
-                KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+                if gobanState.analysisStatus == .pause {
+                    KataGoHelper.sendCommand("stop")
+                } else {
+                    KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+                }
             }
         }
     }

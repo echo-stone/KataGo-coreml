@@ -100,7 +100,7 @@ struct AnalysisView: View {
             moves
         }
         .onChange(of: config.maxAnalysisMoves) { _, _ in
-            if (!gobanState.paused) && gobanState.showingAnalysis {
+            if gobanState.analysisStatus == .run {
                 gobanState.requestAnalysis(config: config)
             }
         }

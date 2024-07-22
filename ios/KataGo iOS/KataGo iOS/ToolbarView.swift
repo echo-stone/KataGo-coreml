@@ -31,11 +31,19 @@ struct ToolbarItems: View {
             }
             .padding()
 
-            if gobanState.paused {
+            if gobanState.analysisStatus == .pause {
                 Button(action: startAnalysisAction) {
                     Image(systemName: "sparkle")
                         .resizable()
                         .scaledToFit()
+                }
+                .padding()
+            } else if gobanState.analysisStatus == .run {
+                Button(action: stopAction) {
+                    Image(systemName: "sparkle")
+                        .resizable()
+                        .scaledToFit()
+                        .symbolEffect(.variableColor.iterative.reversing, isActive: true)
                 }
                 .padding()
             } else {
@@ -43,17 +51,10 @@ struct ToolbarItems: View {
                     Image(systemName: "sparkle")
                         .resizable()
                         .scaledToFit()
-                        .symbolEffect(.variableColor.iterative.reversing, isActive: true)
+                        .foregroundColor(.red)
                 }
                 .padding()
             }
-
-            Button(action: stopAction) {
-                Image(systemName: "stop")
-                    .resizable()
-                    .scaledToFit()
-            }
-            .padding()
 
             Button(action: forwardAction) {
                 Image(systemName: "forward.frame")
@@ -77,7 +78,7 @@ struct ToolbarItems: View {
         KataGoHelper.sendCommand(pass)
         KataGoHelper.sendCommand("showboard")
         KataGoHelper.sendCommand("printsgf")
-        if (!gobanState.paused) && gobanState.showingAnalysis {
+        if gobanState.analysisStatus == .run {
             gobanState.requestAnalysis(config: config)
         } else {
             gobanState.requestingClearAnalysis = true
@@ -88,30 +89,26 @@ struct ToolbarItems: View {
         gameRecord?.undo()
         KataGoHelper.sendCommand("undo")
         KataGoHelper.sendCommand("showboard")
-        if (!gobanState.paused) && gobanState.showingAnalysis {
+        if gobanState.analysisStatus == .run {
             gobanState.requestAnalysis(config: config)
         } else {
-            gobanState.paused = true
-            gobanState.showingAnalysis = false
+            gobanState.analysisStatus = .clear
             gobanState.requestingClearAnalysis = true
         }
     }
 
     func startAnalysisAction() {
-        gobanState.paused = false
-        gobanState.showingAnalysis = true
+        gobanState.analysisStatus = .run
         gobanState.requestAnalysis(config: config)
     }
 
     func pauseAnalysisAction() {
-        gobanState.paused = true
-        gobanState.showingAnalysis = true
+        gobanState.analysisStatus = .pause
         KataGoHelper.sendCommand("stop")
     }
 
     func stopAction() {
-        gobanState.paused = true
-        gobanState.showingAnalysis = false
+        gobanState.analysisStatus = .clear
         KataGoHelper.sendCommand("stop")
     }
 
@@ -130,11 +127,10 @@ struct ToolbarItems: View {
         }
 
         KataGoHelper.sendCommand("showboard")
-        if (!gobanState.paused) && gobanState.showingAnalysis {
+        if gobanState.analysisStatus == .run {
             gobanState.requestAnalysis(config: config)
         } else {
-            gobanState.paused = true
-            gobanState.showingAnalysis = false
+            gobanState.analysisStatus = .clear
             gobanState.requestingClearAnalysis = true
         }
     }
@@ -143,11 +139,10 @@ struct ToolbarItems: View {
         gameRecord?.currentIndex = 0
         KataGoHelper.sendCommand("clear_board")
         KataGoHelper.sendCommand("showboard")
-        if (!gobanState.paused) && gobanState.showingAnalysis {
+        if gobanState.analysisStatus == .run {
             gobanState.requestAnalysis(config: config)
         } else {
-            gobanState.paused = true
-            gobanState.showingAnalysis = false
+            gobanState.analysisStatus = .clear
             gobanState.requestingClearAnalysis = true
         }
     }
