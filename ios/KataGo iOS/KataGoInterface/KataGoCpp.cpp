@@ -67,7 +67,7 @@ ThreadSafeStreamBuf tsbToKataGo;
 // Output stream to KataGo
 ostream outToKataGo(&tsbToKataGo);
 
-void KataGoRunGtp(string modelPath, string configPath) {
+void KataGoRunGtp(string modelPath, string humanModelPath, string configPath) {
     // Replace the global cout object with the custom one
     cout.rdbuf(&tsbFromKataGo);
 
@@ -80,6 +80,8 @@ void KataGoRunGtp(string modelPath, string configPath) {
     subArgs.push_back(string("gtp"));
     subArgs.push_back(string("-model"));
     subArgs.push_back(modelPath);
+    subArgs.push_back(string("-human-model"));
+    subArgs.push_back(humanModelPath);
     subArgs.push_back(string("-config"));
     subArgs.push_back(configPath);
     MainCmds::gtp(subArgs);

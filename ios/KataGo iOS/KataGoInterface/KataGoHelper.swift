@@ -16,6 +16,12 @@ public class KataGoHelper {
         let modelPath = mainBundle.path(forResource: modelName,
                                         ofType: modelExt)
 
+        let humanModelName = "b18c384nbt-humanv0"
+        let humanModelExt = "bin.gz"
+
+        let humanModelPath = mainBundle.path(forResource: humanModelName,
+                                             ofType: humanModelExt)
+
         let configName = "default_gtp"
         let configExt = "cfg"
 
@@ -23,6 +29,7 @@ public class KataGoHelper {
                                          ofType: configExt)
 
         KataGoRunGtp(std.string(modelPath),
+                     std.string(humanModelPath),
                      std.string(configPath))
     }
 

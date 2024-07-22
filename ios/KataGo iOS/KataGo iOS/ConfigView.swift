@@ -94,6 +94,44 @@ struct ConfigBoolItem: View {
     }
 }
 
+struct HumanStylePicker: View {
+    @Binding var humanSLProfile: String
+
+    var profiles: [String] {
+        let dans = (1...9).reversed().map() { dan in
+            return "\(dan)d"
+        }
+
+        let kyus = (1...20).map() { kyu in
+            return "\(kyu)k"
+        }
+
+        let dansKyus = dans + kyus
+
+        let ranks = dansKyus.map() { rank in
+            return "rank_\(rank)"
+        }
+
+        let preAlphaZeros = dansKyus.map() { rank in
+            return "preaz_\(rank)"
+        }
+
+        let proYears = (1800...2023).map() { year in
+            return "proyear_\(year)"
+        }
+
+        return ranks + preAlphaZeros + proYears
+    }
+
+    var body: some View {
+        Picker("Profile", selection: $humanSLProfile) {
+            ForEach(profiles, id: \.self) { profile in
+                Text(profile).tag(profile)
+            }
+        }
+    }
+}
+
 struct ConfigItems: View {
     @EnvironmentObject var config: Config
     @State var boardWidth: Int = Config.defaultBoardWidth
@@ -107,6 +145,8 @@ struct ConfigItems: View {
     @State var hiddenAnalysisVisitRatio: Float = Config.defaultHiddenAnalysisVisitRatio
     @State var stoneStyle = Config.defaultStoneStyle
     @State var showCoordinate = Config.defaultShowCoordinate
+    @State var humanSLRootExploreProbWeightless = Config.defaultHumanSLRootExploreProbWeightless
+    @State var humanSLProfile = Config.defaultHumanSLProfile
 
     var body: some View {
         Form {
@@ -176,6 +216,20 @@ struct ConfigItems: View {
                         config.showCoordinate = showCoordinate
                     }
             }
+
+            Section("Human Style") {
+                HumanStylePicker(humanSLProfile: $humanSLProfile)
+                    .onChange(of: humanSLProfile) { _, newValue in
+                        config.humanSLProfile = newValue
+                        KataGoHelper.sendCommand("kata-set-param humanSLProfile \(newValue)")
+                    }
+
+                ConfigFloatItem(title: "Ratio", value: $humanSLRootExploreProbWeightless, step: 1/16, minValue: 0.0, maxValue: 1.0)
+                    .onChange(of: humanSLRootExploreProbWeightless) { _, newValue in
+                        config.humanSLRootExploreProbWeightless = newValue
+                        KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightless \(newValue)")
+                    }
+            }
         }
         .onAppear {
             boardWidth = config.boardWidth
@@ -189,6 +243,8 @@ struct ConfigItems: View {
             hiddenAnalysisVisitRatio = config.hiddenAnalysisVisitRatio
             stoneStyle = config.stoneStyle
             showCoordinate = config.showCoordinate
+            humanSLRootExploreProbWeightless = config.humanSLRootExploreProbWeightless
+            humanSLProfile = config.humanSLProfile
         }
     }
 }
