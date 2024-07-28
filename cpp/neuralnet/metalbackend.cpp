@@ -525,9 +525,11 @@ ComputeHandle::ComputeHandle(ComputeContext* context,
                              int gpuIdx,
                              int serverThreadIdx):
 metalhandle(maybeCreateMetalComputeHandle((gpuIdx < 100),
+                                          serverThreadIdx,
                                           MetalProcess::modelDescToSwift(&loadedModel->modelDesc),
                                           context->metalComputeContext)),
 coremlbackend(maybeCreateCoreMLBackend((gpuIdx >= 100),
+                                       serverThreadIdx,
                                        modelXLen,
                                        modelYLen,
                                        (context->useFP16Mode != enabled_t::False),
@@ -559,6 +561,8 @@ coremlbackend(maybeCreateCoreMLBackend((gpuIdx >= 100),
 
 ComputeHandle::~ComputeHandle() {
 }
+
+static mutex computeHandleMutex;
 
 /**
  * @brief Create a new ComputeHandle object for performing neural network computations.
@@ -592,7 +596,12 @@ ComputeHandle* NeuralNet::createComputeHandle(
 
   // Transfer the default GPU index into physical GPU index 0
   int gpuIdx = (gpuIdxForThisThread == -1) ? 0 : gpuIdxForThisThread;
-  ComputeHandle* handle = new ComputeHandle(context, loadedModel, inputsUseNHWC, gpuIdx, serverThreadIdx);
+  ComputeHandle* handle = nullptr;
+
+  {
+    lock_guard<mutex> lock(computeHandleMutex);
+    handle = new ComputeHandle(context, loadedModel, inputsUseNHWC, gpuIdx, serverThreadIdx);
+  }
 
   return handle;
 }
@@ -647,6 +656,7 @@ InputBuffers::InputBuffers(const LoadedModel* loadedModel, int maxBatchSz, int n
   maxBatchSize = maxBatchSz;
   policyResultChannels = m.policyHead.p2Conv.outChannels;
   assert((m.modelVersion >= 12) ? (policyResultChannels == 2) : (policyResultChannels == 1));
+  modelPolicyResultChannels = (m.modelVersion >= 12) ? 6 : 4;
   singleSpatialElts = (size_t)m.numInputChannels * nnXLen * nnYLen;
   singleInputElts = (size_t)m.numInputChannels * modelXLen * modelYLen;
   singleInputGlobalElts = (size_t)m.numInputGlobalChannels;
@@ -674,6 +684,7 @@ InputBuffers::InputBuffers(const LoadedModel* loadedModel, int maxBatchSz, int n
   policyResultBufferElts = (size_t)maxBatchSize * singleModelPolicyResultElts * policyResultChannels;
   policyPassResultBufferElts = (size_t)maxBatchSize * singlePolicyPassResultElts * policyResultChannels;
   policyProbsBufferElts = (size_t)maxBatchSize * singlePolicyProbsElts * policyResultChannels;
+  modelPolicyResultBufferElts = (size_t)maxBatchSize * singleModelPolicyResultElts * modelPolicyResultChannels;
   valueResultBufferElts = (size_t)maxBatchSize * singleValueResultElts;
   ownershipResultBufferElts = (size_t)maxBatchSize * singleModelOwnershipResultElts;
   ownerMapBufferElts = (size_t)maxBatchSz * singleOwnerMapElts;
@@ -690,6 +701,7 @@ InputBuffers::InputBuffers(const LoadedModel* loadedModel, int maxBatchSz, int n
   policyResults = new float[policyResultBufferElts];
   policyPassResults = new float[policyPassResultBufferElts];
   policyProbsBuffer = new float[policyProbsBufferElts];
+  modelPolicyResults = new float[modelPolicyResultBufferElts];
   valueResults = new float[valueResultBufferElts];
   ownershipResults = new float[ownershipResultBufferElts];
   ownerMapBuffer = new float[ownerMapBufferElts];
