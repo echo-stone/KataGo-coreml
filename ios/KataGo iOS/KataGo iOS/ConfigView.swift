@@ -145,7 +145,7 @@ struct ConfigItems: View {
     @State var hiddenAnalysisVisitRatio: Float = Config.defaultHiddenAnalysisVisitRatio
     @State var stoneStyle = Config.defaultStoneStyle
     @State var showCoordinate = Config.defaultShowCoordinate
-    @State var humanSLRootExploreProbWeightless = Config.defaultHumanSLRootExploreProbWeightless
+    @State var humanSLRootExploreProbWeightful = Config.defaultHumanSLRootExploreProbWeightful
     @State var humanSLProfile = Config.defaultHumanSLProfile
 
     var body: some View {
@@ -224,10 +224,10 @@ struct ConfigItems: View {
                         KataGoHelper.sendCommand("kata-set-param humanSLProfile \(newValue)")
                     }
 
-                ConfigFloatItem(title: "Ratio", value: $humanSLRootExploreProbWeightless, step: 1/16, minValue: 0.0, maxValue: 1.0)
-                    .onChange(of: humanSLRootExploreProbWeightless) { _, newValue in
-                        config.humanSLRootExploreProbWeightless = newValue
-                        KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightless \(newValue)")
+                ConfigFloatItem(title: "Ratio", value: $humanSLRootExploreProbWeightful, step: 1/4, minValue: 0.0, maxValue: 1.0)
+                    .onChange(of: humanSLRootExploreProbWeightful) { _, newValue in
+                        config.humanSLRootExploreProbWeightful = newValue
+                        KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(newValue)")
                     }
             }
         }
@@ -243,7 +243,7 @@ struct ConfigItems: View {
             hiddenAnalysisVisitRatio = config.hiddenAnalysisVisitRatio
             stoneStyle = config.stoneStyle
             showCoordinate = config.showCoordinate
-            humanSLRootExploreProbWeightless = config.humanSLRootExploreProbWeightless
+            humanSLRootExploreProbWeightful = config.humanSLRootExploreProbWeightful
             humanSLProfile = config.humanSLProfile
         }
     }

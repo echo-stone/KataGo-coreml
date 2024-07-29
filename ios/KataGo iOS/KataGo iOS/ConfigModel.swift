@@ -23,7 +23,7 @@ class Config: ObservableObject {
     @Published var hiddenAnalysisVisitRatio: Float = defaultHiddenAnalysisVisitRatio
     @Published var stoneStyle = defaultStoneStyle
     @Published var showCoordinate = defaultShowCoordinate
-    @Published var humanSLRootExploreProbWeightless = defaultHumanSLRootExploreProbWeightless
+    @Published var humanSLRootExploreProbWeightful = defaultHumanSLRootExploreProbWeightful
     @Published var humanSLProfile = defaultHumanSLProfile
 }
 
@@ -118,7 +118,7 @@ extension Config {
 }
 
 extension Config {
-    static let defaultHumanSLRootExploreProbWeightless: Float = 0
+    static let defaultHumanSLRootExploreProbWeightful: Float = 0
 }
 
 extension Config {
