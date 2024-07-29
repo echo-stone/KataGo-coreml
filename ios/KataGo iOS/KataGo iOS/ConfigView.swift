@@ -147,6 +147,7 @@ struct ConfigItems: View {
     @State var showCoordinate = Config.defaultShowCoordinate
     @State var humanSLRootExploreProbWeightful = Config.defaultHumanSLRootExploreProbWeightful
     @State var humanSLProfile = Config.defaultHumanSLProfile
+    @Binding var isBoardSizeChanged: Bool
 
     var body: some View {
         Form {
@@ -154,13 +155,13 @@ struct ConfigItems: View {
                 ConfigIntItem(title: "Board width:", value: $boardWidth, minValue: 2, maxValue: 29)
                     .onChange(of: boardWidth) { _, newValue in
                         config.boardWidth = newValue
-                        config.isBoardSizeChanged = true
+                        isBoardSizeChanged = true
                     }
 
                 ConfigIntItem(title: "Board height:", value: $boardHeight, minValue: 2, maxValue: 29)
                     .onChange(of: boardHeight) { _, newValue in
                         config.boardHeight = newValue
-                        config.isBoardSizeChanged = true
+                        isBoardSizeChanged = true
                     }
 
                 ConfigTextItem(title: "Rule:", texts: Config.rules, value: $rule)
@@ -250,9 +251,11 @@ struct ConfigItems: View {
 }
 
 struct ConfigView: View {
+    @Binding var isBoardSizeChanged: Bool
+
     var body: some View {
         VStack {
-            ConfigItems()
+            ConfigItems(isBoardSizeChanged: $isBoardSizeChanged)
                 .padding()
         }
         .frame(maxHeight: .infinity, alignment: .topLeading)
@@ -262,10 +265,24 @@ struct ConfigView: View {
     }
 }
 
+struct StatefulPreviewWrapper<Value, Content: View>: View {
+    @State var value: Value
+    var content: (Binding<Value>) -> Content
+
+    var body: some View {
+        content($value)
+    }
+
+    init(_ value: Value, content: @escaping (Binding<Value>) -> Content) {
+        self._value = State(wrappedValue: value)
+        self.content = content
+    }
+}
+
 struct ConfigView_Previews: PreviewProvider {
     static let config = Config()
     static var previews: some View {
-        ConfigView()
+        StatefulPreviewWrapper(false) { ConfigView(isBoardSizeChanged: $0) }
             .environmentObject(config)
     }
 }

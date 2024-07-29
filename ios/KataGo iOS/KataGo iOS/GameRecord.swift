@@ -9,7 +9,7 @@ import Foundation
 import SwiftData
 
 @Model
-class GameRecord {
+final class GameRecord {
     var sgf: String
     var currentIndex: Int
 

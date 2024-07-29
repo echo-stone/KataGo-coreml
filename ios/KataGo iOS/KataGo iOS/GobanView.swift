@@ -82,6 +82,7 @@ struct BoardView: View {
 struct TopToolbarView: View {
     @Binding var isCommandPresented: Bool
     @Binding var isConfigPresented: Bool
+    @Binding var isBoardSizeChanged: Bool
     @EnvironmentObject var config: Config
 
     var body: some View {
@@ -112,10 +113,10 @@ struct TopToolbarView: View {
                 }
             }
             .onChange(of: isConfigPresented) { _, isConfigPresentedNow in
-                if !isConfigPresentedNow && (config.isBoardSizeChanged) {
+                if !isConfigPresentedNow && (isBoardSizeChanged) {
                     KataGoHelper.sendCommand(config.getKataBoardSizeCommand())
                     KataGoHelper.sendCommand("printsgf")
-                    config.isBoardSizeChanged = false
+                    isBoardSizeChanged = false
                 }
             }
         }
@@ -125,38 +126,44 @@ struct TopToolbarView: View {
 struct TopToolbarContent: ToolbarContent {
     @Binding var isCommandPresented: Bool
     @Binding var isConfigPresented: Bool
+    @Binding var isBoardSizeChanged: Bool
 
     var body: some ToolbarContent {
         ToolbarItem {
             TopToolbarView(isCommandPresented: $isCommandPresented,
-                           isConfigPresented: $isConfigPresented)
+                           isConfigPresented: $isConfigPresented,
+                           isBoardSizeChanged: $isBoardSizeChanged)
         }
     }
 }
 
 struct GobanItems: View {
     var gameRecord: GameRecord?
-    @State var isCommandPresented = false
-    @State var isConfigPresented = false
+    @State private var isCommandPresented = false
+    @State private var isConfigPresented = false
+    @State private var isBoardSizeChanged = false
 
     var body: some View {
         if isCommandPresented {
             CommandView()
                 .toolbar {
                     TopToolbarContent(isCommandPresented: $isCommandPresented,
-                                      isConfigPresented: $isConfigPresented)
+                                      isConfigPresented: $isConfigPresented,
+                                      isBoardSizeChanged: $isBoardSizeChanged)
                 }
         } else if isConfigPresented {
-            ConfigView()
+            ConfigView(isBoardSizeChanged: $isBoardSizeChanged)
                 .toolbar {
                     TopToolbarContent(isCommandPresented: $isCommandPresented,
-                                      isConfigPresented: $isConfigPresented)
+                                      isConfigPresented: $isConfigPresented,
+                                      isBoardSizeChanged: $isBoardSizeChanged)
                 }
         } else {
             BoardView()
                 .toolbar {
                     TopToolbarContent(isCommandPresented: $isCommandPresented,
-                                      isConfigPresented: $isConfigPresented)
+                                      isConfigPresented: $isConfigPresented,
+                                      isBoardSizeChanged: $isBoardSizeChanged)
                 }
             ToolbarView(gameRecord: gameRecord)
                 .padding()
