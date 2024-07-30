@@ -54,6 +54,25 @@ final class Config {
         self.humanSLRootExploreProbWeightful = humanSLRootExploreProbWeightful
         self.humanSLProfile = humanSLProfile
     }
+
+    convenience init(config: Config) {
+        self.init(
+            boardWidth: config.boardWidth,
+            boardHeight: config.boardHeight,
+            rule: config.rule,
+            komi: config.komi,
+            playoutDoublingAdvantage: config.playoutDoublingAdvantage,
+            analysisWideRootNoise: config.analysisWideRootNoise,
+            maxAnalysisMoves: config.maxAnalysisMoves,
+            analysisInterval: config.analysisInterval,
+            analysisInformation: config.analysisInformation,
+            hiddenAnalysisVisitRatio: config.hiddenAnalysisVisitRatio,
+            stoneStyle: config.stoneStyle,
+            showCoordinate: config.showCoordinate,
+            humanSLRootExploreProbWeightful: config.humanSLRootExploreProbWeightful,
+            humanSLProfile: config.humanSLProfile
+        )
+    }
 }
 
 extension Config {

@@ -55,6 +55,18 @@ struct ContentView: View {
             .sheet(isPresented: $isEditorPresented) {
                 NameEditorView(gameRecord: navigationContext.selectedGameRecord)
             }
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        if let gameRecord = navigationContext.selectedGameRecord {
+                            modelContext.insert(GameRecord(gameRecord: gameRecord))
+                        }
+                    } label: {
+                        Label("Add a new game", systemImage: "plus")
+                            .help("Add a new game")
+                    }
+                }
+            }
         } detail: {
             GobanView(gameRecord: navigationContext.selectedGameRecord)
                 .onChange(of: gobanState.waitingForAnalysis) { waitedForAnalysis, waitingForAnalysis in
@@ -80,6 +92,19 @@ struct ContentView: View {
         .onAppear() {
             // Get messages from KataGo and append to the list of messages
             createMessageTask()
+        }
+        .onChange(of: navigationContext.selectedGameRecord) { _, newGameRecord in
+            if let config = newGameRecord?.config {
+                maybeLoadSgf()
+                KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
+                KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
+                KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
+                KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(config.humanSLRootExploreProbWeightful)")
+                KataGoHelper.sendCommand("showboard")
+                if (gobanState.analysisStatus == .run) {
+                    gobanState.requestAnalysis(config: config)
+                }
+            }
         }
     }
 

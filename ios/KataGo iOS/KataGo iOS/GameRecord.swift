@@ -25,6 +25,13 @@ final class GameRecord {
         self.name = name
     }
 
+    init(gameRecord: GameRecord) {
+        self.sgf = gameRecord.sgf
+        self.currentIndex = gameRecord.currentIndex
+        self.config = Config(config: gameRecord.config)
+        self.name = gameRecord.name
+    }
+
     func undo() {
         if (currentIndex > 0) {
             currentIndex = currentIndex - 1
