@@ -197,7 +197,7 @@ struct GobanView: View {
                 }
             }
         } else {
-            ContentUnavailableView("Select a game record", systemImage: "sidebar.left")
+            ContentUnavailableView("Select a game", systemImage: "sidebar.left")
         }
     }
 }
