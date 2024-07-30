@@ -10,10 +10,9 @@ import KataGoInterface
 
 struct ToolbarItems: View {
     @EnvironmentObject var player: PlayerObject
-    @EnvironmentObject var config: Config
     @EnvironmentObject var gobanState: GobanState
     @EnvironmentObject var board: ObservableBoard
-    var gameRecord: GameRecord?
+    var gameRecord: GameRecord
 
     var body: some View {
         Group {
@@ -79,6 +78,7 @@ struct ToolbarItems: View {
         KataGoHelper.sendCommand("showboard")
         KataGoHelper.sendCommand("printsgf")
         if gobanState.analysisStatus == .run {
+            let config = gameRecord.config
             gobanState.requestAnalysis(config: config)
         } else {
             gobanState.requestingClearAnalysis = true
@@ -86,10 +86,11 @@ struct ToolbarItems: View {
     }
 
     func backwardAction() {
-        gameRecord?.undo()
+        gameRecord.undo()
         KataGoHelper.sendCommand("undo")
         KataGoHelper.sendCommand("showboard")
         if gobanState.analysisStatus == .run {
+            let config = gameRecord.config
             gobanState.requestAnalysis(config: config)
         } else {
             gobanState.analysisStatus = .clear
@@ -99,6 +100,7 @@ struct ToolbarItems: View {
 
     func startAnalysisAction() {
         gobanState.analysisStatus = .run
+        let config = gameRecord.config
         gobanState.requestAnalysis(config: config)
     }
 
@@ -113,21 +115,20 @@ struct ToolbarItems: View {
     }
 
     func forwardAction() {
-        if let gameRecord {
-            let currentIndex = gameRecord.currentIndex
-            let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
-            if let nextMove = sgfHelper.getMove(at: currentIndex) {
-                if let move = locationToMove(location: nextMove.location) {
-                    gameRecord.currentIndex = currentIndex + 1
-                    let nextPlayer = nextMove.player == Player.black ? "b" : "w"
-                    KataGoHelper.sendCommand("play \(nextPlayer) \(move)")
-                    player.nextColorForPlayCommand = (nextPlayer == "b") ? .white : .black
-                }
+        let currentIndex = gameRecord.currentIndex
+        let sgfHelper = SgfHelper(sgf: gameRecord.sgf)
+        if let nextMove = sgfHelper.getMove(at: currentIndex) {
+            if let move = locationToMove(location: nextMove.location) {
+                gameRecord.currentIndex = currentIndex + 1
+                let nextPlayer = nextMove.player == Player.black ? "b" : "w"
+                KataGoHelper.sendCommand("play \(nextPlayer) \(move)")
+                player.nextColorForPlayCommand = (nextPlayer == "b") ? .white : .black
             }
         }
 
         KataGoHelper.sendCommand("showboard")
         if gobanState.analysisStatus == .run {
+            let config = gameRecord.config
             gobanState.requestAnalysis(config: config)
         } else {
             gobanState.analysisStatus = .clear
@@ -136,10 +137,11 @@ struct ToolbarItems: View {
     }
 
     func clearBoardAction() {
-        gameRecord?.currentIndex = 0
+        gameRecord.currentIndex = 0
         KataGoHelper.sendCommand("clear_board")
         KataGoHelper.sendCommand("showboard")
         if gobanState.analysisStatus == .run {
+            let config = gameRecord.config
             gobanState.requestAnalysis(config: config)
         } else {
             gobanState.analysisStatus = .clear
@@ -162,7 +164,7 @@ struct ToolbarView: View {
     @Environment(\.horizontalSizeClass) var hSizeClass
     @Environment(\.verticalSizeClass) var vSizeClass
     @EnvironmentObject var gobanState: GobanState
-    var gameRecord: GameRecord?
+    var gameRecord: GameRecord
 
     var body: some View {
         if hSizeClass == .compact && vSizeClass == .regular {
@@ -175,18 +177,5 @@ struct ToolbarView: View {
             }
             .frame(maxWidth: 80)
         }
-    }
-}
-
-struct ToolbarView_Previews: PreviewProvider {
-    static let player = PlayerObject()
-    static let config = Config()
-    static let gobanState = GobanState()
-
-    static var previews: some View {
-        ToolbarView()
-            .environmentObject(player)
-            .environmentObject(config)
-            .environmentObject(gobanState)
     }
 }

@@ -15,7 +15,6 @@ struct ContentView: View {
     @StateObject var board = ObservableBoard()
     @StateObject var player = PlayerObject()
     @StateObject var analysis = Analysis()
-    @StateObject var config = Config()
     @State private var isShowingBoard = false
     @State private var boardText: [String] = []
     @Query var gameRecords: [GameRecord]
@@ -51,13 +50,23 @@ struct ContentView: View {
             .navigationTitle("Menu")
         } detail: {
             GobanView(gameRecord: navigationContext.selectedGameRecord)
+                .onChange(of: gobanState.waitingForAnalysis) { waitedForAnalysis, waitingForAnalysis in
+                    if (waitedForAnalysis && !waitingForAnalysis) {
+                        if gobanState.analysisStatus == .pause {
+                            KataGoHelper.sendCommand("stop")
+                        } else {
+                            if let config = navigationContext.selectedGameRecord?.config {
+                                KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
+                            }
+                        }
+                    }
+                }
         }
         .environmentObject(stones)
         .environmentObject(messagesObject)
         .environmentObject(board)
         .environmentObject(player)
         .environmentObject(analysis)
-        .environmentObject(config)
         .environmentObject(gobanState)
         .environmentObject(winrate)
         .environment(navigationContext)
@@ -65,33 +74,25 @@ struct ContentView: View {
             // Get messages from KataGo and append to the list of messages
             createMessageTask()
         }
-        .onChange(of: gobanState.waitingForAnalysis) { waitedForAnalysis, waitingForAnalysis in
-            if (waitedForAnalysis && !waitingForAnalysis) {
-                if gobanState.analysisStatus == .pause {
-                    KataGoHelper.sendCommand("stop")
-                } else {
-                    KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
-                }
-            }
-        }
     }
 
     /// Create message task
     private func createMessageTask() {
         Task {
-            messagesObject.messages.append(Message(text: "Initializing...", maxLength: config.maxMessageCharacters))
-            KataGoHelper.sendCommand(config.getKataBoardSizeCommand())
-            KataGoHelper.sendCommand(config.getKataRuleCommand())
-            KataGoHelper.sendCommand(config.getKataKomiCommand())
+            let defaultConfig = Config()
+            messagesObject.messages.append(Message(text: "Initializing..."))
+            KataGoHelper.sendCommand(defaultConfig.getKataBoardSizeCommand())
+            KataGoHelper.sendCommand(defaultConfig.getKataRuleCommand())
+            KataGoHelper.sendCommand(defaultConfig.getKataKomiCommand())
             // Disable friendly pass to avoid a memory shortage problem
             KataGoHelper.sendCommand("kata-set-rule friendlyPassOk false")
-            KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
-            KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
+            KataGoHelper.sendCommand(defaultConfig.getKataPlayoutDoublingAdvantageCommand())
+            KataGoHelper.sendCommand(defaultConfig.getKataAnalysisWideRootNoiseCommand())
             if !gameRecords.isEmpty { navigationContext.selectedGameRecord = gameRecords[0] }
             maybeLoadSgf()
             KataGoHelper.sendCommand("showboard")
             KataGoHelper.sendCommand("printsgf")
-            gobanState.requestAnalysis(config: config)
+            gobanState.requestAnalysis(config: defaultConfig)
 
             while true {
                 let line = await Task.detached {
@@ -100,7 +101,7 @@ struct ContentView: View {
                 }.value
 
                 // Create a message with the line
-                let message = Message(text: line, maxLength: config.maxMessageCharacters)
+                let message = Message(text: line)
 
                 // Append the message to the list of messages
                 messagesObject.messages.append(message)
@@ -115,9 +116,7 @@ struct ContentView: View {
                 maybeCollectSgf(message: line)
 
                 // Remove when there are too many messages
-                while messagesObject.messages.count > config.maxMessageLines {
-                    messagesObject.messages.removeFirst()
-                }
+                messagesObject.shrink()
             }
         }
     }

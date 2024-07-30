@@ -11,8 +11,8 @@ import KataGoInterface
 struct BoardView: View {
     @EnvironmentObject var board: ObservableBoard
     @EnvironmentObject var player: PlayerObject
-    @EnvironmentObject var config: Config
     @EnvironmentObject var gobanState: GobanState
+    var config: Config
 
     var body: some View {
         GeometryReader { geometry in
@@ -27,7 +27,7 @@ struct BoardView: View {
                           isClassicStoneStyle: config.isClassicStoneStyle())
 
                 if gobanState.analysisStatus != .clear {
-                    AnalysisView(dimensions: dimensions)
+                    AnalysisView(config: config, dimensions: dimensions)
                 }
 
                 MoveNumberView(dimensions: dimensions)
@@ -55,6 +55,10 @@ struct BoardView: View {
             }
         }
         .onAppear() {
+            KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
+            KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
+            KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
+            KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(config.humanSLRootExploreProbWeightful)")
             KataGoHelper.sendCommand("showboard")
             if (gobanState.analysisStatus == .run) {
                 gobanState.requestAnalysis(config: config)
@@ -80,10 +84,10 @@ struct BoardView: View {
 }
 
 struct TopToolbarView: View {
+    var config: Config
     @Binding var isCommandPresented: Bool
     @Binding var isConfigPresented: Bool
     @Binding var isBoardSizeChanged: Bool
-    @EnvironmentObject var config: Config
 
     var body: some View {
         HStack {
@@ -124,13 +128,15 @@ struct TopToolbarView: View {
 }
 
 struct TopToolbarContent: ToolbarContent {
+    var config: Config
     @Binding var isCommandPresented: Bool
     @Binding var isConfigPresented: Bool
     @Binding var isBoardSizeChanged: Bool
 
     var body: some ToolbarContent {
         ToolbarItem {
-            TopToolbarView(isCommandPresented: $isCommandPresented,
+            TopToolbarView(config: config,
+                           isCommandPresented: $isCommandPresented,
                            isConfigPresented: $isConfigPresented,
                            isBoardSizeChanged: $isBoardSizeChanged)
         }
@@ -138,30 +144,33 @@ struct TopToolbarContent: ToolbarContent {
 }
 
 struct GobanItems: View {
-    var gameRecord: GameRecord?
+    var gameRecord: GameRecord
     @State private var isCommandPresented = false
     @State private var isConfigPresented = false
     @State private var isBoardSizeChanged = false
 
     var body: some View {
         if isCommandPresented {
-            CommandView()
+            CommandView(config: gameRecord.config)
                 .toolbar {
-                    TopToolbarContent(isCommandPresented: $isCommandPresented,
+                    TopToolbarContent(config: gameRecord.config,
+                                      isCommandPresented: $isCommandPresented,
                                       isConfigPresented: $isConfigPresented,
                                       isBoardSizeChanged: $isBoardSizeChanged)
                 }
         } else if isConfigPresented {
-            ConfigView(isBoardSizeChanged: $isBoardSizeChanged)
+            ConfigView(config: gameRecord.config, isBoardSizeChanged: $isBoardSizeChanged)
                 .toolbar {
-                    TopToolbarContent(isCommandPresented: $isCommandPresented,
+                    TopToolbarContent(config: gameRecord.config,
+                                      isCommandPresented: $isCommandPresented,
                                       isConfigPresented: $isConfigPresented,
                                       isBoardSizeChanged: $isBoardSizeChanged)
                 }
         } else {
-            BoardView()
+            BoardView(config: gameRecord.config)
                 .toolbar {
-                    TopToolbarContent(isCommandPresented: $isCommandPresented,
+                    TopToolbarContent(config: gameRecord.config,
+                                      isCommandPresented: $isCommandPresented,
                                       isConfigPresented: $isConfigPresented,
                                       isBoardSizeChanged: $isBoardSizeChanged)
                 }
@@ -191,72 +200,4 @@ struct GobanView: View {
             ContentUnavailableView("Select a game record", systemImage: "sidebar.left")
         }
     }
-}
-
-#Preview {
-    let stones = Stones()
-    let board = ObservableBoard()
-    let analysis = Analysis()
-    let player = PlayerObject()
-    let config = Config()
-    let gobanState = GobanState()
-    let winrate = Winrate()
-
-    return GobanView()
-        .environmentObject(stones)
-        .environmentObject(board)
-        .environmentObject(analysis)
-        .environmentObject(player)
-        .environmentObject(config)
-        .environmentObject(gobanState)
-        .environmentObject(winrate)
-        .onAppear() {
-            board.width = 3
-            board.height = 3
-            stones.blackPoints = [BoardPoint(x: 1, y: 1), BoardPoint(x: 0, y: 1)]
-            stones.whitePoints = [BoardPoint(x: 0, y: 0), BoardPoint(x: 1, y: 0)]
-            analysis.info = [
-                BoardPoint(x: 2, y: 0): AnalysisInfo(visits: 1234567890, winrate: 0.789012345, scoreLead: 8.987654321, utilityLcb: -0.123456789)
-            ]
-            stones.moveOrder = ["1": BoardPoint(x: 0, y: 1),
-                                "2": BoardPoint(x: 0, y: 0),
-                                "3": BoardPoint(x: 1, y: 1),
-                                "4": BoardPoint(x: 1, y: 0)]
-            winrate.black = 0.789012345
-        }
-}
-
-#Preview {
-    let stones = Stones()
-    let board = ObservableBoard()
-    let analysis = Analysis()
-    let player = PlayerObject()
-    let config = Config()
-    let gobanState = GobanState()
-    let winrate = Winrate()
-
-    return GobanView()
-        .environmentObject(stones)
-        .environmentObject(board)
-        .environmentObject(analysis)
-        .environmentObject(player)
-        .environmentObject(config)
-        .environmentObject(gobanState)
-        .environmentObject(winrate)
-        .onAppear() {
-            board.width = 3
-            board.height = 3
-            stones.blackPoints = [BoardPoint(x: 1, y: 1), BoardPoint(x: 0, y: 1)]
-            stones.whitePoints = [BoardPoint(x: 0, y: 0), BoardPoint(x: 1, y: 0)]
-            analysis.info = [
-                BoardPoint(x: 2, y: 0): AnalysisInfo(visits: 1234567890, winrate: 0.789012345, scoreLead: 8.987654321, utilityLcb: -0.123456789)
-            ]
-            stones.moveOrder = ["1": BoardPoint(x: 0, y: 1),
-                                "2": BoardPoint(x: 0, y: 0),
-                                "3": BoardPoint(x: 1, y: 1),
-                                "4": BoardPoint(x: 1, y: 0)]
-            winrate.black = 0.789012345
-            config.showCoordinate = true
-            config.stoneStyle = 1
-        }
 }

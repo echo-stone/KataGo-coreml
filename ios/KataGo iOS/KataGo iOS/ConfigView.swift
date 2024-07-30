@@ -133,7 +133,7 @@ struct HumanStylePicker: View {
 }
 
 struct ConfigItems: View {
-    @EnvironmentObject var config: Config
+    var config: Config
     @State var boardWidth: Int = Config.defaultBoardWidth
     @State var boardHeight: Int = Config.defaultBoardHeight
     @State var rule: Int = Config.defaultRule
@@ -251,38 +251,17 @@ struct ConfigItems: View {
 }
 
 struct ConfigView: View {
+    var config: Config
     @Binding var isBoardSizeChanged: Bool
 
     var body: some View {
         VStack {
-            ConfigItems(isBoardSizeChanged: $isBoardSizeChanged)
+            ConfigItems(config: config, isBoardSizeChanged: $isBoardSizeChanged)
                 .padding()
         }
         .frame(maxHeight: .infinity, alignment: .topLeading)
         .onAppear() {
             KataGoHelper.sendCommand("stop")
         }
-    }
-}
-
-struct StatefulPreviewWrapper<Value, Content: View>: View {
-    @State var value: Value
-    var content: (Binding<Value>) -> Content
-
-    var body: some View {
-        content($value)
-    }
-
-    init(_ value: Value, content: @escaping (Binding<Value>) -> Content) {
-        self._value = State(wrappedValue: value)
-        self.content = content
-    }
-}
-
-struct ConfigView_Previews: PreviewProvider {
-    static let config = Config()
-    static var previews: some View {
-        StatefulPreviewWrapper(false) { ConfigView(isBoardSizeChanged: $0) }
-            .environmentObject(config)
     }
 }

@@ -6,24 +6,54 @@
 //
 
 import Foundation
+import SwiftData
 
-class Config: ObservableObject {
-    @Published var boardWidth: Int = defaultBoardWidth
-    @Published var boardHeight: Int = defaultBoardHeight
-    @Published var rule: Int = defaultRule
-    @Published var komi: Float = defaultKomi
-    @Published var playoutDoublingAdvantage: Float = defaultPlayoutDoublingAdvantage
-    @Published var analysisWideRootNoise: Float = defaultAnalysisWideRootNoise
-    @Published var maxMessageCharacters: Int = defaultMaxMessageCharacters
-    @Published var maxAnalysisMoves: Int = defaultMaxAnalysisMoves
-    @Published var analysisInterval: Int = defaultAnalysisInterval
-    @Published var maxMessageLines: Int = defaultMaxMessageLines
-    @Published var analysisInformation: Int = defaultAnalysisInformation
-    @Published var hiddenAnalysisVisitRatio: Float = defaultHiddenAnalysisVisitRatio
-    @Published var stoneStyle = defaultStoneStyle
-    @Published var showCoordinate = defaultShowCoordinate
-    @Published var humanSLRootExploreProbWeightful = defaultHumanSLRootExploreProbWeightful
-    @Published var humanSLProfile = defaultHumanSLProfile
+@Model
+final class Config {
+    var boardWidth: Int = defaultBoardWidth
+    var boardHeight: Int = defaultBoardHeight
+    var rule: Int = defaultRule
+    var komi: Float = defaultKomi
+    var playoutDoublingAdvantage: Float = defaultPlayoutDoublingAdvantage
+    var analysisWideRootNoise: Float = defaultAnalysisWideRootNoise
+    var maxAnalysisMoves: Int = defaultMaxAnalysisMoves
+    var analysisInterval: Int = defaultAnalysisInterval
+    var analysisInformation: Int = defaultAnalysisInformation
+    var hiddenAnalysisVisitRatio: Float = defaultHiddenAnalysisVisitRatio
+    var stoneStyle: Int = defaultStoneStyle
+    var showCoordinate: Bool = defaultShowCoordinate
+    var humanSLRootExploreProbWeightful: Float = defaultHumanSLRootExploreProbWeightful
+    var humanSLProfile: String = defaultHumanSLProfile
+
+    init(boardWidth: Int = defaultBoardWidth,
+         boardHeight: Int = defaultBoardHeight,
+         rule: Int = defaultRule,
+         komi: Float = defaultKomi,
+         playoutDoublingAdvantage: Float = defaultPlayoutDoublingAdvantage,
+         analysisWideRootNoise: Float = defaultAnalysisWideRootNoise,
+         maxAnalysisMoves: Int = defaultMaxAnalysisMoves,
+         analysisInterval: Int = defaultAnalysisInterval,
+         analysisInformation: Int = defaultAnalysisInformation,
+         hiddenAnalysisVisitRatio: Float = defaultHiddenAnalysisVisitRatio,
+         stoneStyle: Int = defaultStoneStyle,
+         showCoordinate: Bool = defaultShowCoordinate,
+         humanSLRootExploreProbWeightful: Float = defaultHumanSLRootExploreProbWeightful,
+         humanSLProfile: String = defaultHumanSLProfile) {
+        self.boardWidth = boardWidth
+        self.boardHeight = boardHeight
+        self.rule = rule
+        self.komi = komi
+        self.playoutDoublingAdvantage = playoutDoublingAdvantage
+        self.analysisWideRootNoise = analysisWideRootNoise
+        self.maxAnalysisMoves = maxAnalysisMoves
+        self.analysisInterval = analysisInterval
+        self.analysisInformation = analysisInformation
+        self.hiddenAnalysisVisitRatio = hiddenAnalysisVisitRatio
+        self.stoneStyle = stoneStyle
+        self.showCoordinate = showCoordinate
+        self.humanSLRootExploreProbWeightful = humanSLRootExploreProbWeightful
+        self.humanSLProfile = humanSLProfile
+    }
 }
 
 extension Config {
@@ -62,10 +92,8 @@ extension Config {
     static let defaultKomi: Float = 7.0
     static let defaultPlayoutDoublingAdvantage: Float = 0.0
     static let defaultAnalysisWideRootNoise: Float = 0.03125
-    static let defaultMaxMessageCharacters = 5000
     static let defaultMaxAnalysisMoves = 50
     static let defaultAnalysisInterval = 50
-    static let defaultMaxMessageLines = 1000
     static let defaultHiddenAnalysisVisitRatio: Float = 0.03125
 }
 

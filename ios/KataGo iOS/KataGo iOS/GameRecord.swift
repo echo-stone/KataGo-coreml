@@ -12,10 +12,12 @@ import SwiftData
 final class GameRecord {
     var sgf: String
     var currentIndex: Int
+    var config: Config
 
-    init(sgf: String = "", currentIndex: Int = 0) {
+    init(sgf: String = "", currentIndex: Int = 0, config: Config = Config()) {
         self.sgf = sgf
         self.currentIndex = currentIndex
+        self.config = config
     }
 
     func undo() {

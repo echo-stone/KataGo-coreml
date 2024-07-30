@@ -119,6 +119,9 @@ struct Dimensions {
 
 /// Message with a text and an ID
 struct Message: Identifiable, Equatable, Hashable {
+    /// Default maximum message characters
+    static let defaultMaxMessageCharacters = 5000
+
     /// Identification of this message
     let id = UUID()
 
@@ -129,13 +132,21 @@ struct Message: Identifiable, Equatable, Hashable {
     /// - Parameters:
     ///   - text: a text
     ///   - maxLength: a max length
-    init(text: String, maxLength: Int) {
+    init(text: String, maxLength: Int = defaultMaxMessageCharacters) {
         self.text = String(text.prefix(maxLength))
     }
 }
 
 class MessagesObject: ObservableObject {
+    static private let defaultMaxMessageLines = 1000
+
     @Published var messages: [Message] = []
+
+    func shrink() {
+        while messages.count > MessagesObject.defaultMaxMessageLines {
+            messages.removeFirst()
+        }
+    }
 }
 
 enum AnalysisStatus {

@@ -10,8 +10,8 @@ import KataGoInterface
 
 struct CommandView: View {
     @EnvironmentObject var messagesObject: MessagesObject
-    @EnvironmentObject var config: Config
     @State private var command = ""
+    var config: Config
 
     var body: some View {
         VStack {
@@ -39,12 +39,12 @@ struct CommandView: View {
                     .disableAutocorrection(true)
                     .textInputAutocapitalization(.never)
                     .onSubmit {
-                        messagesObject.messages.append(Message(text: command,  maxLength: config.maxMessageCharacters))
+                        messagesObject.messages.append(Message(text: command))
                         KataGoHelper.sendCommand(command)
                         command = ""
                     }
                 Button(action: {
-                    messagesObject.messages.append(Message(text: command, maxLength: config.maxMessageCharacters))
+                    messagesObject.messages.append(Message(text: command))
                     KataGoHelper.sendCommand(command)
                     command = ""
                 }) {
@@ -57,16 +57,5 @@ struct CommandView: View {
         .onAppear() {
             KataGoHelper.sendCommand("stop")
         }
-    }
-}
-
-struct CommandView_Previews: PreviewProvider {
-    static let messageObject = MessagesObject()
-    static let config = Config()
-
-    static var previews: some View {
-        CommandView()
-            .environmentObject(messageObject)
-            .environmentObject(config)
     }
 }
