@@ -22,6 +22,7 @@ struct ContentView: View {
     @StateObject var gobanState = GobanState()
     @StateObject var winrate = Winrate()
     @State private var navigationContext = NavigationContext()
+    @State private var isEditorPresented = false
 
     init() {
         // Start a thread to run KataGo GTP
@@ -34,9 +35,9 @@ struct ContentView: View {
         NavigationSplitView {
             List(selection: $navigationContext.selectedGameRecord) {
                 ForEach(gameRecords) { gameRecord in
-                    NavigationLink("Goban", value: gameRecord)
+                    NavigationLink(gameRecord.name, value: gameRecord)
                 }
-                .onDelete(perform: { indexSet in
+                .onDelete { indexSet in
                     for index in indexSet {
                         let gameRecordToDelete = gameRecords[index]
                         if navigationContext.selectedGameRecord?.persistentModelID == gameRecordToDelete.persistentModelID {
@@ -45,9 +46,15 @@ struct ContentView: View {
 
                         modelContext.delete(gameRecordToDelete)
                     }
-                })
+                }
+                .onLongPressGesture {
+                    isEditorPresented = true
+                }
             }
-            .navigationTitle("Menu")
+            .navigationTitle("Games")
+            .sheet(isPresented: $isEditorPresented) {
+                NameEditorView(gameRecord: navigationContext.selectedGameRecord)
+            }
         } detail: {
             GobanView(gameRecord: navigationContext.selectedGameRecord)
                 .onChange(of: gobanState.waitingForAnalysis) { waitedForAnalysis, waitingForAnalysis in
