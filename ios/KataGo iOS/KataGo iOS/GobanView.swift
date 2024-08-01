@@ -90,6 +90,8 @@ struct TopToolbarView: View {
     @Binding var isConfigPresented: Bool
     @Binding var isBoardSizeChanged: Bool
     @Environment(\.modelContext) private var modelContext
+    @Environment(NavigationContext.self) var navigationContext
+    @Query(sort: \GameRecord.lastModificationDate, order: .reverse) var gameRecords: [GameRecord]
 
     var body: some View {
         HStack {
@@ -128,6 +130,7 @@ struct TopToolbarView: View {
 
             Button {
                 modelContext.insert(GameRecord(gameRecord: gameRecord))
+                navigationContext.selectedGameRecord = gameRecords.first
             } label: {
                 Label("New game", systemImage: "plus")
                     .help("New game")
@@ -187,7 +190,7 @@ struct GobanView: View {
     @Environment(\.verticalSizeClass) var vSizeClass
     @Environment(NavigationContext.self) var navigationContext
     @Environment(\.modelContext) private var modelContext
-    @Query var gameRecords: [GameRecord]
+    @Query(sort: \GameRecord.lastModificationDate, order: .reverse) var gameRecords: [GameRecord]
 
     var body: some View {
         if isInitialized,
@@ -208,7 +211,7 @@ struct GobanView: View {
                         ToolbarItem {
                             Button {
                                 modelContext.insert(GameRecord())
-                                navigationContext.selectedGameRecord = gameRecords.last
+                                navigationContext.selectedGameRecord = gameRecords.first
                             } label: {
                                 Label("New game", systemImage: "plus")
                                     .help("New game")

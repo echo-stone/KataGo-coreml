@@ -17,7 +17,7 @@ struct ContentView: View {
     @StateObject var analysis = Analysis()
     @State private var isShowingBoard = false
     @State private var boardText: [String] = []
-    @Query var gameRecords: [GameRecord]
+    @Query(sort: \GameRecord.lastModificationDate, order: .reverse) var gameRecords: [GameRecord]
     @Environment(\.modelContext) private var modelContext
     @StateObject var gobanState = GobanState()
     @StateObject var winrate = Winrate()

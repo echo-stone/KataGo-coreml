@@ -14,22 +14,25 @@ final class GameRecord {
     var currentIndex: Int
     var config: Config
     var name: String
+    var lastModificationDate: Date?
 
     init(sgf: String = "",
          currentIndex: Int = 0,
          config: Config = Config(),
-         name: String = "Name") {
+         name: String = "Name",
+         lastModificationDate: Date? = Date.now) {
         self.sgf = sgf
         self.currentIndex = currentIndex
         self.config = config
         self.name = name
+        self.lastModificationDate = lastModificationDate
     }
 
-    init(gameRecord: GameRecord) {
-        self.sgf = gameRecord.sgf
-        self.currentIndex = gameRecord.currentIndex
-        self.config = Config(config: gameRecord.config)
-        self.name = gameRecord.name
+    convenience init(gameRecord: GameRecord) {
+        self.init(sgf: gameRecord.sgf,
+                  currentIndex: gameRecord.currentIndex,
+                  config: Config(config: gameRecord.config),
+                  name: gameRecord.name)
     }
 
     func undo() {

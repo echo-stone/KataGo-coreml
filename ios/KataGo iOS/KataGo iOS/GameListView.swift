@@ -12,7 +12,7 @@ struct GameListView: View {
     @Binding var isInitialized: Bool
     @Binding var isEditorPresented: Bool
     @Binding var selectedGameRecord: GameRecord?
-    @Query var gameRecords: [GameRecord]
+    @Query(sort: \GameRecord.lastModificationDate, order: .reverse) var gameRecords: [GameRecord]
     @Environment(\.modelContext) private var modelContext
 
     var body: some View {
