@@ -31,9 +31,6 @@ struct GameListView: View {
                         modelContext.delete(gameRecordToDelete)
                     }
                 }
-                .onLongPressGesture {
-                    isEditorPresented = true
-                }
             } else {
                 Text("Initializing...")
             }

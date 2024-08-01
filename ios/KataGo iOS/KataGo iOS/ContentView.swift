@@ -38,7 +38,8 @@ struct ContentView: View {
                          isEditorPresented: $isEditorPresented,
                          selectedGameRecord: $navigationContext.selectedGameRecord)
         } detail: {
-            GobanView(isInitialized: $isInitialized)
+            GobanView(isInitialized: $isInitialized,
+                      isEditorPresented: $isEditorPresented)
         }
         .environmentObject(stones)
         .environmentObject(messagesObject)

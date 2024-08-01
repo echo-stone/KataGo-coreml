@@ -186,6 +186,7 @@ struct GobanItems: View {
 
 struct GobanView: View {
     @Binding var isInitialized: Bool
+    @Binding var isEditorPresented: Bool
     @Environment(\.horizontalSizeClass) var hSizeClass
     @Environment(\.verticalSizeClass) var vSizeClass
     @Environment(NavigationContext.self) var navigationContext
@@ -195,6 +196,13 @@ struct GobanView: View {
     var body: some View {
         if isInitialized,
            let gameRecord = navigationContext.selectedGameRecord {
+            Text(gameRecord.name)
+                .font(.title)
+                .bold()
+                .onTapGesture {
+                    isEditorPresented = true
+                }
+
             if hSizeClass == .compact && vSizeClass == .regular {
                 VStack {
                     GobanItems(gameRecord: gameRecord)
