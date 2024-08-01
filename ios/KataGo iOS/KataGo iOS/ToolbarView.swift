@@ -19,14 +19,12 @@ struct ToolbarItems: View {
             Button(action: passAction) {
                 Image(systemName: "hand.raised")
                     .resizable()
-                    .scaledToFit()
             }
             .padding()
 
             Button(action: backwardAction) {
                 Image(systemName: "backward.frame")
                     .resizable()
-                    .scaledToFit()
             }
             .padding()
 
@@ -34,14 +32,12 @@ struct ToolbarItems: View {
                 Button(action: startAnalysisAction) {
                     Image(systemName: "sparkle")
                         .resizable()
-                        .scaledToFit()
                 }
                 .padding()
             } else if gobanState.analysisStatus == .run {
                 Button(action: stopAction) {
                     Image(systemName: "sparkle")
                         .resizable()
-                        .scaledToFit()
                         .symbolEffect(.variableColor.iterative.reversing, isActive: true)
                 }
                 .padding()
@@ -49,7 +45,6 @@ struct ToolbarItems: View {
                 Button(action: pauseAnalysisAction) {
                     Image(systemName: "sparkle")
                         .resizable()
-                        .scaledToFit()
                         .foregroundColor(.red)
                 }
                 .padding()
@@ -58,17 +53,17 @@ struct ToolbarItems: View {
             Button(action: forwardAction) {
                 Image(systemName: "forward.frame")
                     .resizable()
-                    .scaledToFit()
             }
             .padding()
 
             Button(action: clearBoardAction) {
                 Image(systemName: "clear")
                     .resizable()
-                    .scaledToFit()
             }
             .padding()
         }
+        .scaledToFit()
+        .frame(maxWidth: 60)
     }
 
     func passAction() {
@@ -157,25 +152,5 @@ struct ToolbarItems: View {
         guard (1...Int(board.height)).contains(y), (0..<Int(board.width)).contains(x) else { return nil }
 
         return Coordinate.xLabelMap[x].map { "\($0)\(y)" }
-    }
-}
-
-struct ToolbarView: View {
-    @Environment(\.horizontalSizeClass) var hSizeClass
-    @Environment(\.verticalSizeClass) var vSizeClass
-    @EnvironmentObject var gobanState: GobanState
-    var gameRecord: GameRecord
-
-    var body: some View {
-        if hSizeClass == .compact && vSizeClass == .regular {
-            HStack {
-                ToolbarItems(gameRecord: gameRecord)
-            }
-        } else {
-            VStack {
-                ToolbarItems(gameRecord: gameRecord)
-            }
-            .frame(maxWidth: 80)
-        }
     }
 }

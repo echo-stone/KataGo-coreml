@@ -214,6 +214,7 @@
 		E12A6F382C38BE120002DED0 /* KataGoCpp.hpp in Headers */ = {isa = PBXBuildFile; fileRef = E12A6F372C38BE120002DED0 /* KataGoCpp.hpp */; settings = {ATTRIBUTES = (Public, ); }; };
 		E12A6F392C38BE120002DED0 /* KataGoCpp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E12A6F362C38BE120002DED0 /* KataGoCpp.cpp */; };
 		E12A6F3B2C38C5EA0002DED0 /* KataGoHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = E12A6F3A2C38C5EA0002DED0 /* KataGoHelper.swift */; };
+		E13828632C5B8C3600670FD3 /* GameListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E13828622C5B8C3600670FD3 /* GameListView.swift */; };
 		E140C38B2C5923FD002D2EB1 /* NameEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E140C38A2C5923FD002D2EB1 /* NameEditorView.swift */; };
 		E14753592C3A5A440066DE29 /* GameRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = E14753582C3A5A440066DE29 /* GameRecord.swift */; };
 		E149B7F42B350EA8002B7F61 /* parallel.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E149B7F22B350EA8002B7F61 /* parallel.cpp */; };
@@ -521,6 +522,7 @@
 		E12A6F362C38BE120002DED0 /* KataGoCpp.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = KataGoCpp.cpp; sourceTree = "<group>"; };
 		E12A6F372C38BE120002DED0 /* KataGoCpp.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = KataGoCpp.hpp; sourceTree = "<group>"; };
 		E12A6F3A2C38C5EA0002DED0 /* KataGoHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KataGoHelper.swift; sourceTree = "<group>"; };
+		E13828622C5B8C3600670FD3 /* GameListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameListView.swift; sourceTree = "<group>"; };
 		E140C38A2C5923FD002D2EB1 /* NameEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NameEditorView.swift; sourceTree = "<group>"; };
 		E14753582C3A5A440066DE29 /* GameRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameRecord.swift; sourceTree = "<group>"; };
 		E149B7F22B350EA8002B7F61 /* parallel.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = parallel.cpp; sourceTree = "<group>"; };
@@ -932,6 +934,7 @@
 				E18446552C1DD526004F5E3B /* MoveNumberView.swift */,
 				E12A6EA02C325E010002DED0 /* WinrateBarView.swift */,
 				E140C38A2C5923FD002D2EB1 /* NameEditorView.swift */,
+				E13828622C5B8C3600670FD3 /* GameListView.swift */,
 			);
 			name = View;
 			sourceTree = "<group>";
@@ -1525,6 +1528,7 @@
 				E19D2E382AC97FA300C2A807 /* ToolbarView.swift in Sources */,
 				E1C682712AA2A4E7001B4F44 /* GobanView.swift in Sources */,
 				E14753592C3A5A440066DE29 /* GameRecord.swift in Sources */,
+				E13828632C5B8C3600670FD3 /* GameListView.swift in Sources */,
 				E16BC8402C566D8500EA3A1E /* KataGoModel29x29fp16m1.mlpackage in Sources */,
 				E1C682752AA2CC31001B4F44 /* CommandView.swift in Sources */,
 				E1B63BE42AABDF3500094965 /* BoardLineView.swift in Sources */,
@@ -2031,7 +2035,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = "$(RECOMMENDED_MACOSX_DEPLOYMENT_TARGET)";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "ccy.KataGo-iOS";
+				PRODUCT_BUNDLE_IDENTIFIER = "ccy.KataGo-iOS.tw";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -2069,7 +2073,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = "$(RECOMMENDED_MACOSX_DEPLOYMENT_TARGET)";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "ccy.KataGo-iOS";
+				PRODUCT_BUNDLE_IDENTIFIER = "ccy.KataGo-iOS.tw";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;

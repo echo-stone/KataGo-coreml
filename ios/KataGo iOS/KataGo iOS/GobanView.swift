@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 import KataGoInterface
 
 struct BoardView: View {
@@ -84,10 +85,11 @@ struct BoardView: View {
 }
 
 struct TopToolbarView: View {
-    var config: Config
+    var gameRecord: GameRecord
     @Binding var isCommandPresented: Bool
     @Binding var isConfigPresented: Bool
     @Binding var isBoardSizeChanged: Bool
+    @Environment(\.modelContext) private var modelContext
 
     var body: some View {
         HStack {
@@ -118,27 +120,18 @@ struct TopToolbarView: View {
             }
             .onChange(of: isConfigPresented) { _, isConfigPresentedNow in
                 if !isConfigPresentedNow && (isBoardSizeChanged) {
-                    KataGoHelper.sendCommand(config.getKataBoardSizeCommand())
+                    KataGoHelper.sendCommand(gameRecord.config.getKataBoardSizeCommand())
                     KataGoHelper.sendCommand("printsgf")
                     isBoardSizeChanged = false
                 }
             }
-        }
-    }
-}
 
-struct TopToolbarContent: ToolbarContent {
-    var config: Config
-    @Binding var isCommandPresented: Bool
-    @Binding var isConfigPresented: Bool
-    @Binding var isBoardSizeChanged: Bool
-
-    var body: some ToolbarContent {
-        ToolbarItem {
-            TopToolbarView(config: config,
-                           isCommandPresented: $isCommandPresented,
-                           isConfigPresented: $isConfigPresented,
-                           isBoardSizeChanged: $isBoardSizeChanged)
+            Button {
+                modelContext.insert(GameRecord(gameRecord: gameRecord))
+            } label: {
+                Label("New game", systemImage: "plus")
+                    .help("New game")
+            }
         }
     }
 }
@@ -148,45 +141,57 @@ struct GobanItems: View {
     @State private var isCommandPresented = false
     @State private var isConfigPresented = false
     @State private var isBoardSizeChanged = false
+    @Environment(\.horizontalSizeClass) var hSizeClass
+    @Environment(\.verticalSizeClass) var vSizeClass
 
     var body: some View {
-        if isCommandPresented {
-            CommandView(config: gameRecord.config)
-                .toolbar {
-                    TopToolbarContent(config: gameRecord.config,
-                                      isCommandPresented: $isCommandPresented,
-                                      isConfigPresented: $isConfigPresented,
-                                      isBoardSizeChanged: $isBoardSizeChanged)
+        Group {
+            if isCommandPresented {
+                CommandView(config: gameRecord.config)
+            } else if isConfigPresented {
+                ConfigView(config: gameRecord.config, isBoardSizeChanged: $isBoardSizeChanged)
+            } else {
+                if hSizeClass == .compact && vSizeClass == .regular {
+                    VStack {
+                        BoardView(config: gameRecord.config)
+                        HStack {
+                            ToolbarItems(gameRecord: gameRecord)
+                        }
+                        .padding()
+                    }
+                } else {
+                    HStack {
+                        BoardView(config: gameRecord.config)
+                        VStack {
+                            ToolbarItems(gameRecord: gameRecord)
+                        }
+                        .padding()
+                    }
                 }
-        } else if isConfigPresented {
-            ConfigView(config: gameRecord.config, isBoardSizeChanged: $isBoardSizeChanged)
-                .toolbar {
-                    TopToolbarContent(config: gameRecord.config,
-                                      isCommandPresented: $isCommandPresented,
-                                      isConfigPresented: $isConfigPresented,
-                                      isBoardSizeChanged: $isBoardSizeChanged)
-                }
-        } else {
-            BoardView(config: gameRecord.config)
-                .toolbar {
-                    TopToolbarContent(config: gameRecord.config,
-                                      isCommandPresented: $isCommandPresented,
-                                      isConfigPresented: $isConfigPresented,
-                                      isBoardSizeChanged: $isBoardSizeChanged)
-                }
-            ToolbarView(gameRecord: gameRecord)
-                .padding()
+            }
+        }
+        .toolbar {
+            ToolbarItem {
+                TopToolbarView(gameRecord: gameRecord,
+                               isCommandPresented: $isCommandPresented,
+                               isConfigPresented: $isConfigPresented,
+                               isBoardSizeChanged: $isBoardSizeChanged)
+            }
         }
     }
 }
 
 struct GobanView: View {
+    @Binding var isInitialized: Bool
     @Environment(\.horizontalSizeClass) var hSizeClass
     @Environment(\.verticalSizeClass) var vSizeClass
-    var gameRecord: GameRecord?
+    @Environment(NavigationContext.self) var navigationContext
+    @Environment(\.modelContext) private var modelContext
+    @Query var gameRecords: [GameRecord]
 
     var body: some View {
-        if let gameRecord {
+        if isInitialized,
+           let gameRecord = navigationContext.selectedGameRecord {
             if hSizeClass == .compact && vSizeClass == .regular {
                 VStack {
                     GobanItems(gameRecord: gameRecord)
@@ -198,6 +203,19 @@ struct GobanView: View {
             }
         } else {
             ContentUnavailableView("Select a game", systemImage: "sidebar.left")
+                .toolbar {
+                    if isInitialized {
+                        ToolbarItem {
+                            Button {
+                                modelContext.insert(GameRecord())
+                                navigationContext.selectedGameRecord = gameRecords.last
+                            } label: {
+                                Label("New game", systemImage: "plus")
+                                    .help("New game")
+                            }
+                        }
+                    }
+                }
         }
     }
 }

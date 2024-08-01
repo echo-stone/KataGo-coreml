@@ -23,6 +23,7 @@ struct ContentView: View {
     @StateObject var winrate = Winrate()
     @State private var navigationContext = NavigationContext()
     @State private var isEditorPresented = false
+    @State private var isInitialized = false
 
     init() {
         // Start a thread to run KataGo GTP
@@ -33,53 +34,11 @@ struct ContentView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $navigationContext.selectedGameRecord) {
-                ForEach(gameRecords) { gameRecord in
-                    NavigationLink(gameRecord.name, value: gameRecord)
-                }
-                .onDelete { indexSet in
-                    for index in indexSet {
-                        let gameRecordToDelete = gameRecords[index]
-                        if navigationContext.selectedGameRecord?.persistentModelID == gameRecordToDelete.persistentModelID {
-                            navigationContext.selectedGameRecord = nil
-                        }
-
-                        modelContext.delete(gameRecordToDelete)
-                    }
-                }
-                .onLongPressGesture {
-                    isEditorPresented = true
-                }
-            }
-            .navigationTitle("Games")
-            .sheet(isPresented: $isEditorPresented) {
-                NameEditorView(gameRecord: navigationContext.selectedGameRecord)
-            }
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        if let gameRecord = navigationContext.selectedGameRecord {
-                            modelContext.insert(GameRecord(gameRecord: gameRecord))
-                        }
-                    } label: {
-                        Label("Add a new game", systemImage: "plus")
-                            .help("Add a new game")
-                    }
-                }
-            }
+            GameListView(isInitialized: $isInitialized,
+                         isEditorPresented: $isEditorPresented,
+                         selectedGameRecord: $navigationContext.selectedGameRecord)
         } detail: {
-            GobanView(gameRecord: navigationContext.selectedGameRecord)
-                .onChange(of: gobanState.waitingForAnalysis) { waitedForAnalysis, waitingForAnalysis in
-                    if (waitedForAnalysis && !waitingForAnalysis) {
-                        if gobanState.analysisStatus == .pause {
-                            KataGoHelper.sendCommand("stop")
-                        } else {
-                            if let config = navigationContext.selectedGameRecord?.config {
-                                KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
-                            }
-                        }
-                    }
-                }
+            GobanView(isInitialized: $isInitialized)
         }
         .environmentObject(stones)
         .environmentObject(messagesObject)
@@ -94,15 +53,36 @@ struct ContentView: View {
             createMessageTask()
         }
         .onChange(of: navigationContext.selectedGameRecord) { _, newGameRecord in
-            if let config = newGameRecord?.config {
-                maybeLoadSgf()
-                KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
-                KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
-                KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
-                KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(config.humanSLRootExploreProbWeightful)")
-                KataGoHelper.sendCommand("showboard")
-                if (gobanState.analysisStatus == .run) {
-                    gobanState.requestAnalysis(config: config)
+            processChange(newGameRecord: newGameRecord)
+        }
+        .onChange(of: gobanState.waitingForAnalysis) { oldWaitingForAnalysis, newWaitingForAnalysis in
+            processChange(oldWaitingForAnalysis: oldWaitingForAnalysis,
+                          newWaitingForAnalysis: newWaitingForAnalysis)
+        }
+    }
+
+    private func processChange(newGameRecord: GameRecord?) {
+        if let config = newGameRecord?.config {
+            maybeLoadSgf()
+            KataGoHelper.sendCommand(config.getKataPlayoutDoublingAdvantageCommand())
+            KataGoHelper.sendCommand(config.getKataAnalysisWideRootNoiseCommand())
+            KataGoHelper.sendCommand("kata-set-param humanSLProfile \(config.humanSLProfile)")
+            KataGoHelper.sendCommand("kata-set-param humanSLRootExploreProbWeightful \(config.humanSLRootExploreProbWeightful)")
+            KataGoHelper.sendCommand("showboard")
+            if (gobanState.analysisStatus == .run) {
+                gobanState.requestAnalysis(config: config)
+            }
+        }
+    }
+
+    private func processChange(oldWaitingForAnalysis waitedForAnalysis: Bool,
+                               newWaitingForAnalysis waitingForAnalysis: Bool) {
+        if (waitedForAnalysis && !waitingForAnalysis) {
+            if gobanState.analysisStatus == .pause {
+                KataGoHelper.sendCommand("stop")
+            } else {
+                if let config = navigationContext.selectedGameRecord?.config {
+                    KataGoHelper.sendCommand(config.getKataAnalyzeCommand())
                 }
             }
         }
@@ -149,6 +129,8 @@ struct ContentView: View {
 
                 // Remove when there are too many messages
                 messagesObject.shrink()
+
+                isInitialized = true
             }
         }
     }
