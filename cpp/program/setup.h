@@ -56,7 +56,13 @@ namespace Setup {
 
   constexpr int MAX_BOT_PARAMS_FROM_CFG = 4096;
 
+  constexpr double DEFAULT_GENMOVE_WIDE_ROOT_NOISE = 0.04;
+  constexpr double DEFAULT_GENMOVE_ROOT_POLICY_TEMPERATURE = 1;
+  constexpr double DEFAULT_GENMOVE_ROOT_POLICY_TEMPERATURE_EARLY = 1;
+
   constexpr double DEFAULT_ANALYSIS_WIDE_ROOT_NOISE = 0.04;
+  constexpr double DEFAULT_ANALYSIS_ROOT_POLICY_TEMPERATURE = 1;
+  constexpr double DEFAULT_ANALYSIS_ROOT_POLICY_TEMPERATURE_EARLY = 1;
   constexpr bool DEFAULT_ANALYSIS_IGNORE_PRE_ROOT_HISTORY = true;
 
   int computeDefaultEigenBackendThreads(int expectedConcurrentEvals, Logger& logger);

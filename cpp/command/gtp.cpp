@@ -1949,10 +1949,21 @@ int MainCmds::gtp(const vector<string>& args) {
     if(!config.contains("fillDameBeforePass"))
       params.fillDameBeforePass = true;
 
+    const double genmoveWideRootNoise =
+      config.contains("genmoveWideRootNoise") ? config.getDouble("genmoveWideRootNoise",0.0,5.0) : Setup::DEFAULT_GENMOVE_WIDE_ROOT_NOISE;
+    const double genmoveRootPolicyTemperature =
+      config.contains("genmoveRootPolicyTemperature") ? config.getDouble("genmoveRootPolicyTemperature",0.0,10.0) : Setup::DEFAULT_GENMOVE_ROOT_POLICY_TEMPERATURE;
+    const double genmoveRootPolicyTemperatureEarly =
+      config.contains("genmoveRootPolicyTemperatureEarly") ? config.getDouble("genmoveRootPolicyTemperatureEarly",0.0,10.0) : Setup::DEFAULT_GENMOVE_ROOT_POLICY_TEMPERATURE_EARLY;
+
     const double analysisWideRootNoise =
       config.contains("analysisWideRootNoise") ? config.getDouble("analysisWideRootNoise",0.0,5.0) : Setup::DEFAULT_ANALYSIS_WIDE_ROOT_NOISE;
     const double analysisIgnorePreRootHistory =
       config.contains("analysisIgnorePreRootHistory") ? config.getBool("analysisIgnorePreRootHistory") : Setup::DEFAULT_ANALYSIS_IGNORE_PRE_ROOT_HISTORY;
+    const double analysisRootPolicyTemperature =
+      config.contains("analysisRootPolicyTemperature") ? config.getDouble("analysisRootPolicyTemperature",0.0,10.0) : Setup::DEFAULT_ANALYSIS_ROOT_POLICY_TEMPERATURE;
+    const double analysisRootPolicyTemperatureEarly =
+      config.contains("analysisRootPolicyTemperatureEarly") ? config.getDouble("analysisRootPolicyTemperatureEarly",0.0,10.0) : Setup::DEFAULT_ANALYSIS_ROOT_POLICY_TEMPERATURE_EARLY;
     const bool genmoveAntiMirror =
       config.contains("genmoveAntiMirror") ? config.getBool("genmoveAntiMirror") : config.contains("antiMirror") ? config.getBool("antiMirror") : true;
 
@@ -1960,9 +1971,14 @@ int MainCmds::gtp(const vector<string>& args) {
     analysisOut = params;
 
     genmoveOut.antiMirror = genmoveAntiMirror;
+    genmoveOut.wideRootNoise = genmoveWideRootNoise;
+    genmoveOut.rootPolicyTemperature = genmoveRootPolicyTemperature;
+    genmoveOut.rootPolicyTemperatureEarly = genmoveRootPolicyTemperatureEarly;
+
     analysisOut.wideRootNoise = analysisWideRootNoise;
     analysisOut.ignorePreRootHistory = analysisIgnorePreRootHistory;
-  };
+    analysisOut.rootPolicyTemperature = analysisRootPolicyTemperature;
+    analysisOut.rootPolicyTemperatureEarly = analysisRootPolicyTemperatureEarly;  };
 
   SearchParams initialGenmoveParams;
   SearchParams initialAnalysisParams;
@@ -2457,6 +2473,11 @@ int MainCmds::gtp(const vector<string>& args) {
     else if(command == "kata-list-params") {
       std::vector<string> paramsList;
       paramsList.push_back("analysisWideRootNoise");
+      paramsList.push_back("analysisRootPolicyTemperature");
+      paramsList.push_back("analysisRootPolicyTemperatureEarly");
+      paramsList.push_back("genmoveWideRootNoise");
+      paramsList.push_back("genmoveRootPolicyTemperature");
+      paramsList.push_back("genmoveRootPolicyTemperatureEarly");
       paramsList.push_back("analysisIgnorePreRootHistory");
       paramsList.push_back("genmoveAntiMirror");
       paramsList.push_back("antiMirror");
@@ -2482,6 +2503,16 @@ int MainCmds::gtp(const vector<string>& args) {
         const SearchParams& analysisParams = engine->getAnalysisParams();
         if(pieces[0] == "analysisWideRootNoise")
           response = Global::doubleToString(analysisParams.wideRootNoise);
+        else if(pieces[0] == "analysisRootPolicyTemperature")
+          response = Global::doubleToString(analysisParams.rootPolicyTemperature);
+        else if(pieces[0] == "analysisRootPolicyTemperatureEarly")
+          response = Global::doubleToString(analysisParams.rootPolicyTemperatureEarly);
+        else if(pieces[0] == "genmoveWideRootNoise")
+          response = Global::doubleToString(genmoveParams.wideRootNoise);
+        else if(pieces[0] == "genmoveRootPolicyTemperature")
+          response = Global::doubleToString(genmoveParams.rootPolicyTemperature);
+        else if(pieces[0] == "genmoveRootPolicyTemperatureEarly")
+          response = Global::doubleToString(genmoveParams.rootPolicyTemperatureEarly);
         else if(pieces[0] == "analysisIgnorePreRootHistory")
           response = Global::boolToString(analysisParams.ignorePreRootHistory);
         else if(pieces[0] == "genmoveAntiMirror")
@@ -2539,6 +2570,11 @@ int MainCmds::gtp(const vector<string>& args) {
       const SearchParams& analysisParams = engine->getAnalysisParams();
       nlohmann::json params = engine->getGenmoveParams().changeableParametersToJson();
       params["analysisWideRootNoise"] = Global::doubleToString(analysisParams.wideRootNoise);
+      params["analysisRootPolicyTemperature"] = Global::doubleToString(analysisParams.rootPolicyTemperature);
+      params["analysisRootPolicyTemperatureEarly"] = Global::doubleToString(analysisParams.rootPolicyTemperatureEarly);
+      params["genmoveWideRootNoise"] = Global::doubleToString(genmoveParams.wideRootNoise);
+      params["genmoveRootPolicyTemperature"] = Global::doubleToString(genmoveParams.rootPolicyTemperature);
+      params["genmoveRootPolicyTemperatureEarly"] = Global::doubleToString(genmoveParams.rootPolicyTemperatureEarly);
       params["analysisIgnorePreRootHistory"] = Global::boolToString(analysisParams.ignorePreRootHistory);
       params["genmoveAntiMirror"] = Global::boolToString(genmoveParams.antiMirror);
       params["antiMirror"] = Global::boolToString(analysisParams.antiMirror);
