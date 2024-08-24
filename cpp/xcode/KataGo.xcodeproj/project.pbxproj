@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A9C380282C6E2B900063AFF9 /* CoreML.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1AD404F28E1D5A700E41968 /* CoreML.framework */; };
+		A9C3802B2C6E2B970063AFF9 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1AD404928E1D59700E41968 /* Metal.framework */; };
+		A9C3802D2C6E2B980063AFF9 /* MetalPerformanceShaders.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1AD404A28E1D59700E41968 /* MetalPerformanceShaders.framework */; };
+		A9C3802F2C6E2B9A0063AFF9 /* MetalPerformanceShadersGraph.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1AD404B28E1D59700E41968 /* MetalPerformanceShadersGraph.framework */; };
 		E10ACA7D2928A6D30004AB17 /* book.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 973B04213D1B4030B35FB01C /* book.cpp */; };
 		E10ACA7E2928A6D30004AB17 /* bookcssjs.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6DD28F2EE5FB490F906D63BA /* bookcssjs.cpp */; };
 		E10ACA7F2928A6D30004AB17 /* analysis.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E7B41A9FE4124FA1AB3FBEF1 /* analysis.cpp */; };
@@ -114,12 +118,8 @@
 		E10ACAE82928A6D30004AB17 /* testtrainingwrite.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D1DFBE2386CE449D82894520 /* testtrainingwrite.cpp */; };
 		E10ACAE92928A6D30004AB17 /* tinymodel.cpp in Sources */ = {isa = PBXBuildFile; fileRef = BE70F73F685D4EDA9977822F /* tinymodel.cpp */; };
 		E10ACAEA2928A6D30004AB17 /* tinymodeldata.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 279C4ABB40FE447483F0F975 /* tinymodeldata.cpp */; };
-		E10ACAEC2928A6D30004AB17 /* MetalPerformanceShaders.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1AD404A28E1D59700E41968 /* MetalPerformanceShaders.framework */; };
 		E10ACAED2928A6D30004AB17 /* libz.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = E1AD405128E1D75B00E41968 /* libz.tbd */; };
-		E10ACAEE2928A6D30004AB17 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1AD404928E1D59700E41968 /* Metal.framework */; };
-		E10ACAEF2928A6D30004AB17 /* MetalPerformanceShadersGraph.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1AD404B28E1D59700E41968 /* MetalPerformanceShadersGraph.framework */; };
 		E10ACAFA2928A8D30004AB17 /* coremlbackend.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E13CF66228E1896C005CB016 /* coremlbackend.cpp */; };
-		E10ACAFD2928BBF00004AB17 /* CoreML.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1AD404F28E1D5A700E41968 /* CoreML.framework */; };
 		E12453D52A1CF0DE0062DF9C /* testbook.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E12453D42A1CF0DE0062DF9C /* testbook.cpp */; };
 		E12453D72A1D015E0062DF9C /* poswriter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E12453D62A1D015E0062DF9C /* poswriter.cpp */; };
 		E12EC21A2B10D61E0024E274 /* coremlbackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = E12EC2172B10D61E0024E274 /* coremlbackend.swift */; };
@@ -128,7 +128,7 @@
 		E12EC21D2B10D61E0024E274 /* metalbackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = E12EC2182B10D61E0024E274 /* metalbackend.swift */; };
 		E12EC21E2B10D61E0024E274 /* coremlmodel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E12EC2192B10D61E0024E274 /* coremlmodel.swift */; };
 		E12EC21F2B10D61E0024E274 /* coremlmodel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E12EC2192B10D61E0024E274 /* coremlmodel.swift */; };
-		E12EC22E2B10E3310024E274 /* KataGoSwift.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = E1DACF4C2B08997300082FF7 /* KataGoSwift.framework */; };
+		E12EC22E2B10E3310024E274 /* KataGoSwift.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = E1DACF4C2B08997300082FF7 /* KataGoSwift.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		E12EC2302B1237440024E274 /* parallel.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E12EC22F2B1237440024E274 /* parallel.cpp */; };
 		E12EC2312B1237440024E274 /* parallel.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E12EC22F2B1237440024E274 /* parallel.cpp */; };
 		E12EC2332B12375C0024E274 /* writetrainingdata.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E12EC2322B12375B0024E274 /* writetrainingdata.cpp */; };
@@ -258,7 +258,7 @@
 		E17D098C294D45CF005968E9 /* gputest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E17D098A294D45CF005968E9 /* gputest.cpp */; };
 		E18446502BFFF826004F5E3B /* misc.swift in Sources */ = {isa = PBXBuildFile; fileRef = E184464D2BFFF6A1004F5E3B /* misc.swift */; };
 		E18446512BFFF827004F5E3B /* misc.swift in Sources */ = {isa = PBXBuildFile; fileRef = E184464D2BFFF6A1004F5E3B /* misc.swift */; };
-		E1DACF5D2B089A5400082FF7 /* KataGoSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1DACF4C2B08997300082FF7 /* KataGoSwift.framework */; };
+		E1DACF5D2B089A5400082FF7 /* KataGoSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1DACF4C2B08997300082FF7 /* KataGoSwift.framework */; settings = {ATTRIBUTES = (Required, ); }; };
 		E1DACF652B089B5500082FF7 /* KataGoSwiftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1DACF642B089B5500082FF7 /* KataGoSwiftTests.swift */; };
 		E1DACF732B089C7700082FF7 /* KataGoSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1DACF4C2B08997300082FF7 /* KataGoSwift.framework */; };
 /* End PBXBuildFile section */
@@ -285,7 +285,7 @@
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = ../Frameworks;
-			dstSubfolderSpec = 16;
+			dstSubfolderSpec = 6;
 			files = (
 				E12EC22E2B10E3310024E274 /* KataGoSwift.framework in CopyFiles */,
 			);
@@ -439,11 +439,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				E1DACF5D2B089A5400082FF7 /* KataGoSwift.framework in Frameworks */,
-				E10ACAEC2928A6D30004AB17 /* MetalPerformanceShaders.framework in Frameworks */,
+				A9C380282C6E2B900063AFF9 /* CoreML.framework in Frameworks */,
 				E10ACAED2928A6D30004AB17 /* libz.tbd in Frameworks */,
-				E10ACAFD2928BBF00004AB17 /* CoreML.framework in Frameworks */,
-				E10ACAEE2928A6D30004AB17 /* Metal.framework in Frameworks */,
-				E10ACAEF2928A6D30004AB17 /* MetalPerformanceShadersGraph.framework in Frameworks */,
+				A9C3802B2C6E2B970063AFF9 /* Metal.framework in Frameworks */,
+				A9C3802D2C6E2B980063AFF9 /* MetalPerformanceShaders.framework in Frameworks */,
+				A9C3802F2C6E2B9A0063AFF9 /* MetalPerformanceShadersGraph.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
