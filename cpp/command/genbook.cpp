@@ -14,6 +14,7 @@
 #include "../program/playutils.h"
 #include "../program/play.h"
 #include "../command/commandline.h"
+#include "../core/test.h"
 #include "../main.h"
 
 #include <chrono>
@@ -247,6 +248,7 @@ int MainCmds::genbook(const vector<string>& args) {
 
   ConfigParser cfg;
   string modelFile;
+  string humanModelFile;
   string htmlDir;
   string bookFile;
   string traceBookFile;
@@ -263,6 +265,7 @@ int MainCmds::genbook(const vector<string>& args) {
     KataGoCommandLine cmd("Generate opening book");
     cmd.addConfigFileArg("","",true);
     cmd.addModelFileArg();
+    cmd.addHumanModelFileArg();
     cmd.addOverrideConfigArg();
 
     TCLAP::ValueArg<string> htmlDirArg("","html-dir","HTML directory to export to, at the end of -num-iters",false,string(),"DIR");
@@ -294,6 +297,7 @@ int MainCmds::genbook(const vector<string>& args) {
 
     cmd.getConfig(cfg);
     modelFile = cmd.getModelFile();
+    humanModelFile = cmd.getHumanModelFile();
     htmlDir = htmlDirArg.getValue();
     bookFile = bookFileArg.getValue();
     traceBookFile = traceBookFileArg.getValue();
@@ -320,13 +324,12 @@ int MainCmds::genbook(const vector<string>& args) {
   const bool loadKomiFromCfg = true;
   Rules rules = Setup::loadSingleRules(cfg,loadKomiFromCfg);
 
-  const SearchParams params = Setup::loadSingleParams(cfg,Setup::SETUP_FOR_GTP);
+  const bool hasHumanModel = humanModelFile != "";
+  const SearchParams params = Setup::loadSingleParams(cfg,Setup::SETUP_FOR_GTP,hasHumanModel);
 
   const int boardSizeX = cfg.getInt("boardSizeX",2,Board::MAX_LEN);
   const int boardSizeY = cfg.getInt("boardSizeY",2,Board::MAX_LEN);
   const int repBound = cfg.getInt("repBound",3,1000);
-
-  BookParams cfgParams = BookParams::loadFromCfg(cfg, params.maxVisits);
 
   const double bonusFileScale = cfg.contains("bonusFileScale") ? cfg.getDouble("bonusFileScale",0.0,1000000.0) : 1.0;
 
@@ -342,6 +345,8 @@ int MainCmds::genbook(const vector<string>& args) {
     cfg.contains("maxDepthToRecord") ? cfg.getInt("maxDepthToRecord", 1, 100) : 1;
   const int64_t maxVisitsForLeaves =
     cfg.contains("maxVisitsForLeaves") ? cfg.getInt64("maxVisitsForLeaves", (int64_t)1, (int64_t)1 << 50) : (params.maxVisits+1) / 2;
+
+  BookParams cfgParams = BookParams::loadFromCfg(cfg, params.maxVisits, maxVisitsForLeaves);
 
   const int numGameThreads = cfg.getInt("numGameThreads",1,1000);
   const int numToExpandPerIteration = cfg.getInt("numToExpandPerIteration",1,10000000);
@@ -372,6 +377,7 @@ int MainCmds::genbook(const vector<string>& args) {
   const double wideRootNoiseBookExplore = cfg.contains("wideRootNoiseBookExplore") ? cfg.getDouble("wideRootNoiseBookExplore",0.0,5.0) : params.wideRootNoise;
   const double cpuctExplorationLogBookExplore = cfg.contains("cpuctExplorationLogBookExplore") ? cfg.getDouble("cpuctExplorationLogBookExplore",0.0,10.0) : params.cpuctExplorationLog;
   NNEvaluator* nnEval;
+  NNEvaluator* humanEval = NULL;
   {
     Setup::initializeSession(cfg);
     const int expectedConcurrentEvals = numGameThreads * params.numThreads;
@@ -384,8 +390,19 @@ int MainCmds::genbook(const vector<string>& args) {
       boardSizeX,boardSizeY,defaultMaxBatchSize,defaultRequireExactNNLen,disableFP16,
       Setup::SETUP_FOR_ANALYSIS
     );
+    logger.write("Loaded neural net");
+    if(humanModelFile != "") {
+      humanEval = Setup::initializeNNEvaluator(
+        humanModelFile,humanModelFile,expectedSha256,cfg,logger,rand,expectedConcurrentEvals,
+        boardSizeX,boardSizeY,defaultMaxBatchSize,defaultRequireExactNNLen,disableFP16,
+        Setup::SETUP_FOR_ANALYSIS
+      );
+      logger.write("Loaded human SL net with nnXLen " + Global::intToString(humanEval->getNNXLen()) + " nnYLen " + Global::intToString(humanEval->getNNYLen()));
+    }
   }
-  logger.write("Loaded neural net");
+  NNEvaluator* policyEvaluator = nnEval;
+  if(humanEval != NULL)
+    policyEvaluator = humanEval;
 
   vector<Search*> searches;
   for(int i = 0; i<numGameThreads; i++) {
@@ -396,6 +413,7 @@ int MainCmds::genbook(const vector<string>& args) {
   // Check for unused config keys
   cfg.warnUnusedKeys(cerr,&logger);
   Setup::maybeWarnHumanSLParams(params,nnEval,NULL,cerr,&logger);
+  Setup::maybeWarnHumanSLParams(params,humanEval,NULL,cerr,&logger);
 
   if(htmlDir != "")
     MakeDir::make(htmlDir);
@@ -453,6 +471,7 @@ int MainCmds::genbook(const vector<string>& args) {
         cfgParams.bonusForWLPV2 != existingBookParams.bonusForWLPV2 ||
         cfgParams.bonusForWLPVFinalProp != existingBookParams.bonusForWLPVFinalProp ||
         cfgParams.bonusForBiggestWLCost != existingBookParams.bonusForBiggestWLCost ||
+        cfgParams.bonusBehindInVisitsScale != existingBookParams.bonusBehindInVisitsScale ||
         cfgParams.scoreLossCap != existingBookParams.scoreLossCap ||
         cfgParams.earlyBookCostReductionFactor != existingBookParams.earlyBookCostReductionFactor ||
         cfgParams.earlyBookCostReductionLambda != existingBookParams.earlyBookCostReductionLambda ||
@@ -462,6 +481,7 @@ int MainCmds::genbook(const vector<string>& args) {
         cfgParams.adjustedVisitsWLScale != existingBookParams.adjustedVisitsWLScale ||
         cfgParams.maxVisitsForReExpansion != existingBookParams.maxVisitsForReExpansion ||
         cfgParams.visitsScale != existingBookParams.visitsScale ||
+        cfgParams.visitsScaleLeaves != existingBookParams.visitsScaleLeaves ||
         cfgParams.sharpScoreOutlierCap != existingBookParams.sharpScoreOutlierCap
       ) {
         throw StringError("Book parameters do not match");
@@ -652,7 +672,7 @@ int MainCmds::genbook(const vector<string>& args) {
     // Use full symmetry for the policy for nodes we record for the book
     bool includeOwnerMap = false;
     // cout << "Calling full nn " << timer.getSeconds() << endl;
-    std::shared_ptr<NNOutput> fullSymNNOutput = PlayUtils::getFullSymmetryNNOutput(board, hist, node.pla(), includeOwnerMap, search->nnEvaluator);
+    std::shared_ptr<NNOutput> fullSymNNOutput = PlayUtils::getFullSymmetryNNOutput(board, hist, node.pla(), includeOwnerMap, &params.humanSLProfile, policyEvaluator);
     float policyProbs[NNPos::MAX_NN_POLICY_SIZE];
     std::copy(fullSymNNOutput->policyProbs, fullSymNNOutput->policyProbs+NNPos::MAX_NN_POLICY_SIZE, policyProbs);
     // cout << "Done full nn " << timer.getSeconds() << endl;
@@ -789,6 +809,8 @@ int MainCmds::genbook(const vector<string>& args) {
         throw StringError("Target board history to add player got out of sync");
       if(movePla != node.pla())
         throw StringError("Target board history to add player got out of sync with node");
+      if(movePla != hist.presumedNextMovePla)
+        throw StringError("Target board history to add player got out of sync with hist");
 
       // Illegal move, possibly due to rules mismatch between the books. In that case, we just stop where we are.
       if(!hist.isLegal(board,moveLoc,movePla)) {
@@ -810,7 +832,7 @@ int MainCmds::genbook(const vector<string>& args) {
         // To avoid oddities in positions where the rules mismatch, expand every move with a noticeably higher raw policy
         // Average all 8 symmetries
         const bool includeOwnerMap = false;
-        std::shared_ptr<NNOutput> result = PlayUtils::getFullSymmetryNNOutput(board, hist, pla, includeOwnerMap, nnEval);
+        std::shared_ptr<NNOutput> result = PlayUtils::getFullSymmetryNNOutput(board, hist, pla, includeOwnerMap, &params.humanSLProfile, policyEvaluator);
         const float* policyProbs = result->policyProbs;
         float moveLocPolicy = policyProbs[search->getPos(moveLoc)];
         assert(moveLocPolicy >= 0);
@@ -921,7 +943,7 @@ int MainCmds::genbook(const vector<string>& args) {
 
     // Use full symmetry for the policy for nodes we record for the book
     bool includeOwnerMap = false;
-    std::shared_ptr<NNOutput> fullSymNNOutput = PlayUtils::getFullSymmetryNNOutput(board, hist, node.pla(), includeOwnerMap, search->nnEvaluator);
+    std::shared_ptr<NNOutput> fullSymNNOutput = PlayUtils::getFullSymmetryNNOutput(board, hist, node.pla(), includeOwnerMap, &params.humanSLProfile, policyEvaluator);
     const float* policyProbs = fullSymNNOutput->policyProbs;
 
     bool anyRecursion = false;
@@ -1367,7 +1389,12 @@ int MainCmds::genbook(const vector<string>& args) {
         logger.write("Randomized params and recomputed costs");
       }
 
-      std::vector<SymBookNode> nodesToExpand = book->getNextNToExpand(std::min(1+iteration,numToExpandPerIteration));
+      std::vector<SymBookNode> nodesToExpand = book->getNextNToExpand(
+        std::min(
+          1 + iteration*2 + (iteration*iteration / 25),
+          numToExpandPerIteration
+        )
+      );
       // Try to make all of the expanded nodes be consistent in symmetry so that they can share cache, in case
       // many of them are for related board positions.
       optimizeSymmetriesInplace(nodesToExpand, &rand, logger);
@@ -1425,6 +1452,8 @@ int MainCmds::genbook(const vector<string>& args) {
   for(int i = 0; i<numGameThreads; i++)
     delete searches[i];
   delete nnEval;
+  if(humanEval != NULL)
+    delete humanEval;
   delete book;
   delete traceBook;
   ScoreValue::freeTables();
@@ -1481,7 +1510,11 @@ int MainCmds::writebook(const vector<string>& args) {
   const string rulesLink = cfg.getString("rulesLink");
   const double bonusFileScale = cfg.contains("bonusFileScale") ? cfg.getDouble("bonusFileScale",0.0,1000000.0) : 1.0;
   const SearchParams params = Setup::loadSingleParams(cfg,Setup::SETUP_FOR_GTP);
-  BookParams cfgParams = BookParams::loadFromCfg(cfg, params.maxVisits);
+
+  const int64_t maxVisitsForLeaves =
+    cfg.contains("maxVisitsForLeaves") ? cfg.getInt64("maxVisitsForLeaves", (int64_t)1, (int64_t)1 << 50) : (params.maxVisits+1) / 2;
+
+  BookParams cfgParams = BookParams::loadFromCfg(cfg, params.maxVisits, maxVisitsForLeaves);
 
   const bool loadKomiFromCfg = true;
   Rules rules = Setup::loadSingleRules(cfg,loadKomiFromCfg);
@@ -1665,7 +1698,7 @@ int MainCmds::booktoposes(const vector<string>& args) {
     TCLAP::ValueArg<int> includeDepthArg("","include-depth","Include positions up to this depth",false,-1,"DEPTH");
     TCLAP::ValueArg<double> includeVisitsArg("","include-visits","Include positions this many visits or more",false,1e300,"VISITS");
     TCLAP::ValueArg<int> maxDepthArg("","max-depth","Only include positions up to this depth",false,100000000,"DEPTH");
-    TCLAP::ValueArg<double> minVisitsArg("","max-visits","Only include positions with this many visits or more",false,-1.0,"VISITS");
+    TCLAP::ValueArg<double> minVisitsArg("","min-visits","Only include positions with this many visits or more",false,-1.0,"VISITS");
     TCLAP::SwitchArg enableHintsArg("","enable-hints","Hint the top book move");
     TCLAP::ValueArg<double> constantWeightArg("","constant-weight","How much weight to give each position as a fixed baseline",false,0.0,"FLOAT");
     TCLAP::ValueArg<double> depthWeightArg("","depth-weight","How much extra weight to give based on depth",false,0.0,"FLOAT");
@@ -1837,7 +1870,8 @@ int MainCmds::booktoposes(const vector<string>& args) {
       for(int i = std::max(0,(int)hist.moveHistory.size()-5); i<hist.moveHistory.size(); i++)
         sample.moves.push_back(hist.moveHistory[i]);
       sample.nextPla = sample.moves.size() > 0 ? sample.moves[0].pla : pla;
-      sample.initialTurnNumber = depth;
+      sample.initialTurnNumber = depth - (int)sample.moves.size();
+      testAssert(sample.initialTurnNumber >= 0);
       sample.hintLoc = Board::NULL_LOC;
 
       std::vector<double> sortingValue;

@@ -71,16 +71,6 @@ GPATH
 GRTAGS
 GTAGS
 
-# For Xcode
-xcuserdata/
-DerivedData/
-*.plist
-
-# For KataGo-iOS
-ios/KataGo\ iOS/Resources/*.bin.gz
-ios/KataGo\ iOS/Resources/*.mlpackage
-
-# misc
 cpp/external/httplib/cpp-httplib/
 cpp/external/nlohmann_json/nlohmann_json
 gtp.cfg
@@ -93,3 +83,10 @@ for_release/
 
 tests/results/matchsgfs/
 tests/results/matchsgfs2/
+
+# For Metal Backend
+cpp/.ninja_deps
+cpp/.ninja_log
+cpp/build.ninja
+cpp/KataGoSwift.*
+cpp/include/KataGoSwift/KataGoSwift-swift.h

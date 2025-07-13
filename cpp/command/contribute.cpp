@@ -142,6 +142,18 @@ static void runAndUploadSingleGame(
 
   istringstream taskCfgIn(gameTask.task.config);
   ConfigParser taskCfg(taskCfgIn);
+  const std::string overrides = gameTask.repIdx < gameTask.task.overrides.size() ? gameTask.task.overrides[gameTask.repIdx] : std::string();
+  try {
+    if(overrides.size() > 0) {
+      map<string,string> newkvs = ConfigParser::parseCommaSeparated(overrides);
+      taskCfg.overrideKeys(newkvs);
+    }
+  }
+  catch(StringError& e) {
+    cerr << "Error applying overrides " << overrides << endl;
+    cerr << e.what() << endl;
+    throw;
+  }
 
   NNEvaluator* nnEvalBlack = gameTask.nnEvalBlack;
   NNEvaluator* nnEvalWhite = gameTask.nnEvalWhite;
@@ -913,12 +925,29 @@ int MainCmds::contribute(const vector<string>& args) {
 
       const bool verbose = false;
       const bool quickTest = true;
-      const int boardSizeTest = 19;
       // Cap test to avoid spawning too many threads when many selfplay games are running
       const int maxBatchSizeCap = std::min(4, 1 + nnEval->getMaxBatchSize()/2);
       bool fp32BatchSuccessBuf = true;
-      string referenceFileName = "";
-      bool success = Tests::runBackendErrorTest(nnEval,nnEval32,logger,boardSizeTest,maxBatchSizeCap,verbose,quickTest,fp32BatchSuccessBuf,referenceFileName);
+      bool fp32BatchSuccessBufRect = true;
+      const string referenceFileName = "";
+      const double policyOptimismForTest = 0.25;
+      const double pdaForTest = 0.0;
+      const double nnPolicyTemperatureForTest = 1.0;
+
+      bool success = Tests::runBackendErrorTest(
+        nnEval,nnEval32,logger,"19",maxBatchSizeCap,verbose,quickTest,
+        policyOptimismForTest,pdaForTest,nnPolicyTemperatureForTest,
+        fp32BatchSuccessBuf,referenceFileName
+      );
+      bool successRect = Tests::runBackendErrorTest(
+        nnEval,nnEval32,logger,"rectangle",maxBatchSizeCap,verbose,quickTest,
+        policyOptimismForTest,pdaForTest,nnPolicyTemperatureForTest,
+        fp32BatchSuccessBufRect,referenceFileName
+      );
+
+      fp32BatchSuccessBuf = fp32BatchSuccessBuf && fp32BatchSuccessBufRect;
+      success = success && successRect;
+
       if(!fp32BatchSuccessBuf) {
         logger.write("Error: large GPU numerical errors, unable to continue");
         shouldStop.store(true);

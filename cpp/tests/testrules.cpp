@@ -439,6 +439,14 @@ isResignation: 0
       printIllegalMoves(out,board,hist,P_BLACK);
       testAssert(hist.encorePhase == 0);
       testAssert(hist.isGameFinished == false);
+      testAssert(hist.numConsecValidTurnsThisGame == 10);
+
+      testAssert(!hist.isLegal(board, Location::getLoc(0,0,board.x_size), P_BLACK));
+      testAssert(hist.isLegalTolerant(board, Location::getLoc(0,0,board.x_size), P_BLACK));
+      hist.makeBoardMoveAssumeLegal(board, Location::getLoc(0,0,board.x_size), P_BLACK, NULL);
+      testAssert(hist.numConsecValidTurnsThisGame == 0);
+      checkKoHashConsistency(hist,board,P_WHITE);
+
 
       string expected = R"%%(
 After black ko capture:
@@ -598,7 +606,7 @@ Illegal: (0,0) X
 
       makeMoveAssertLegal(hist, board, Board::PASS_LOC, P_WHITE, __LINE__);
       out << "After pass" << endl;
-      printIllegalMoves(out,board,hist,P_WHITE);
+      printIllegalMoves(out,board,hist,P_BLACK);
       testAssert(hist.encorePhase == 0);
       testAssert(hist.isGameFinished == false);
 
@@ -1228,7 +1236,7 @@ x.oxxxx
       rules.komi = 0.5f;
       rules.multiStoneSuicideLegal = false;
       rules.taxRule = taxRules[whichTaxRule];
-      BoardHistory hist(board,P_WHITE,rules,0);
+      BoardHistory hist(board,P_BLACK,rules,0);
 
       out << "Score: " << finalScoreIfGameEndedNow(hist,board) << endl;
       makeMoveAssertLegal(hist, board, Location::getLoc(5,3,board.x_size), P_BLACK, __LINE__);
@@ -1297,7 +1305,7 @@ x.oxxxx
       rules.komi = 0.5f;
       rules.multiStoneSuicideLegal = false;
       rules.taxRule = taxRules[whichTaxRule];
-      BoardHistory hist(board,P_WHITE,rules,0);
+      BoardHistory hist(board,P_BLACK,rules,0);
 
       out << "Score: " << finalScoreIfGameEndedNow(hist,board) << endl;
       makeMoveAssertLegal(hist, board, Location::getLoc(5,3,board.x_size), P_BLACK, __LINE__);
@@ -1366,7 +1374,7 @@ x.oxxxx
       rules.komi = 0.5f;
       rules.multiStoneSuicideLegal = false;
       rules.taxRule = taxRules[whichTaxRule];
-      BoardHistory hist(board,P_WHITE,rules,0);
+      BoardHistory hist(board,P_BLACK,rules,0);
 
       out << "Score: " << finalScoreIfGameEndedNow(hist,board) << endl;
       makeMoveAssertLegal(hist, board, Location::getLoc(5,3,board.x_size), P_BLACK, __LINE__);
@@ -1438,7 +1446,7 @@ x.oxxxx
       rules.komi = 0.5f;
       rules.multiStoneSuicideLegal = false;
       rules.taxRule = taxRules[whichTaxRule];
-      BoardHistory hist(board,P_WHITE,rules,0);
+      BoardHistory hist(board,P_BLACK,rules,0);
 
       out << "Score: " << finalScoreIfGameEndedNow(hist,board) << endl;
       makeMoveAssertLegal(hist, board, Location::getLoc(5,3,board.x_size), P_BLACK, __LINE__);
@@ -1886,10 +1894,12 @@ ooo....
     printIllegalMoves(out,board,hist,P_BLACK);
     makeMoveAssertLegal(hist, board, Location::getLoc(0,0,board.x_size), P_BLACK, __LINE__);
     out << "Just after black pass for ko" << endl;
-    printIllegalMoves(out,board,hist,P_BLACK);
+    printIllegalMoves(out,board,hist,P_WHITE);
     out << board << endl;
 
     makeMoveAssertLegal(hist, board, Board::PASS_LOC, P_WHITE, __LINE__);
+    out << "After another white pass" << endl;
+    printIllegalMoves(out,board,hist,P_BLACK);
     makeMoveAssertLegal(hist, board, Location::getLoc(0,0,board.x_size), P_BLACK, __LINE__);
     out <<"After first cap" << endl;
     printIllegalMoves(out,board,hist,P_WHITE);
@@ -1927,6 +1937,8 @@ HASH: 2057B7FA441F035BBDC6D7A1145BEDDF
  1 . . . . . . .
 
 
+After another white pass
+Ko-recap-blocked: (0,1)
 After first cap
 Ko-recap-blocked: (0,0)
 Ko-recap-blocked: (0,1)
@@ -2331,6 +2343,8 @@ xxo
       hist.printDebugInfo(out,board);
       makeMoveAssertLegal(hist, board, Board::PASS_LOC, P_WHITE, __LINE__);
       hist.printDebugInfo(out,board);
+      hist.makeBoardMoveAssumeLegal(board, Board::PASS_LOC, P_BLACK, NULL);
+      hist.printDebugInfo(out,board);
       out << endl;
     }
     {
@@ -2358,6 +2372,7 @@ Initial pla Black
 Encore phase 1
 Turns this phase 0
 Approx valid turns this phase 0
+Approx consec valid turns this game 2
 Rules koPOSITIONALscoreTERRITORYtaxNONEsui0komi0.5
 Ko recap block hash 00000000000000000000000000000000
 White bonus score 1
@@ -2378,6 +2393,7 @@ Initial pla Black
 Encore phase 1
 Turns this phase 1
 Approx valid turns this phase 1
+Approx consec valid turns this game 3
 Rules koPOSITIONALscoreTERRITORYtaxNONEsui0komi0.5
 Ko recap block hash 00000000000000000000000000000000
 White bonus score 1
@@ -2398,6 +2414,7 @@ Initial pla Black
 Encore phase 2
 Turns this phase 0
 Approx valid turns this phase 0
+Approx consec valid turns this game 4
 Rules koPOSITIONALscoreTERRITORYtaxNONEsui0komi0.5
 Ko recap block hash 00000000000000000000000000000000
 White bonus score 1
@@ -2418,6 +2435,7 @@ Initial pla Black
 Encore phase 2
 Turns this phase 1
 Approx valid turns this phase 1
+Approx consec valid turns this game 5
 Rules koPOSITIONALscoreTERRITORYtaxNONEsui0komi0.5
 Ko recap block hash 00000000000000000000000000000000
 White bonus score 1
@@ -2438,6 +2456,7 @@ Initial pla Black
 Encore phase 2
 Turns this phase 2
 Approx valid turns this phase 2
+Approx consec valid turns this game 6
 Rules koPOSITIONALscoreTERRITORYtaxNONEsui0komi0.5
 Ko recap block hash 00000000000000000000000000000000
 White bonus score 1
@@ -2447,6 +2466,27 @@ Presumed next pla Black
 Past normal phase end 0
 Game result 1 White 0.5 1 0 0
 Last moves pass pass pass pass pass pass
+HASH: 75819B78E08D44EFCA4C3CBC9D277E29
+   A B C
+ 3 . X .
+ 2 X X O
+ 1 . O .
+
+
+Initial pla Black
+Encore phase 2
+Turns this phase 3
+Approx valid turns this phase 2
+Approx consec valid turns this game 2
+Rules koPOSITIONALscoreTERRITORYtaxNONEsui0komi0.5
+Ko recap block hash 00000000000000000000000000000000
+White bonus score 1
+White handicap bonus score 0
+Has button 0
+Presumed next pla White
+Past normal phase end 0
+Game result 1 White 0.5 1 0 0
+Last moves pass pass pass pass pass pass pass
 
 -----------------------
 Preventing encore
@@ -2461,6 +2501,7 @@ Initial pla Black
 Encore phase 0
 Turns this phase 2
 Approx valid turns this phase 1
+Approx consec valid turns this game 1
 Rules koPOSITIONALscoreTERRITORYtaxNONEsui0komi0.5
 Ko recap block hash 00000000000000000000000000000000
 White bonus score 1
@@ -2481,6 +2522,7 @@ Initial pla Black
 Encore phase 0
 Turns this phase 3
 Approx valid turns this phase 1
+Approx consec valid turns this game 1
 Rules koPOSITIONALscoreTERRITORYtaxNONEsui0komi0.5
 Ko recap block hash 00000000000000000000000000000000
 White bonus score 1
@@ -2501,6 +2543,7 @@ Initial pla Black
 Encore phase 0
 Turns this phase 4
 Approx valid turns this phase 1
+Approx consec valid turns this game 1
 Rules koPOSITIONALscoreTERRITORYtaxNONEsui0komi0.5
 Ko recap block hash 00000000000000000000000000000000
 White bonus score 1
@@ -3448,6 +3491,7 @@ Initial pla Black
 Encore phase 2
 Turns this phase 14
 Approx valid turns this phase 14
+Approx consec valid turns this game 104
 Rules koSIMPLEscoreTERRITORYtaxSEKIsui1komi7.5
 Ko recap block hash 00000000000000000000000000000000
 White bonus score 1
@@ -3781,6 +3825,7 @@ Initial pla White
 Encore phase 1
 Turns this phase 5
 Approx valid turns this phase 5
+Approx consec valid turns this game 7
 Rules koSITUATIONALscoreTERRITORYtaxNONEsui0komi6.5
 Ko recap block hash 00000000000000000000000000000000
 White bonus score -1
@@ -3895,6 +3940,7 @@ Initial pla White
 Encore phase 1
 Turns this phase 5
 Approx valid turns this phase 5
+Approx consec valid turns this game 7
 Rules koSITUATIONALscoreTERRITORYtaxNONEsui0komi6.5
 Ko recap block hash 00000000000000000000000000000000
 White bonus score -2
@@ -4226,6 +4272,7 @@ Initial pla Black
 Encore phase 1
 Turns this phase 6
 Approx valid turns this phase 6
+Approx consec valid turns this game 8
 Rules koSIMPLEscoreTERRITORYtaxALLsui1komi6.5
 Ko recap block hash 6785AE217D0AAA7AD4FA074F6C3B370B
 White bonus score 3
@@ -4564,6 +4611,7 @@ Initial pla Black
 Encore phase 1
 Turns this phase 14
 Approx valid turns this phase 14
+Approx consec valid turns this game 16
 Rules koSIMPLEscoreTERRITORYtaxALLsui1komi6.5
 Ko recap block hash B442956CD0B349EA467256E307990942
 White bonus score 4
@@ -4701,6 +4749,7 @@ Initial pla Black
 Encore phase 2
 Turns this phase 5
 Approx valid turns this phase 5
+Approx consec valid turns this game 9
 Rules koSIMPLEscoreTERRITORYtaxALLsui1komi6.5
 Ko recap block hash B8D94C36535B1329F3E635C5794FEEA9
 White bonus score 4
@@ -4927,6 +4976,7 @@ Initial pla Black
 Encore phase 1
 Turns this phase 9
 Approx valid turns this phase 9
+Approx consec valid turns this game 11
 Rules koSIMPLEscoreTERRITORYtaxALLsui1komi6.5
 Ko recap block hash 6DF578E5C17193F2108E72E5D4BA22A5
 White bonus score 6
@@ -5058,6 +5108,7 @@ Initial pla Black
 Encore phase 2
 Turns this phase 4
 Approx valid turns this phase 4
+Approx consec valid turns this game 8
 Rules koSIMPLEscoreTERRITORYtaxALLsui1komi6.5
 Ko recap block hash 00000000000000000000000000000000
 White bonus score 4
@@ -5189,6 +5240,7 @@ Initial pla Black
 Encore phase 2
 Turns this phase 4
 Approx valid turns this phase 4
+Approx consec valid turns this game 8
 Rules koSIMPLEscoreTERRITORYtaxALLsui1komi6.5
 Ko recap block hash 00000000000000000000000000000000
 White bonus score 4

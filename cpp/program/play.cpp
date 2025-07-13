@@ -553,7 +553,9 @@ void GameInitializer::createGameSharedUnsynchronized(
     testAssert(startPos.moves.size() < 0xFFFFFF);
     for(size_t i = 0; i<startPos.moves.size(); i++) {
       bool isLegal = hist.isLegal(board,startPos.moves[i].loc,startPos.moves[i].pla);
-      if(!isLegal) {
+      //Makes a best effort to still use the position, stopping if we hit an illegal move. It's possible
+      //we hit this because of rules differences making a superko move or self-capture illegal, for example.
+      if(!isLegal || hist.isGameFinished) {
         //If we stop due to illegality, it doesn't make sense to still use the hintLoc
         hintLoc = Board::NULL_LOC;
         break;
@@ -850,6 +852,39 @@ static void extractValueTargets(ValueTargets& buf, const Search* toMoveBot, cons
   buf.score = (float)values.expectedScore;
 }
 
+static void extractQValueTargets(
+  vector<QValueTargetMove>& buf,
+  const Search* toMoveBot,
+  const SearchNode* node
+) {
+  ConstSearchNodeChildrenReference children = node->getChildren();
+  int numChildren = children.iterateAndCountChildren();
+  for(int childIdx = 0; childIdx < numChildren; childIdx++) {
+    const SearchChildPointer& childPtr = children[childIdx];
+    const SearchNode* child = childPtr.getIfAllocated();
+
+    if(child == NULL)
+      continue;
+
+    ReportedSearchValues values;
+    bool success = toMoveBot->getNodeValues(child, values);
+    if(!success)
+      continue;
+    if(values.visits <= 0)
+      continue;
+
+    Loc moveLoc = childPtr.getMoveLoc();
+    buf.push_back(
+      QValueTargetMove(
+        moveLoc,
+        (float)values.winLossValue,
+        (float)values.expectedScore,
+        values.visits
+      )
+    );
+  }
+}
+
 static NNRawStats computeNNRawStats(const Search* bot, const Board& board, const BoardHistory& hist, Player pla) {
   NNResultBuf buf;
   MiscNNInputParams nnInputParams;
@@ -898,6 +933,7 @@ static void recordTreePositionsRec(
     SidePosition* sp = new SidePosition(board,hist,pla,numNeuralNetChangesSoFar);
     Play::extractPolicyTarget(sp->policyTarget, toMoveBot, node, locsBuf, playSelectionValuesBuf);
     extractValueTargets(sp->whiteValueTargets, toMoveBot, node);
+    extractQValueTargets(sp->whiteQValueTargets.targets, toMoveBot, node);
 
     double policySurprise = 0.0, policyEntropy = 0.0, searchEntropy = 0.0;
     bool success = toMoveBot->getPolicySurpriseAndEntropy(policySurprise, searchEntropy, policyEntropy, node);
@@ -1293,7 +1329,7 @@ FinishedGameData* Play::runGame(
     extraBlackAndKomi.komiMean = h.rules.komi;
     PlayUtils::setKomiWithNoise(extraBlackAndKomi,hist,gameRand);
   }
-  if(extraBlackAndKomi.extraBlack > 0) {
+  if(extraBlackAndKomi.extraBlack > 0 && !hist.isGameFinished) {
     double extraBlackTemperature = playSettings.handicapTemperature;
     assert(extraBlackTemperature > 0.0 && extraBlackTemperature < 10.0);
     PlayUtils::playExtraBlack(botB,extraBlackAndKomi.extraBlack,board,hist,extraBlackTemperature,gameRand);
@@ -1388,16 +1424,17 @@ FinishedGameData* Play::runGame(
     }
   };
 
-  if(playSettings.initGamesWithPolicy && otherGameProps.allowPolicyInit) {
+  if(playSettings.initGamesWithPolicy && otherGameProps.allowPolicyInit && !hist.isGameFinished) {
     double proportionOfBoardArea = otherGameProps.isSgfPos ? playSettings.startPosesPolicyInitAreaProp : playSettings.policyInitAreaProp;
     if(proportionOfBoardArea > 0) {
       //Perform the initialization using a different noised komi, to get a bit of opening policy mixing across komi
       {
         float oldKomi = hist.rules.komi;
         PlayUtils::setKomiWithNoise(extraBlackAndKomi,hist,gameRand);
+        double policyInitGammaShape = playSettings.policyInitGammaShape;
         double temperature = playSettings.policyInitAreaTemperature;
         assert(temperature > 0.0 && temperature < 10.0);
-        PlayUtils::initializeGameUsingPolicy(botB, botW, board, hist, pla, gameRand, doEndGameIfAllPassAlive, proportionOfBoardArea, temperature);
+        PlayUtils::initializeGameUsingPolicy(botB, botW, board, hist, pla, gameRand, doEndGameIfAllPassAlive, proportionOfBoardArea, policyInitGammaShape, temperature);
         hist.setKomi(oldKomi);
       }
       bool shouldCompensate =
@@ -1413,11 +1450,19 @@ FinishedGameData* Play::runGame(
   }
 
   //Make sure there's some minimum tiny amount of data about how the encore phases work
-  if(playSettings.forSelfPlay && !otherGameProps.isHintPos && hist.rules.scoringRule == Rules::SCORING_TERRITORY && hist.encorePhase == 0 && gameRand.nextBool(0.04)) {
+  if(
+    playSettings.forSelfPlay &&
+    !otherGameProps.isHintPos &&
+    hist.rules.scoringRule == Rules::SCORING_TERRITORY &&
+    hist.encorePhase == 0 &&
+    gameRand.nextBool(0.04) &&
+    !hist.isGameFinished
+  ) {
     //Play out to go a quite a bit later in the game.
     double proportionOfBoardArea = 0.25;
+    double policyInitGammaShape = 1.0 * 0.8 + playSettings.policyInitGammaShape * 0.2;
     double temperature = 2.0/3.0;
-    PlayUtils::initializeGameUsingPolicy(botB, botW, board, hist, pla, gameRand, doEndGameIfAllPassAlive, proportionOfBoardArea, temperature);
+    PlayUtils::initializeGameUsingPolicy(botB, botW, board, hist, pla, gameRand, doEndGameIfAllPassAlive, proportionOfBoardArea, policyInitGammaShape, temperature);
 
     if(!hist.isGameFinished) {
       //Even out the game
@@ -1524,6 +1569,9 @@ FinishedGameData* Play::runGame(
     ValueTargets whiteValueTargets;
     extractValueTargets(whiteValueTargets, toMoveBot, toMoveBot->rootNode);
     gameData->whiteValueTargetsByTurn.push_back(whiteValueTargets);
+    QValueTargets whiteQValueTargets;
+    extractQValueTargets(whiteQValueTargets.targets, toMoveBot, toMoveBot->rootNode);
+    gameData->whiteQValueTargetsByTurn.push_back(whiteQValueTargets);
 
     if(!recordFullData) {
       //Go ahead and record this anyways with just the visits, as a bit of a hack so that the sgf output can also write the number of visits.
@@ -1647,6 +1695,19 @@ FinishedGameData* Play::runGame(
     gameData->hitTurnLimit = false;
   else
     gameData->hitTurnLimit = true;
+
+  // In self-play or match play, it should ALWAYS be the case that the entire game history is legal.
+  if(hist.numConsecValidTurnsThisGame != hist.moveHistory.size()) {
+    ostringstream sout;
+    sout << "Selfplay got history with not entire game legal!?!" << "\n";
+    sout << "hist.numConsecValidTurnsThisGame " << hist.numConsecValidTurnsThisGame << "\n";
+    sout << "hist.moveHistory.size() " << hist.moveHistory.size() << "\n";
+    hist.printBasicInfo(sout,board);
+    hist.printDebugInfo(sout,board);
+    logger.write(sout.str());
+    cerr << sout.str() << endl;
+    testAssert(false);
+  }
 
   {
     BoardHistory histCopy(hist);
@@ -1851,6 +1912,7 @@ FinishedGameData* Play::runGame(
 
       Play::extractPolicyTarget(sp->policyTarget, toMoveBot, toMoveBot->rootNode, locsBuf, playSelectionValuesBuf);
       extractValueTargets(sp->whiteValueTargets, toMoveBot, toMoveBot->rootNode);
+      extractQValueTargets(sp->whiteQValueTargets.targets, toMoveBot, toMoveBot->rootNode);
 
       double policySurprise = 0.0, policyEntropy = 0.0, searchEntropy = 0.0;
       bool success = toMoveBot->getPolicySurpriseAndEntropy(policySurprise, searchEntropy, policyEntropy);
@@ -2233,6 +2295,7 @@ void Play::maybeHintForkGame(
   if(hist.isGameFinished)
     return;
 
+  testAssert(pla == hist.presumedNextMovePla);
   if(!hist.isLegal(board,otherGameProps.hintLoc,pla))
     return;
 

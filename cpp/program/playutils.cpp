@@ -109,6 +109,7 @@ void PlayUtils::setKomiWithNoise(const ExtraBlackAndKomi& extraBlackAndKomi, Boa
 Loc PlayUtils::chooseRandomLegalMove(const Board& board, const BoardHistory& hist, Player pla, Rand& gameRand, Loc banMove) {
   int numLegalMoves = 0;
   Loc locs[Board::MAX_ARR_SIZE];
+  testAssert(pla == hist.presumedNextMovePla);
   for(Loc loc = 0; loc < Board::MAX_ARR_SIZE; loc++) {
     if(hist.isLegal(board,loc,pla) && loc != banMove) {
       locs[numLegalMoves] = loc;
@@ -125,6 +126,7 @@ Loc PlayUtils::chooseRandomLegalMove(const Board& board, const BoardHistory& his
 int PlayUtils::chooseRandomLegalMoves(const Board& board, const BoardHistory& hist, Player pla, Rand& gameRand, Loc* buf, int len) {
   int numLegalMoves = 0;
   Loc locs[Board::MAX_ARR_SIZE];
+  testAssert(pla == hist.presumedNextMovePla);
   for(Loc loc = 0; loc < Board::MAX_ARR_SIZE; loc++) {
     if(hist.isLegal(board,loc,pla)) {
       locs[numLegalMoves] = loc;
@@ -151,6 +153,7 @@ Loc PlayUtils::chooseRandomPolicyMove(
   int numLegalMoves = 0;
   double relProbs[NNPos::MAX_NN_POLICY_SIZE];
   int locs[NNPos::MAX_NN_POLICY_SIZE];
+  testAssert(pla == hist.presumedNextMovePla);
   for(int pos = 0; pos<NNPos::MAX_NN_POLICY_SIZE; pos++) {
     Loc loc = NNPos::posToLoc(pos,board.x_size,board.y_size,nnXLen,nnYLen);
     if((loc == Board::PASS_LOC && !allowPass) || loc == banMove)
@@ -192,6 +195,7 @@ Loc PlayUtils::getGameInitializationMove(
   testAssert(nnXLen > 0 && nnXLen < 100); //Just a sanity check to make sure no other crazy values have snuck in
   testAssert(nnYLen > 0 && nnYLen < 100); //Just a sanity check to make sure no other crazy values have snuck in
   int policySize = NNPos::getPolicySize(nnXLen,nnYLen);
+  testAssert(pla == hist.presumedNextMovePla);
   for(int movePos = 0; movePos<policySize; movePos++) {
     Loc moveLoc = NNPos::posToLoc(movePos,board.x_size,board.y_size,nnXLen,nnYLen);
     double policyProb = nnOutput->policyProbs[movePos];
@@ -223,12 +227,23 @@ Loc PlayUtils::getGameInitializationMove(
 void PlayUtils::initializeGameUsingPolicy(
   Search* botB, Search* botW, Board& board, BoardHistory& hist, Player& pla,
   Rand& gameRand, bool doEndGameIfAllPassAlive,
-  double proportionOfBoardArea, double temperature
+  double proportionOfBoardArea, double policyInitGammaShape, double temperature
 ) {
   NNResultBuf buf;
 
-  //This gives us about 15 moves on average for 19x19.
-  int numInitialMovesToPlay = (int)floor(gameRand.nextExponential() * (board.x_size * board.y_size * proportionOfBoardArea));
+  if(hist.isGameFinished)
+    return;
+
+  double mean = board.x_size * board.y_size * proportionOfBoardArea;
+  int numInitialMovesToPlay;
+
+  if(policyInitGammaShape != 1.0) {
+    numInitialMovesToPlay = (int)floor(gameRand.nextGamma(policyInitGammaShape) * (mean/policyInitGammaShape));
+  }
+  else {
+    numInitialMovesToPlay = (int)floor(gameRand.nextExponential() * mean);
+  }
+
   assert(numInitialMovesToPlay >= 0);
   for(int i = 0; i<numInitialMovesToPlay; i++) {
     Loc loc = getGameInitializationMove(botB, botW, board, hist, pla, buf, gameRand, temperature);
@@ -259,22 +274,24 @@ void PlayUtils::playExtraBlack(
 ) {
   Player pla = P_BLACK;
 
-  NNResultBuf buf;
-  for(int i = 0; i<numExtraBlack; i++) {
-    MiscNNInputParams nnInputParams;
-    nnInputParams.drawEquivalentWinsForWhite = bot->searchParams.drawEquivalentWinsForWhite;
-    bot->nnEvaluator->evaluate(board,hist,pla,nnInputParams,buf,false,false);
-    std::shared_ptr<NNOutput> nnOutput = std::move(buf.result);
+  if(!hist.isGameFinished) {
+    NNResultBuf buf;
+    for(int i = 0; i<numExtraBlack; i++) {
+      MiscNNInputParams nnInputParams;
+      nnInputParams.drawEquivalentWinsForWhite = bot->searchParams.drawEquivalentWinsForWhite;
+      bot->nnEvaluator->evaluate(board,hist,pla,nnInputParams,buf,false,false);
+      std::shared_ptr<NNOutput> nnOutput = std::move(buf.result);
 
-    bool allowPass = false;
-    Loc banMove = Board::NULL_LOC;
-    Loc loc = chooseRandomPolicyMove(nnOutput.get(), board, hist, pla, gameRand, temperature, allowPass, banMove);
-    if(loc == Board::NULL_LOC)
-      break;
+      bool allowPass = false;
+      Loc banMove = Board::NULL_LOC;
+      Loc loc = chooseRandomPolicyMove(nnOutput.get(), board, hist, pla, gameRand, temperature, allowPass, banMove);
+      if(loc == Board::NULL_LOC)
+        break;
 
-    assert(hist.isLegal(board,loc,pla));
-    hist.makeBoardMoveAssumeLegal(board,loc,pla,NULL);
-    hist.clear(board,pla,hist.rules,0);
+      assert(hist.isLegal(board,loc,pla));
+      hist.makeBoardMoveAssumeLegal(board,loc,pla,NULL);
+      hist.clear(board,pla,hist.rules,0);
+    }
   }
 
   bot->setPosition(pla,board,hist);
@@ -1048,6 +1065,7 @@ Loc PlayUtils::maybeCleanupBeforePass(
   if(friendlyPass == enabled_t::True)
     return moveLoc;
   const BoardHistory& hist = bot->getRootHist();
+  testAssert(pla == hist.presumedNextMovePla);
   const Rules& rules = hist.rules;
   const bool doCleanupBeforePass =
     cleanupBeforePass == enabled_t::True ? true :
@@ -1222,7 +1240,9 @@ Loc PlayUtils::maybeFriendlyPass(
 }
 
 
-std::shared_ptr<NNOutput> PlayUtils::getFullSymmetryNNOutput(const Board& board, const BoardHistory& hist, Player pla, bool includeOwnerMap, NNEvaluator* nnEval) {
+std::shared_ptr<NNOutput> PlayUtils::getFullSymmetryNNOutput(
+  const Board& board, const BoardHistory& hist, Player pla, bool includeOwnerMap, const SGFMetadata* sgfMeta, NNEvaluator* nnEval
+) {
   vector<std::shared_ptr<NNOutput>> ptrs;
   Board b = board;
   for(int sym = 0; sym<SymmetryHelpers::NUM_SYMMETRIES; sym++) {
@@ -1230,7 +1250,7 @@ std::shared_ptr<NNOutput> PlayUtils::getFullSymmetryNNOutput(const Board& board,
     nnInputParams.symmetry = sym;
     NNResultBuf buf;
     bool skipCache = true; //Always ignore cache so that we use the desired symmetry
-    nnEval->evaluate(b,hist,pla,nnInputParams,buf,skipCache,includeOwnerMap);
+    nnEval->evaluate(b,hist,pla,sgfMeta,nnInputParams,buf,skipCache,includeOwnerMap);
     ptrs.push_back(std::move(buf.result));
   }
   std::shared_ptr<NNOutput> result(new NNOutput(ptrs));
