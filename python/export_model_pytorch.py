@@ -18,9 +18,9 @@ import torch
 import torch.nn
 from torch.optim.swa_utils import AveragedModel
 
-import modelconfigs
-from model_pytorch import Model, ResBlock, NestedBottleneckResBlock
-from load_model import load_model
+from katago.train import modelconfigs
+from katago.train.model_pytorch import Model, ResBlock, NestedBottleneckResBlock
+from katago.train.load_model import load_model
 
 #Command and args-------------------------------------------------------------------
 
@@ -35,6 +35,7 @@ parser.add_argument('-model-name', help='name to record in model file', required
 parser.add_argument('-filename-prefix', help='filename prefix to save to within dir', required=True)
 parser.add_argument('-use-swa', help='Use SWA model', action="store_true", required=False)
 parser.add_argument('-export-14-as-15', help='Export model version 14 as 15', action="store_true", required=False)
+parser.add_argument('-prune-to-zero', help='Prune all weights to zero to create a null model', action="store_true", required=False)
 args = vars(parser.parse_args())
 
 
@@ -45,6 +46,7 @@ def main(args):
     filename_prefix = args["filename_prefix"]
     use_swa = args["use_swa"]
     export_14_as_15 = args["export_14_as_15"]
+    prune_to_zero = args["prune_to_zero"]
 
     os.makedirs(export_dir,exist_ok=True)
 
@@ -121,8 +123,13 @@ def main(args):
 
 
     def write_weights(weights):
+        if prune_to_zero:
+            weights_to_write = torch.zeros_like(weights)
+        else:
+            weights_to_write = weights
+
         # Little endian
-        reshaped = np.reshape(weights.detach().numpy(),[-1])
+        reshaped = np.reshape(weights_to_write.detach().numpy(), [-1])
         num_weights = len(reshaped)
         writestr("@BIN@")
         f.write(struct.pack(f'<{num_weights}f',*reshaped))
@@ -379,7 +386,7 @@ def main(args):
             write_matbias(name+".linear_pass_bias", torch.tensor([0.0]*c_p1,dtype=torch.float32,device="cpu"))
             write_activation(name+".act_pass", torch.nn.Identity())
             write_matmul(name+".linear_pass2", torch.tensor([[1.0,0.0]+[0.0]*(c_p1-2),[0.0,1.0]+[0.0]*(c_p1-2)],dtype=torch.float32,device="cpu"))
-        else:
+        elif version <= 15:
             assert policyhead.conv2p.weight.shape[0] == 6
             write_conv_weight(name+".conv2p", torch.stack((policyhead.conv2p.weight[0], policyhead.conv2p.weight[5]), dim=0))
             write_matmul(name+".linear_pass", policyhead.linear_pass.weight)
@@ -387,6 +394,15 @@ def main(args):
             write_activation(name+".act_pass", policyhead.act_pass)
             assert policyhead.linear_pass2.weight.shape[0] == 6
             write_matmul(name+".linear_pass2", torch.stack((policyhead.linear_pass2.weight[0], policyhead.linear_pass2.weight[5]), dim=0))
+            assert policyhead.linear_pass2.bias is None
+        else:
+            assert policyhead.conv2p.weight.shape[0] == 8
+            write_conv_weight(name+".conv2p", torch.stack((policyhead.conv2p.weight[0], policyhead.conv2p.weight[5], policyhead.conv2p.weight[6], policyhead.conv2p.weight[7]), dim=0))
+            write_matmul(name+".linear_pass", policyhead.linear_pass.weight)
+            write_matbias(name+".linear_pass_bias", policyhead.linear_pass.bias)
+            write_activation(name+".act_pass", policyhead.act_pass)
+            assert policyhead.linear_pass2.weight.shape[0] == 8
+            write_matmul(name+".linear_pass2", torch.stack((policyhead.linear_pass2.weight[0], policyhead.linear_pass2.weight[5], policyhead.linear_pass2.weight[6], policyhead.linear_pass2.weight[7]), dim=0))
             assert policyhead.linear_pass2.bias is None
 
         assert policyhead.conv2p.bias is None

@@ -60,6 +60,7 @@ bool testEvaluateGlobalPoolingResidualBlock(const GlobalPoolingResidualBlockDesc
                                             vector<float>& outputBuffer);
 
 void copyRowData(float* dest, const float* src, size_t numElements);
+void convertNCHW(float* rowSpatialInput, int C, int H, int W, bool inputsUseNHWC);
 void processRowData(size_t row, ComputeHandle* gpuHandle, InputBuffers* inputBuffers, NNResultBuf** inputBufs);
 float policyOptimismCalc(const double policyOptimism, const float p, const float pOpt);
 void processOptimism(InputBuffers* inputBuffers, NNOutput* currentOutput, const double policyOptimism, size_t row);
@@ -79,7 +80,7 @@ void processOwnership(const InputBuffers* inputBuffers,
                       const size_t row);
 
 void
-processScoreValues(const InputBuffers* inputBuffers, NNOutput* currentOutput, const int version, const size_t row);
+processScoreValues(const InputBuffers* inputBuffers, NNOutput* currentOutput, const int modelVersion, const size_t row);
 
 void processRow(size_t row,
                 const ComputeHandle* gpuHandle,
@@ -108,13 +109,20 @@ struct LoadedModel {
   ModelDesc modelDesc;
 
   /**
+   * @brief The directory of the loaded model.
+   */
+  const string modelDirectory;
+
+  /**
    * @brief Construct a new Loaded Model object
    * This constructor loads a machine learning model from a file and sets the modelDesc field to the
    * characteristics of the loaded model.
    * @param fileName The name of the file containing the machine learning model.
    * @param expectedSha256 The expected SHA-256 hash of the model file.
    */
-  LoadedModel(const string& fileName, const string& expectedSha256) {
+  LoadedModel(const string& fileName, const string& expectedSha256, const string& dirName)
+    :modelDirectory(dirName)
+  {
     ModelDesc::loadFromFileMaybeGZipped(fileName, modelDesc, expectedSha256);
   }
 
@@ -247,12 +255,12 @@ struct ComputeHandle {
   /**
    * @brief The x length of the CoreML model.
    */
-  int modelXLen = COMPILE_MAX_BOARD_LEN;
+  int modelXLen;
 
   /**
    * @brief The y length of the CoreML model.
    */
-  int modelYLen = COMPILE_MAX_BOARD_LEN;
+  int modelYLen;
 
   /**
    * @brief The version of the CoreML model.

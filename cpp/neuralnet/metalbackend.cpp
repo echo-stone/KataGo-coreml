@@ -6,6 +6,7 @@
 #include "../neuralnet/nninterface.h"
 #include "../neuralnet/metalbackend.h"
 #include "../neuralnet/coremlbackend.h"
+#include "../core/test.h"
 
 /// Converts a ConvLayerDesc instance from C++ to Swift by creating a new SWConvLayerDesc instance with the same properties.
 /// - Parameter desc: The ConvLayerDesc instance to convert.
@@ -30,13 +31,8 @@ SWBatchNormLayerDesc MetalProcess::batchNormLayerDescToSwift(const BatchNormLaye
 
   SWBatchNormLayerDesc swDesc =
   createSWBatchNormLayerDesc(desc->numChannels,
-                             desc->epsilon,
-                             desc->hasScale,
-                             desc->hasBias,
-                             (float*)desc->mean.data(),
-                             (float*)desc->variance.data(),
-                             (float*)desc->scale.data(),
-                             (float*)desc->bias.data());
+                             (float*)desc->mergedScale.data(),
+                             (float*)desc->mergedBias.data());
 
   return swDesc;
 }
@@ -50,8 +46,14 @@ ActivationKind MetalProcess::activationLayerDescToSwift(const ActivationLayerDes
       return ActivationKind::relu();
     case ACTIVATION_MISH:
       return ActivationKind::mish();
-    default:
+    case ACTIVATION_MISH_SCALE8:
+      testAssert(false); // Metal does not use scaled mish activations due to no fp16
+      return ActivationKind::identity(); // Placeholder for compilation
+    case ACTIVATION_IDENTITY:
       return ActivationKind::identity();
+    default:
+      testAssert(false);
+      return ActivationKind::identity(); // Placeholder for compilation
   }
 }
 
@@ -348,10 +350,11 @@ void NeuralNet::globalCleanup() {
  * object is returned as a pointer.
  * @param file The name of the file containing the neural network model.
  * @param expectedSha256 The expected SHA-256 hash of the model file.
+ * @param dir The name of the directory containing the neural network model.
  * @return A pointer to the LoadedModel object created by loading the model file.
  */
-LoadedModel* NeuralNet::loadModelFile(const string& file, const string& expectedSha256) {
-  LoadedModel* loadedModel = new LoadedModel(file, expectedSha256);
+LoadedModel* NeuralNet::loadModelFile(const string& file, const string& expectedSha256, const string& dir) {
+  LoadedModel* loadedModel = new LoadedModel(file, expectedSha256, dir);
   return loadedModel;
 }
 
@@ -365,71 +368,19 @@ void NeuralNet::freeLoadedModel(LoadedModel* loadedModel) {
 }
 
 /**
- * @brief Gets the name of the loaded model.
- * This function returns the name of the loaded model contained in the LoadedModel object specified
- * by the `loadedModel` parameter.
- * @param loadedModel A pointer to the LoadedModel object to get the model name from.
- * @return The name of the loaded model.
- */
-string NeuralNet::getModelName(const LoadedModel* loadedModel) {
-  return loadedModel->modelDesc.name;
-}
-
-/**
- * @brief Gets the version of the loaded model.
- * This function returns the version of the loaded model contained in the LoadedModel object specified
- * by the `loadedModel` parameter.
- * @param loadedModel A pointer to the LoadedModel object to get the model version from.
- * @return The version of the loaded model.
- */
-int NeuralNet::getModelVersion(const LoadedModel* loadedModel) {
-  return loadedModel->modelDesc.modelVersion;
-}
-
-/**
- * @brief Retrieves the number of input meta channels from a loaded model.
+ * @brief Retrieves the model description associated with the loaded model.
  *
- * This function returns the number of input meta channels that are
- * contained in the neural network model described by the specified LoadedModel object.
- * Input meta channels refer to the channels in the model that are used for pre-processing
- * or auxiliary information which is not part of the main input data.
+ * This function accesses the model description from a given LoadedModel instance.
+ * It returns a constant reference to the ModelDesc, which contains details
+ * about the structure and parameters of the neural network model.
  *
- * @param loadedModel A pointer to the LoadedModel object containing the
- *        neural network model description from which to retrieve the number of input meta channels.
- * @return An integer representing the number of input meta channels in the loaded model.
+ * @param loadedModel Pointer to the LoadedModel instance from which to retrieve
+ *                    the model description. This should not be null.
+ * @return const ModelDesc& A constant reference to the model description of
+ *                          the loaded model.
  */
-int NeuralNet::getNumInputMetaChannels(const LoadedModel* loadedModel) {
-  return loadedModel->modelDesc.numInputMetaChannels;
-}
-
-/**
- * @brief Gets the rules supported by the loaded model.
- * This function returns a Rules object that describes the rules supported by the loaded model contained
- * in the LoadedModel object specified by the `loadedModel` parameter. The desired rules are specified by
- * the `desiredRules` parameter. The `supported` output parameter is set to true if the desired rules are
- * supported by the loaded model, and false otherwise.
- * @param loadedModel A pointer to the LoadedModel object to get the supported rules from.
- * @param desiredRules The desired rules to check support for.
- * @param supported Set to true if the desired rules are supported by the loaded model, false otherwise.
- * @return A Rules object that describes the rules supported by the loaded model.
- */
-Rules NeuralNet::getSupportedRules(const LoadedModel* loadedModel, const Rules& desiredRules, bool& supported) {
-  return loadedModel->modelDesc.getSupportedRules(desiredRules, supported);
-}
-
-/**
- * @brief Retrieves the post-processing parameters of a loaded model.
- *
- * This function returns the post-processing parameters of a loaded model, which define the parameters used
- * for post-processing the model's output. The post-processing parameters include values such as
- * `tdScoreMultiplier`, `scoreMeanMultiplier`, `scoreStdevMultiplier`, `leadMultiplier`,
- * `varianceTimeMultiplier`, `shorttermValueErrorMultiplier`, and `shorttermScoreErrorMultiplier`.
- *
- * @param loadedModel A pointer to the LoadedModel object containing the loaded model.
- * @return A ModelPostProcessParams object that contains the post-processing parameters of the loaded model.
- */
-ModelPostProcessParams NeuralNet::getPostProcessParams(const LoadedModel* loadedModel) {
-  return loadedModel->modelDesc.postProcessParams;
+const ModelDesc& NeuralNet::getModelDesc(const LoadedModel* loadedModel) {
+  return loadedModel->modelDesc;
 }
 
 //------------------------------------------------------------------------------
@@ -526,11 +477,12 @@ metalhandle(maybeCreateMetalComputeHandle((gpuIdx < 100),
                                           context->metalComputeContext)),
 coremlbackend(maybeCreateCoreMLBackend((gpuIdx >= 100),
                                        serverThreadIdx,
-                                       modelXLen,
-                                       modelYLen,
+                                       COMPILE_MAX_BOARD_LEN,
+                                       COMPILE_MAX_BOARD_LEN,
                                        (context->useFP16Mode != enabled_t::False),
                                        loadedModel->modelDesc.metaEncoderVersion,
-                                       context->useCpuAndNeuralEngine)) {
+                                       context->useCpuAndNeuralEngine,
+                                       loadedModel->modelDirectory)) {
   const ModelDesc* modelDesc = &loadedModel->modelDesc;
   auto metalContext = context->metalComputeContext;
 
@@ -550,6 +502,12 @@ coremlbackend(maybeCreateCoreMLBackend((gpuIdx >= 100),
     modelVersion = coremlbackend.get().getVersion();
     // Due to a design limition, the versions of Metal and CoreML models must match
     assert(version == modelVersion);
+
+    // Model board length must be not smaller than net board length
+    modelXLen = coremlbackend.get().getModelXLen();
+    modelYLen = coremlbackend.get().getModelYLen();
+    assert(nnXLen <= modelXLen);
+    assert(nnYLen <= modelYLen);
   }
 
   (void)serverThreadIdx;
@@ -646,27 +604,31 @@ void NeuralNet::printDevices() {
 InputBuffers::InputBuffers(const LoadedModel* loadedModel, int maxBatchSz, int nnXLen, int nnYLen) {
   const ModelDesc& m = loadedModel->modelDesc;
 
-  int modelXLen = COMPILE_MAX_BOARD_LEN;
-  int modelYLen = COMPILE_MAX_BOARD_LEN;
+  int maxModelXLen = COMPILE_MAX_BOARD_LEN;
+  int maxModelYLen = COMPILE_MAX_BOARD_LEN;
 
   maxBatchSize = maxBatchSz;
   policyResultChannels = m.policyHead.p2Conv.outChannels;
-  assert((m.modelVersion >= 12) ? (policyResultChannels == 2) : (policyResultChannels == 1));
+
+  assert(((m.modelVersion < 16) || (policyResultChannels == 4)) &&
+         ((m.modelVersion >= 16) || (m.modelVersion < 12) || (policyResultChannels == 2)) &&
+         ((m.modelVersion >= 12) || (policyResultChannels == 1)));
+
   modelPolicyResultChannels = (m.modelVersion >= 12) ? 6 : 4;
   singleSpatialElts = (size_t)m.numInputChannels * nnXLen * nnYLen;
-  singleInputElts = (size_t)m.numInputChannels * modelXLen * modelYLen;
+  singleInputElts = (size_t)m.numInputChannels * maxModelXLen * maxModelYLen;
   singleInputGlobalElts = (size_t)m.numInputGlobalChannels;
   singleInputMetaElts = (size_t)m.numInputMetaChannels;
   singleNnPolicyResultElts = (size_t)(nnXLen * nnYLen);
-  singleModelPolicyResultElts = (size_t)((modelXLen * modelYLen) + 1);
+  singleModelPolicyResultElts = (size_t)((maxModelXLen * maxModelYLen) + 1);
   singlePolicyPassResultElts = 1;
   singlePolicyProbsElts = (size_t)((nnXLen * nnYLen) + 1);
   singleValueResultElts = (size_t)m.numValueChannels;
   singleNnOwnershipResultElts = (size_t)m.numOwnershipChannels * nnXLen * nnYLen;
-  singleModelOwnershipResultElts = (size_t)m.numOwnershipChannels * modelXLen * modelYLen;
+  singleModelOwnershipResultElts = (size_t)m.numOwnershipChannels * maxModelXLen * maxModelYLen;
   singleOwnerMapElts = (size_t)m.numOwnershipChannels * nnXLen * nnYLen;
   singleScoreValuesResultElts = 10;
-  singleNnScoreValuesResultElts = 6;
+  singleNnScoreValuesResultElts = (size_t)m.numScoreValueChannels;
   singleMoreMiscValuesResultElts = 8;
 
   assert(NNModelVersion::getNumSpatialFeatures(m.modelVersion) == m.numInputChannels);
@@ -756,6 +718,71 @@ void MetalProcess::copyRowData(float* dest, const float* src, size_t numElements
   copy(src, src + numElements, dest);
 }
 
+/**
+ * @brief Convert input data from NHWC format to NCHW format in-place if necessary.
+ *
+ * @param rowSpatialInput Pointer to the input data (single batch element assumed).
+ * @param C Number of channels.
+ * @param H Height.
+ * @param W Width.
+ * @param inputsUseNHWC Flag indicating if the input data is currently in NHWC format.
+ */
+void MetalProcess::convertNCHW(
+    float* rowSpatialInput,
+    const int C,
+    const int H,
+    const int W,
+    const bool inputsUseNHWC) {
+
+  if ((!inputsUseNHWC) || (C <= 0) || (H <= 0) || (W <= 0)) {
+    return;
+  }
+
+  const int totalSize = H * W * C;
+
+  if (totalSize <= 1)
+    return;
+
+  const int HW = H * W;
+
+  auto get_nchw_target_index = [C, W, HW](int nhwc_index) -> int {
+    int c = nhwc_index % C;
+    int temp = nhwc_index / C;
+    int x = temp % W;
+    int y = temp / W;
+    return (c * HW) + (y * W) + x;
+  };
+
+  std::vector<bool> processed(totalSize, false);
+
+  for (int i = 0; i < totalSize; ++i) {
+    if (processed[i])
+      continue;
+
+    int target_i = get_nchw_target_index(i);
+
+    if (target_i == i) {
+      processed[i] = true;
+      continue;
+    }
+
+    int current_idx = i;
+    float value_in_hand = rowSpatialInput[i];
+
+    while (true) {
+      int target_idx = get_nchw_target_index(current_idx);
+      float value_at_target = rowSpatialInput[target_idx];
+      rowSpatialInput[target_idx] = value_in_hand;
+      processed[target_idx] = true;
+      value_in_hand = value_at_target;
+      current_idx = target_idx;
+
+      if (current_idx == i)
+        break;
+    }
+  }
+}
+
 void MetalProcess::processRowData(size_t row, ComputeHandle* gpuHandle, InputBuffers* inputBuffers, NNResultBuf** inputBufs) {
   int nnXLen = gpuHandle->nnXLen;
   int nnYLen = gpuHandle->nnYLen;
@@ -780,6 +807,13 @@ void MetalProcess::processRowData(size_t row, ComputeHandle* gpuHandle, InputBuf
     numSpatialFeatures,
     gpuHandle->inputsUseNHWC,
     inputBufs[row]->symmetry);
+
+  MetalProcess::convertNCHW(
+    rowSpatialInput,
+    numSpatialFeatures,
+    nnYLen,
+    nnXLen,
+    gpuHandle->inputsUseNHWC);
 }
 
 float MetalProcess::policyOptimismCalc(const double policyOptimism, const float p, const float pOpt) {
@@ -864,26 +898,52 @@ void MetalProcess::processOwnership(
 void MetalProcess::processScoreValues(
   const InputBuffers* inputBuffers,
   NNOutput* currentOutput,
-  const int version,
+  const int modelVersion,
   const size_t row) {
-  const size_t scoreValuesOutputBufOffset = row * inputBuffers->singleNnScoreValuesResultElts;
-  const float* scoreValuesOutputBuf = &inputBuffers->scoreValuesResults[scoreValuesOutputBufOffset];
+  const size_t offset = row * inputBuffers->singleNnScoreValuesResultElts;
+  const float* currentScoreValueData = &inputBuffers->scoreValuesResults[offset];
 
-  currentOutput->whiteScoreMean = scoreValuesOutputBuf[0];
-  currentOutput->whiteScoreMeanSq = currentOutput->whiteScoreMean * currentOutput->whiteScoreMean;
-  currentOutput->whiteLead = currentOutput->whiteScoreMean;
-  currentOutput->varTimeLeft = 0.0f;
-  currentOutput->shorttermWinlossError = 0.0f;
-  currentOutput->shorttermScoreError = 0.0f;
-
-  if(version >= 4) {
-    currentOutput->whiteScoreMean = scoreValuesOutputBuf[0];
-    currentOutput->whiteScoreMeanSq = scoreValuesOutputBuf[1];
-    currentOutput->whiteLead = (version >= 8) ? scoreValuesOutputBuf[2] : currentOutput->whiteScoreMean;
-    currentOutput->varTimeLeft = (version >= 9) ? scoreValuesOutputBuf[3] : currentOutput->varTimeLeft;
-    currentOutput->shorttermWinlossError =
-      (version >= 9) ? scoreValuesOutputBuf[4] : currentOutput->shorttermWinlossError;
-    currentOutput->shorttermScoreError = (version >= 9) ? scoreValuesOutputBuf[5] : currentOutput->shorttermScoreError;
+  if(modelVersion >= 9) {
+    size_t numScoreValueChannels = inputBuffers->singleNnScoreValuesResultElts;
+    assert(numScoreValueChannels == 6);
+    currentOutput->whiteScoreMean = currentScoreValueData[0];
+    currentOutput->whiteScoreMeanSq = currentScoreValueData[1];
+    currentOutput->whiteLead = currentScoreValueData[2];
+    currentOutput->varTimeLeft = currentScoreValueData[3];
+    currentOutput->shorttermWinlossError = currentScoreValueData[4];
+    currentOutput->shorttermScoreError = currentScoreValueData[5];
+  }
+  else if(modelVersion >= 8) {
+    size_t numScoreValueChannels = inputBuffers->singleNnScoreValuesResultElts;
+    assert(numScoreValueChannels == 4);
+    currentOutput->whiteScoreMean = currentScoreValueData[0];
+    currentOutput->whiteScoreMeanSq = currentScoreValueData[1];
+    currentOutput->whiteLead = currentScoreValueData[2];
+    currentOutput->varTimeLeft = currentScoreValueData[3];
+    currentOutput->shorttermWinlossError = 0;
+    currentOutput->shorttermScoreError = 0;
+  }
+  else if(modelVersion >= 4) {
+    size_t numScoreValueChannels = inputBuffers->singleNnScoreValuesResultElts;
+    assert(numScoreValueChannels == 2);
+    currentOutput->whiteScoreMean = currentScoreValueData[0];
+    currentOutput->whiteScoreMeanSq = currentScoreValueData[1];
+    currentOutput->whiteLead = currentOutput->whiteScoreMean;
+    currentOutput->varTimeLeft = 0;
+    currentOutput->shorttermWinlossError = 0;
+    currentOutput->shorttermScoreError = 0;
+  }
+  else {
+    assert(modelVersion >= 3);
+    size_t numScoreValueChannels = inputBuffers->singleNnScoreValuesResultElts;
+    assert(numScoreValueChannels == 1);
+    currentOutput->whiteScoreMean = currentScoreValueData[0];
+    //Version 3 neural nets don't have any second moment currentOutput, implicitly already folding it in, so we just use the mean squared
+    currentOutput->whiteScoreMeanSq = currentOutput->whiteScoreMean * currentOutput->whiteScoreMean;
+    currentOutput->whiteLead = currentOutput->whiteScoreMean;
+    currentOutput->varTimeLeft = 0;
+    currentOutput->shorttermWinlossError = 0;
+    currentOutput->shorttermScoreError = 0;
   }
 }
 
@@ -925,9 +985,12 @@ void MetalProcess::getMetalOutput(
   assert(batchSize <= inputBuffers->maxBatchSize);
   assert((NNModelVersion::getNumSpatialFeatures(gpuHandle->version) * gpuHandle->nnXLen * gpuHandle->nnYLen) <= inputBuffers->singleInputElts);
   assert(NNModelVersion::getNumGlobalFeatures(gpuHandle->version) == inputBuffers->singleInputGlobalElts);
-  assert(NNModelVersion::getNumInputMetaChannels(gpuHandle->metaEncoderVersion) == inputBuffers->singleInputMetaElts);
+
+  if(gpuHandle->metaEncoderVersion > 0) {
+    assert(SGFMetadata::METADATA_INPUT_NUM_CHANNELS == inputBuffers->singleInputMetaElts);
+  }
+
   assert(inputBuffers->singleValueResultElts == 3);
-  assert(inputBuffers->singleScoreValuesResultElts == 10);
 
   for(size_t row = 0; row < batchSize; row++) {
     MetalProcess::processRowData(row, gpuHandle, inputBuffers, inputBufs);
