@@ -93,28 +93,34 @@ class KataGoModelOutputBatch {
 class KataGoModel {
     let model: MLModel
 
-    class func getBundleModelURL(modelName: String) -> URL {
+    class func getBundleModelURL(modelName: String, modelDirectory: String) -> URL {
         // Set model type name
         let typeName = "mlpackage"
         // Get model path from bundle resource
         // Fallback to create a default model path
         let modelPath = Bundle.main.path(forResource: modelName, ofType: typeName) ?? "\(modelName).\(typeName)"
-        let bundleModelURL = URL(filePath: modelPath)
+        // If modelDirectory is not empty, prepend it to the modelPath
+        let finalPath = modelDirectory.isEmpty ? modelPath : modelDirectory 
+        let bundleModelURL = URL(filePath: finalPath)
 
         return bundleModelURL
     }
 
-    class func compileBundleMLModel(modelName: String, useCpuAndNeuralEngine: Bool) -> MLModel? {
+    class func compileBundleMLModel(modelName: String,
+                                    computeUnits: MLComputeUnits,
+                                    mustCompile: Bool = false,
+                                    modelDirectory: String = "") -> MLModel? {
         var mlmodel: MLModel?
 
         do {
             // Get model URL at bundle
-            let bundleModelURL = getBundleModelURL(modelName: modelName)
+            let bundleModelURL = getBundleModelURL(modelName: modelName, modelDirectory: modelDirectory)
 
             // Compile MLModel
             mlmodel = try compileMLModel(modelName: modelName,
                                          modelURL: bundleModelURL,
-                                         useCpuAndNeuralEngine: useCpuAndNeuralEngine)
+                                         computeUnits: computeUnits,
+                                         mustCompile: mustCompile)
         } catch {
             printError("An error occurred: \(error)")
         }
@@ -166,6 +172,8 @@ class KataGoModel {
                     printError("Saved digest: \(savedDigest)")
                     printError("New digest: \(digest)")
                     printError("Compiling CoreML model because the digest has changed");
+                } else {
+                    printError("Digests match: \(digest)")
                 }
             } else {
                 printError("Compiling CoreML model because the saved digest URL is not reachable: \(savedDigestURL)")
@@ -181,6 +189,8 @@ class KataGoModel {
                 // resources. For other URL types, `false` is returned.
                 shouldCompile = try (!permanentURL.checkResourceIsReachable())
                 assert(!shouldCompile)
+
+                printError("Compiled CoreML model is reachable: \(permanentURL)")
             } catch {
                 shouldCompile = true
 
@@ -225,9 +235,9 @@ class KataGoModel {
         try digest.write(to: savedDigestURL, atomically: true, encoding: .utf8)
     }
 
-    private class func loadModel(permanentURL: URL, modelName: String, useCpuAndNeuralEngine: Bool) throws -> MLModel {
+    private class func loadModel(permanentURL: URL, modelName: String, computeUnits: MLComputeUnits) throws -> MLModel {
         let configuration = MLModelConfiguration()
-        configuration.computeUnits = useCpuAndNeuralEngine ? .cpuAndNeuralEngine : .all
+        configuration.computeUnits = computeUnits
         configuration.modelDisplayName = modelName
         printError("Creating CoreML model with contents \(permanentURL)")
         return try MLModel(contentsOf: permanentURL, configuration: configuration)
@@ -247,16 +257,26 @@ class KataGoModel {
         return savedDigestURL
     }
 
-    class func compileMLModel(modelName: String, modelURL: URL, useCpuAndNeuralEngine: Bool) throws -> MLModel {
+    class func compileMLModel(modelName: String,
+                              modelURL: URL,
+                              computeUnits: MLComputeUnits,
+                              mustCompile: Bool) throws -> MLModel {
+
         let permanentURL = try getMLModelCPermanentURL(modelName: modelName)
         let savedDigestURL = try getSavedDigestURL(modelName: modelName)
         let digest = try getDigest(modelURL: modelURL)
 
-        let shouldCompileModel = checkShouldCompileModel(permanentURL: permanentURL,
-                                                         savedDigestURL: savedDigestURL,
-                                                         digest: digest)
+        var shouldCompile: Bool
 
-        if shouldCompileModel {
+        if mustCompile {
+            shouldCompile = true
+        } else {
+            shouldCompile = checkShouldCompileModel(permanentURL: permanentURL,
+                                                    savedDigestURL: savedDigestURL,
+                                                    digest: digest)
+        }
+
+        if shouldCompile {
             try compileAndSaveModel(permanentURL: permanentURL,
                                     savedDigestURL: savedDigestURL,
                                     modelURL: modelURL,
@@ -265,7 +285,7 @@ class KataGoModel {
 
         return try loadModel(permanentURL: permanentURL,
                              modelName: modelName,
-                             useCpuAndNeuralEngine: useCpuAndNeuralEngine);
+                             computeUnits: computeUnits);
     }
 
     init(model: MLModel) {
