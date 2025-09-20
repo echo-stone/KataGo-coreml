@@ -675,7 +675,7 @@ xx......x
     bool includeMovesOwnershipStdev = false;
     bool includePVVisits = false;
     bool suc = search->getAnalysisJson(
-      perspective, analysisPVLen, preventEncore,
+      perspective, analysisPVLen, 0, preventEncore,
       includePolicy, includeOwnership, includeOwnershipStdev, includeMovesOwnership, includeMovesOwnershipStdev, includePVVisits,
       json
     );
@@ -751,7 +751,7 @@ xx......x
     bool includeMovesOwnershipStdev = false;
     bool includePVVisits = false;
     bool suc = search->getAnalysisJson(
-      perspective, analysisPVLen, preventEncore,
+      perspective, analysisPVLen, 0, preventEncore,
       includePolicy, includeOwnership, includeOwnershipStdev, includeMovesOwnership, includeMovesOwnershipStdev, includePVVisits,
       json
     );
@@ -827,7 +827,7 @@ xx......x
     bool includeMovesOwnershipStdev = false;
     bool includePVVisits = false;
     bool suc = search->getAnalysisJson(
-      perspective, analysisPVLen, preventEncore,
+      perspective, analysisPVLen, 0, preventEncore,
       includePolicy, includeOwnership, includeOwnershipStdev, includeMovesOwnership, includeMovesOwnershipStdev, includePVVisits,
       json
     );
@@ -1217,7 +1217,7 @@ ooooo.oooooooo
     bool includeMovesOwnershipStdev = false;
     bool includePVVisits = true;
     bool suc = search->getAnalysisJson(
-      perspective, analysisPVLen, preventEncore,
+      perspective, analysisPVLen, 0, preventEncore,
       includePolicy, includeOwnership, includeOwnershipStdev, includeMovesOwnership, includeMovesOwnershipStdev, includePVVisits,
       json
     );
@@ -1270,7 +1270,7 @@ ooooo.oooooooo
     bool includeMovesOwnershipStdev = true;
     bool includePVVisits = false;
     bool suc = search->getAnalysisJson(
-      perspective, analysisPVLen, preventEncore,
+      perspective, analysisPVLen, 0, preventEncore,
       includePolicy, includeOwnership, includeOwnershipStdev, includeMovesOwnership, includeMovesOwnershipStdev, includePVVisits,
       json
     );
@@ -1324,7 +1324,7 @@ ooooo.oooooooo
     bool includeMovesOwnershipStdev = true;
     bool includePVVisits = false;
     bool suc = search->getAnalysisJson(
-      perspective, analysisPVLen, preventEncore,
+      perspective, analysisPVLen, 0, preventEncore,
       includePolicy, includeOwnership, includeOwnershipStdev, includeMovesOwnership, includeMovesOwnershipStdev, includePVVisits,
       json
     );
@@ -1376,7 +1376,7 @@ xxxxxxxxx
     bool includeMovesOwnershipStdev = false;
     bool includePVVisits = false;
     bool suc = search->getAnalysisJson(
-      perspective, analysisPVLen, preventEncore,
+      perspective, analysisPVLen, 0, preventEncore,
       includePolicy, includeOwnership, includeOwnershipStdev, includeMovesOwnership, includeMovesOwnershipStdev, includePVVisits,
       json
     );
@@ -1447,7 +1447,7 @@ xxxxxxxxx
       bool includeMovesOwnershipStdev = false;
       bool includePVVisits = true;
       suc = search->getAnalysisJson(
-        perspective, analysisPVLen, preventEncore,
+        perspective, analysisPVLen, 0, preventEncore,
         includePolicy, includeOwnership, includeOwnershipStdev, includeMovesOwnership, includeMovesOwnershipStdev, includePVVisits,
         json
       );
@@ -1737,7 +1737,7 @@ oo..o..oo
       bool includeMovesOwnershipStdev = false;
       bool includePVVisits = false;
       bool suc = search->getAnalysisJson(
-        perspective, analysisPVLen, preventEncore,
+        perspective, analysisPVLen, 0, preventEncore,
         includePolicy, includeOwnership, includeOwnershipStdev, includeMovesOwnership, includeMovesOwnershipStdev, includePVVisits,
         json
       );
@@ -1803,7 +1803,7 @@ oo..o..oo
       bool includeMovesOwnershipStdev = false;
       bool includePVVisits = false;
       bool suc = search->getAnalysisJson(
-        perspective, analysisPVLen, preventEncore,
+        perspective, analysisPVLen, 0, preventEncore,
         includePolicy, includeOwnership, includeOwnershipStdev, includeMovesOwnership, includeMovesOwnershipStdev, includePVVisits,
         json
       );
@@ -1849,7 +1849,7 @@ oo..o..oo
       bool includeMovesOwnershipStdev = false;
       bool includePVVisits = false;
       bool suc = search->getAnalysisJson(
-        perspective, analysisPVLen, preventEncore,
+        perspective, analysisPVLen, 0, preventEncore,
         includePolicy, includeOwnership, includeOwnershipStdev, includeMovesOwnership, includeMovesOwnershipStdev, includePVVisits,
         json
       );

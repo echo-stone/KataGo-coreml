@@ -29,6 +29,7 @@ struct AnalyzeRequest {
   SearchParams params;
   Player perspective;
   int analysisPVLen;
+  int minMoves;
   bool includeOwnership;
   bool includeOwnershipStdev;
   bool includeMovesOwnership;
@@ -230,6 +231,7 @@ int MainCmds::analysis(const vector<string>& args) {
     "overrideSettings",
     "maxVisits",
     "analysisPVLen",
+    "minMoves",
     "rootFpuReductionMax",
     "rootPolicyTemperature",
     "includeMovesOwnership",
@@ -319,7 +321,7 @@ int MainCmds::analysis(const vector<string>& args) {
 
     bool success = search->getAnalysisJson(
       request->perspective,
-      request->analysisPVLen, preventEncore, request->includePolicy,
+      request->analysisPVLen, request->minMoves, preventEncore, request->includePolicy,
       request->includeOwnership,request->includeOwnershipStdev,
       request->includeMovesOwnership,request->includeMovesOwnershipStdev,
       request->includePVVisits,
@@ -604,6 +606,7 @@ int MainCmds::analysis(const vector<string>& args) {
       rbase.params = defaultParams;
       rbase.perspective = defaultPerspective;
       rbase.analysisPVLen = analysisPVLen;
+      rbase.minMoves = 0;
       rbase.includeOwnership = false;
       rbase.includeOwnershipStdev = false;
       rbase.includeMovesOwnership = false;
@@ -978,6 +981,14 @@ int MainCmds::analysis(const vector<string>& args) {
         rbase.analysisPVLen = (int)buf;
       }
 
+      if(input.find("minMoves") != input.end()) {
+        int64_t buf;
+        bool suc = parseInteger(input, "minMoves", buf, 0, 1000, "Must be an integer from 0 to 1000");
+        if(!suc)
+          continue;
+        rbase.minMoves = (int)buf;
+      }
+
       if(input.find("rootFpuReductionMax") != input.end()) {
         bool suc = parseDouble(input, "rootFpuReductionMax", rbase.params.rootFpuReductionMax, 0.0, 2.0, "Must be a number from 0.0 to 2.0");
         if(!suc)
@@ -1157,6 +1168,7 @@ int MainCmds::analysis(const vector<string>& args) {
           newRequest->params = rbase.params;
           newRequest->perspective = rbase.perspective;
           newRequest->analysisPVLen = rbase.analysisPVLen;
+          newRequest->minMoves = rbase.minMoves;
           newRequest->includeOwnership = rbase.includeOwnership;
           newRequest->includeOwnershipStdev = rbase.includeOwnershipStdev;
           newRequest->includeMovesOwnership = rbase.includeMovesOwnership;

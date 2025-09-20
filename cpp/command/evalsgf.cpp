@@ -645,6 +645,7 @@ int MainCmds::evalsgf(const vector<string>& args) {
       bool suc = search->getAnalysisJson(
         perspective,
         analysisPVLen,
+        0,
         preventEncore,
         includePolicy,
         includeOwnership,

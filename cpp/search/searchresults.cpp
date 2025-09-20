@@ -1991,6 +1991,7 @@ std::pair<std::vector<double>,std::vector<double>> Search::getAverageAndStandard
 bool Search::getAnalysisJson(
   const Player perspective,
   int analysisPVLen,
+  int minMoves,
   bool preventEncore,
   bool includePolicy,
   bool includeOwnership,
@@ -2001,7 +2002,6 @@ bool Search::getAnalysisJson(
   json& ret
 ) const {
   vector<AnalysisData> buf;
-  static constexpr int minMoves = 0;
   static constexpr int OUTPUT_PRECISION = 8;
 
   const Board& board = rootBoard;
