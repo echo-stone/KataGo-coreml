@@ -115,6 +115,10 @@ void AsyncBot::setAvoidMoveUntilByLoc(const std::vector<int>& bVec, const std::v
   stopAndWait();
   search->setAvoidMoveUntilByLoc(bVec,wVec);
 }
+void AsyncBot::setIncludeMoves(const std::vector<Loc>& bVec, const std::vector<Loc>& wVec) {
+  stopAndWait();
+  search->setIncludeMoves(bVec,wVec);
+}
 void AsyncBot::setAvoidMoveUntilRescaleRoot(bool b) {
   stopAndWait();
   search->setAvoidMoveUntilRescaleRoot(b);

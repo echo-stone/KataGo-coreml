@@ -480,6 +480,7 @@ void Search::selectBestChildToDescend(
       countEdgeVisit,
       &thread
     );
+
     if(selectionValue > maxSelectionValue) {
       // if(child->state.load(std::memory_order_seq_cst) == SearchNode::STATE_EVALUATING) {
       //   selectionValue -= EVALUATING_SELECTION_VALUE_PENALTY;
@@ -497,9 +498,76 @@ void Search::selectBestChildToDescend(
 
   const std::vector<int>& avoidMoveUntilByLoc = thread.pla == P_BLACK ? avoidMoveUntilByLocBlack : avoidMoveUntilByLocWhite;
 
-  //Try the new child with the best policy value
+  // Check if any includeMoves need more visits (root only)
+  bool includeMovesSelected = false;
+  if(isRoot) {
+    const std::vector<Loc>& includeMoves = (thread.pla == P_BLACK || thread.pla == C_EMPTY) ? includeMovesBlack : includeMovesWhite;
+    // If all includeMoves have sufficient visits, allow normal PUCT selection
+    if(includeMoves.size() > 0) {
+      for(Loc moveLoc : includeMoves) {
+        int movePos = getPos(moveLoc);
+        if(movePos < 0 || movePos >= policySize) {
+          continue;
+        }
+
+        bool alreadyTried = posesWithChildBuf[movePos];
+
+        if(alreadyTried) {
+          // Find the child and check visit count
+          bool childFound = false;
+          for(int i = 0; i < numChildrenFound; i++) {
+            const SearchChildPointer& childPointer = children[i];
+            if(childPointer.getMoveLocRelaxed() == moveLoc) {
+              childFound = true;
+              // Check if child is actually allocated
+              const SearchNode* child = childPointer.getIfAllocated();
+              if(child == NULL) {
+                // Child pointer exists but node not allocated - treat as not tried
+                break; // Exit inner loop and treat as not tried
+              }
+
+              int64_t visits = childPointer.getEdgeVisits();
+              if(visits < searchParams.includeMovesMinVisits) {
+                // This includeMoves location needs more visits
+                bestChildIdx = i;
+                bestChildMoveLoc = moveLoc;
+                countEdgeVisit = true; // includeMoves must count visits!
+                includeMovesSelected = true;
+                break;
+              }
+              break;
+            }
+          }
+          if(includeMovesSelected)
+            break;
+          // If child pointer exists but not allocated, don't try again - skip this move
+          if(childFound) {
+            continue;
+          }
+        }
+        else {
+          // Not visited yet - check if legal before selecting
+          bool isLegal = thread.history.isLegal(thread.board, moveLoc, thread.pla);
+          if(!isLegal) {
+            // Illegal move (already occupied or violates rules) - skip
+            continue;
+          }
+
+          // Legal move - force selection
+          bestChildIdx = numChildrenFound;
+          bestChildMoveLoc = moveLoc;
+          countEdgeVisit = true; // includeMoves must count visits!
+          includeMovesSelected = true;
+          break;
+        }
+      }
+    }
+  }
+
+  //Try the new child with the best policy value (skip if includeMoves already selected)
   Loc bestNewMoveLoc = Board::NULL_LOC;
   float bestNewNNPolicyProb = -1.0f;
+  if(!includeMovesSelected) {
   for(int movePos = 0; movePos<policySize; movePos++) {
     bool alreadyTried = posesWithChildBuf[movePos];
     if(alreadyTried)
@@ -553,6 +621,7 @@ void Search::selectBestChildToDescend(
       bestChildMoveLoc = bestNewMoveLoc;
     }
   }
+  } // end of if(!includeMovesSelected)
 
   if(totalChildEdgeVisits >= 2 && searchParams.enableMorePassingHacks && thread.history.passWouldEndPhase(thread.board,thread.pla)) {
     bool hasPassMove = false;

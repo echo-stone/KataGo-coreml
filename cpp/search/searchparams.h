@@ -68,6 +68,7 @@ struct SearchParams {
   double rootDesiredPerChildVisitsCoeff; //Funnel sqrt(this * policy prob * total visits) down any given child that receives any visits at all at the root
 
   double rootPolicyOptimism; //Interpolate geometrically between raw policy and optimistic policy
+  int64_t includeMovesMinVisits; //Minimum number of visits to guarantee for each includeMoves location
 
   //Parameters for choosing the move to play
   double chosenMoveTemperature; //Make move roughly proportional to visit count ** (1/chosenMoveTemperature)

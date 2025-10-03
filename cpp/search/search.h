@@ -94,6 +94,11 @@ struct Search {
   std::vector<int> avoidMoveUntilByLocWhite;
   bool avoidMoveUntilRescaleRoot; // When avoiding moves at the root, rescale the root policy to sum to 1.
 
+  //External user-specified moves that must be explored during search.
+  //These moves will be prioritized for exploration regardless of policy probability.
+  std::vector<Loc> includeMovesBlack;
+  std::vector<Loc> includeMovesWhite;
+
   //If rootSymmetryPruning==true and the board is symmetric, mask all the equivalent copies of each move except one.
   bool rootSymDupLoc[Board::MAX_ARR_SIZE];
   //If rootSymmetryPruning==true, symmetries under which the root board and history are invariant, including some heuristics for ko and encore-related state.
@@ -222,6 +227,7 @@ struct Search {
   void setKomiIfNew(float newKomi); //Does not clear history, does clear search unless komi is equal.
   void setRootHintLoc(Loc hintLoc);
   void setAvoidMoveUntilByLoc(const std::vector<int>& bVec, const std::vector<int>& wVec);
+  void setIncludeMoves(const std::vector<Loc>& bVec, const std::vector<Loc>& wVec);
   void setAvoidMoveUntilRescaleRoot(bool b);
   void setAlwaysIncludeOwnerMap(bool b);
   void setRootSymmetryPruningOnly(const std::vector<int>& rootPruneOnlySymmetries);
@@ -502,6 +508,12 @@ private:
 public:
   std::vector<SearchNode*> enumerateTreePostOrder();
 private:
+
+  //----------------------------------------------------------------------------------------
+  // Include moves helpers
+  //----------------------------------------------------------------------------------------
+  bool hasIncludeMovesNeedingMoreVisits() const;
+  int64_t getIncludeMovesGuaranteedVisits() const;
 
   //----------------------------------------------------------------------------------------
   // Time management

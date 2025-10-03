@@ -2549,6 +2549,96 @@ x.x.x
     }
   }
 
+  {
+    cout << "===================================================================" << endl;
+    cout << "includeMoves test - force exploration of specific moves" << endl;
+    cout << "===================================================================" << endl;
+
+    NNEvaluator* nnEval = startNNEval(modelFile,logger,"",9,9,0,true,false,false,true,false);
+    SearchParams params;
+    params.maxVisits = 200;
+    Search* search = new Search(params, nnEval, &logger, "includeMovesTestSeed");
+    Rules rules = Rules::getTrompTaylorish();
+
+    // 단순한 초반 상황
+    Board board = Board::parseBoard(9,9,R"%%(
+.........
+.........
+.........
+.........
+.........
+.........
+.........
+.........
+.........
+)%%");
+
+    // includeMoves: D4, G3, C5 - 정책망 확률과 무관하게 반드시 분석되어야 함
+    vector<Loc> includeMoves;
+    includeMoves.push_back(Location::getLoc(3,3,board.x_size)); // D4
+    includeMoves.push_back(Location::getLoc(6,2,board.x_size)); // G3 (9x9 보드에 맞는 좌표)
+    includeMoves.push_back(Location::getLoc(2,4,board.x_size)); // C5
+
+    Player nextPla = P_BLACK;
+    BoardHistory hist(board,nextPla,rules,0);
+
+    search->setPosition(nextPla,board,hist);
+    search->setIncludeMoves(includeMoves, vector<Loc>());
+    search->runWholeSearch(nextPla);
+
+    cout << search->rootBoard << endl;
+
+    PrintTreeOptions options;
+    options = options.maxDepth(1);
+    search->printTree(cout, search->rootNode, options, P_WHITE);
+
+    // includeMoves의 모든 착점이 분석되었는지 검증
+    nlohmann::json json;
+    Player perspective = P_WHITE;
+    int analysisPVLen = 2;
+    bool preventEncore = true;
+    bool includePolicy = false;
+    bool includeOwnership = false;
+    bool includeOwnershipStdev = false;
+    bool includeMovesOwnership = false;
+    bool includeMovesOwnershipStdev = false;
+    bool includePVVisits = true;
+    bool suc = search->getAnalysisJson(
+      perspective, analysisPVLen, preventEncore,
+      includePolicy, includeOwnership, includeOwnershipStdev, includeMovesOwnership, includeMovesOwnershipStdev, includePVVisits,
+      json
+    );
+    testAssert(suc);
+
+    // 모든 includeMoves가 분석 결과에 포함되어 있는지 확인
+    bool foundD4 = false;
+    bool foundG3 = false;
+    bool foundC5 = false;
+
+    if(json.contains("moveInfos")) {
+      for(const auto& moveInfo : json["moveInfos"]) {
+        if(moveInfo.contains("move")) {
+          string move = moveInfo["move"];
+          if(move == "D4") foundD4 = true;
+          if(move == "G3") foundG3 = true;
+          if(move == "C5") foundC5 = true;
+          if(moveInfo.contains("visits")) {
+            cout << "Move " << move << " visits: " << moveInfo["visits"] << endl;
+          }
+        }
+      }
+    }
+
+    cout << "Found D4: " << foundD4 << ", G3: " << foundG3 << ", C5: " << foundC5 << endl;
+    testAssert(foundD4);
+    testAssert(foundG3);
+    testAssert(foundC5);
+
+    cout << json << endl;
+    delete search;
+    delete nnEval;
+  }
+
   NeuralNet::globalCleanup();
   cout << "Done" << endl;
 }

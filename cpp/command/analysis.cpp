@@ -43,6 +43,9 @@ struct AnalyzeRequest {
   vector<int> avoidMoveUntilByLocBlack;
   vector<int> avoidMoveUntilByLocWhite;
 
+  vector<Loc> includeMovesBlack;
+  vector<Loc> includeMovesWhite;
+
   //Starts with STATUS_IN_QUEUE.
   //Thread that grabs it from queue it changes it to STATUS_POPPED
   //Once search is fully started thread sticks in its own thread index
@@ -242,7 +245,9 @@ int MainCmds::analysis(const vector<string>& args) {
     "firstReportDuringSearchAfter",
     "priority",
     "allowMoves",
-    "avoidMoves"
+    "avoidMoves",
+    "includeMoves",
+    "includeMovesMinVisits"
   };
 
   ThreadSafeQueue<string*> toWriteQueue;
@@ -351,6 +356,7 @@ int MainCmds::analysis(const vector<string>& args) {
         bot->setAlwaysIncludeOwnerMap(request->includeOwnership || request->includeOwnershipStdev || request->includeMovesOwnership || request->includeMovesOwnershipStdev);
         bot->setParams(request->params);
         bot->setAvoidMoveUntilByLoc(request->avoidMoveUntilByLocBlack,request->avoidMoveUntilByLocWhite);
+        bot->setIncludeMoves(request->includeMovesBlack,request->includeMovesWhite);
 
         Player pla = request->nextPla;
         double searchFactor = 1.0;
@@ -970,6 +976,12 @@ int MainCmds::analysis(const vector<string>& args) {
           continue;
       }
 
+      if(input.find("includeMovesMinVisits") != input.end()) {
+        bool suc = parseInteger(input, "includeMovesMinVisits", rbase.params.includeMovesMinVisits, 1, (int64_t)1 << 50, "Must be an integer from 1 to 2^50");
+        if(!suc)
+          continue;
+      }
+
       if(input.find("analysisPVLen") != input.end()) {
         int64_t buf;
         bool suc = parseInteger(input, "analysisPVLen", buf, 1, 1000, "Must be an integer from 1 to 1000");
@@ -1102,6 +1114,41 @@ int MainCmds::analysis(const vector<string>& args) {
           continue;
       }
 
+      // Parse includeMoves - moves that must be explored during search
+      if(input.find("includeMoves") != input.end()) {
+        json& includeParamsList = input["includeMoves"];
+        if(!includeParamsList.is_array()) {
+          reportErrorForId(rbase.id, "includeMoves", string("Must be a list of dicts with subfields 'player', 'moves'"));
+          continue;
+        }
+
+        bool failed = false;
+        for(size_t i = 0; i<includeParamsList.size(); i++) {
+          json& includeParams = includeParamsList[i];
+          if(includeParams.find("moves") == includeParams.end() ||
+             includeParams.find("player") == includeParams.end()) {
+            reportErrorForId(rbase.id, "includeMoves", string("Must be a list of dicts with subfields 'player', 'moves'"));
+            failed = true;
+            break;
+          }
+
+          Player includePla;
+          vector<Loc> parsedLocs;
+          bool suc;
+          suc = parsePlayer(includeParams, "player", includePla);
+          if(!suc) { failed = true; break; }
+          suc = parseBoardLocs(includeParams, "moves", parsedLocs, true);
+          if(!suc) { failed = true; break; }
+
+          vector<Loc>& includeMoves = includePla == P_BLACK ? rbase.includeMovesBlack : rbase.includeMovesWhite;
+          for(Loc loc: parsedLocs) {
+            includeMoves.push_back(loc);
+          }
+        }
+        if(failed)
+          continue;
+      }
+
 
       Board board(boardXSize,boardYSize);
       for(int i = 0; i<placements.size(); i++) {
@@ -1169,6 +1216,8 @@ int MainCmds::analysis(const vector<string>& args) {
           newRequest->priority = priority;
           newRequest->avoidMoveUntilByLocBlack = rbase.avoidMoveUntilByLocBlack;
           newRequest->avoidMoveUntilByLocWhite = rbase.avoidMoveUntilByLocWhite;
+          newRequest->includeMovesBlack = rbase.includeMovesBlack;
+          newRequest->includeMovesWhite = rbase.includeMovesWhite;
           newRequest->status.store(AnalyzeRequest::STATUS_IN_QUEUE,std::memory_order_release);
           newRequests.push_back(newRequest);
         }
