@@ -12,14 +12,18 @@ KataGo 분석 엔진에 `includeMoves`와 `includeMovesMinVisits` 파라미터�
 ## 파라미터
 
 ### includeMoves
-- **타입**: 배열 (각 요소는 {player, moves})
-- **설명**: 반드시 분석해야 하는 착점 목록
+- **타입**: 배열 (각 요소는 {turnNumber, player, moves})
+- **설명**: 특정 턴에 반드시 분석해야 하는 착점 목록
 - **적용 범위**: 루트 노드에만 적용
+- **필수 필드**:
+  - `turnNumber`: 적용할 턴 번호 (0부터 시작)
+  - `player`: 해당 턴의 플레이어 ("b" 또는 "w") - 검증용
+  - `moves`: 분석할 착점 목록
 - **예시**:
 ```json
 "includeMoves": [
-  {"player": "b", "moves": ["D16", "Q4"]},
-  {"player": "w", "moves": ["D4"]}
+  {"turnNumber": 0, "player": "b", "moves": ["D16", "Q4"]},
+  {"turnNumber": 2, "player": "b", "moves": ["D4", "Q16"]}
 ]
 ```
 
@@ -43,7 +47,8 @@ KataGo 분석 엔진에 `includeMoves`와 `includeMovesMinVisits` 파라미터�
 ```json
 {
   "maxVisits": 100,
-  "includeMoves": [{"player": "b", "moves": ["D16", "Q4", "Q16"]}],
+  "analyzeTurns": [0],
+  "includeMoves": [{"turnNumber": 0, "player": "b", "moves": ["D16", "Q4", "Q16"]}],
   "includeMovesMinVisits": 10
 }
 ```
@@ -55,7 +60,8 @@ KataGo 분석 엔진에 `includeMoves`와 `includeMovesMinVisits` 파라미터�
 ```json
 {
   "maxVisits": 10,
-  "includeMoves": [{"player": "b", "moves": ["D16", "Q4", "Q16", "D4"]}],
+  "analyzeTurns": [0],
+  "includeMoves": [{"turnNumber": 0, "player": "b", "moves": ["D16", "Q4", "Q16", "D4"]}],
   "includeMovesMinVisits": 20
 }
 ```
@@ -196,39 +202,87 @@ void AsyncBot::setIncludeMoves(const std::vector<Loc>& bVec, const std::vector<L
 ```
 
 ### 7. analysis.cpp
-**JSON 파싱 추가**:
+
+**IncludeMoveEntry 구조체 추가**:
 ```cpp
-// AnalyzeRequest 구조체에 추가
+struct IncludeMoveEntry {
+  Player player;
+  vector<Loc> moves;
+};
+```
+
+**AnalyzeRequest 구조체에 추가**:
+```cpp
 vector<Loc> includeMovesBlack;
 vector<Loc> includeMovesWhite;
+std::map<int, IncludeMoveEntry> includeMovesPerTurn;  // 턴별 includeMoves
+```
 
-// JSON 파싱
+**JSON 파싱** (turnNumber + player 필수):
+```cpp
 if(input.find("includeMoves") != input.end()) {
   json& includeParamsList = input["includeMoves"];
   for(size_t i = 0; i<includeParamsList.size(); i++) {
     json& includeParams = includeParamsList[i];
+
+    // turnNumber, player, moves 모두 필수
+    int turnNumber;
     Player includePla;
     vector<Loc> parsedLocs;
+
+    parseInteger(includeParams, "turnNumber", turnNumber);
     parsePlayer(includeParams, "player", includePla);
     parseBoardLocs(includeParams, "moves", parsedLocs, true);
-    vector<Loc>& includeMoves = includePla == P_BLACK ? rbase.includeMovesBlack : rbase.includeMovesWhite;
-    for(Loc loc: parsedLocs) {
-      includeMoves.push_back(loc);
-    }
+
+    // 턴별 Entry에 저장
+    IncludeMoveEntry& entry = rbase.includeMovesPerTurn[turnNumber];
+    entry.player = includePla;
+    entry.moves = parsedLocs;
   }
 }
 
 if(input.find("includeMovesMinVisits") != input.end()) {
   parseInteger(input, "includeMovesMinVisits", rbase.params.includeMovesMinVisits, 1, (int64_t)1 << 50, "Must be an integer from 1 to 2^50");
 }
+```
+
+**AnalyzeRequest 생성 시 player 검증**:
+```cpp
+// 각 턴마다 includeMoves 적용
+auto it = rbase.includeMovesPerTurn.find(turnNumber);
+if(it != rbase.includeMovesPerTurn.end()) {
+  const IncludeMoveEntry& entry = it->second;
+
+  // player 검증
+  if(entry.player != nextPla) {
+    reportWarningForId(rbase.id, "includeMoves",
+      "Turn " + turnNumber + " expects player " + nextPla +
+      " but includeMoves specified " + entry.player +
+      ", ignoring includeMoves for this turn");
+  } else {
+    // player 일치, moves 적용
+    if(nextPla == P_BLACK)
+      newRequest->includeMovesBlack = entry.moves;
+    else
+      newRequest->includeMovesWhite = entry.moves;
+  }
+}
 
 // AsyncBot에 설정
-bot->setIncludeMoves(request->includeMovesBlack,request->includeMovesWhite);
+bot->setIncludeMoves(request->includeMovesBlack, request->includeMovesWhite);
 ```
+
+**nextPla 자동 계산**:
+- `nextPla`는 moveHistory를 순회하면서 자동으로 계산됨
+- 초기값: `initialPlayer` (첫 수 플레이어 또는 흑)
+- 매 턴마다: `nextPla = getOpp(movePla)` (상대편으로 전환)
+- 연속 착수 등 모든 예외 케이스 자동 처리
 
 ## 사용 예시
 
 ### 분석 쿼리 JSON
+
+**예시 1**: 단일 턴 분석
 ```json
 {
   "id": "example1",
@@ -241,17 +295,32 @@ bot->setIncludeMoves(request->includeMovesBlack,request->includeMovesWhite);
   "analyzeTurns": [2],
   "maxVisits": 100,
   "includeMoves": [
-    {"player": "b", "moves": ["D16", "Q4", "Q16"]}
+    {"turnNumber": 2, "player": "b", "moves": ["D16", "Q4", "Q16"]}
   ],
   "includeMovesMinVisits": 10
 }
 ```
 
+**예시 2**: 여러 턴 분석
+```json
+{
+  "id": "example2",
+  "moves": [["B","Q4"],["W","C16"]],
+  "analyzeTurns": [0, 2],
+  "maxVisits": 100,
+  "includeMoves": [
+    {"turnNumber": 0, "player": "b", "moves": ["D16", "Q4", "D4"]},
+    {"turnNumber": 2, "player": "b", "moves": ["Q16", "D17", "E3"]}
+  ],
+  "includeMovesMinVisits": 5
+}
+```
+
 ### 결과 특징
-- D16, Q4, Q16은 반드시 결과에 포함됨 (각 최소 10회 방문)
+- 지정된 착점들은 반드시 결과에 포함됨 (각 최소 includeMovesMinVisits 회 방문)
 - 정책망이 낮은 확률을 부여해도 분석됨
 - 방문 횟수에 따라 올바르게 정렬됨
-- 전체 방문 횟수는 includeMoves 보장(30회) + PUCT(최대 100회) = 최대 130회
+- 전체 방문 횟수는 includeMoves 보장 방문 + PUCT(최대 maxVisits) 방문
 
 ## 주의사항
 
@@ -260,6 +329,8 @@ bot->setIncludeMoves(request->includeMovesBlack,request->includeMovesWhite);
 3. **방문 독립성**: includeMoves 보장 방문과 PUCT 방문은 독립적으로 카운트됨
 4. **총 방문 증가**: 총 방문 횟수는 maxVisits를 초과할 수 있음
 5. **파라미터 균형**: includeMovesMinVisits × 착점 개수가 너무 크면 PUCT가 충분히 실행되지 않을 수 있음
+6. **turnNumber와 player 필수**: 두 필드 모두 필수이며, player는 검증용으로 사용됨
+7. **player 검증**: 지정된 player가 해당 턴의 실제 player와 다르면 경고 출력 후 무시됨
 
 ## 주요 이슈 및 해결
 
@@ -304,27 +375,74 @@ if(!isLegal) {
 }
 ```
 
+## turnNumber 기반 개선 (2025-10-04)
+
+### 배경
+기존에는 player만 지정하여 해당 플레이어의 모든 턴에 동일한 includeMoves가 적용되었으나, 각 턴마다 다른 착점을 지정할 필요성이 생김.
+
+### 변경사항
+
+**1. JSON 포맷 변경**
+- 기존: `{"player": "b", "moves": [...]}`
+- 신규: `{"turnNumber": 0, "player": "b", "moves": [...]}`
+- turnNumber와 player 모두 필수
+
+**2. 데이터 구조**
+```cpp
+struct IncludeMoveEntry {
+  Player player;
+  vector<Loc> moves;
+};
+std::map<int, IncludeMoveEntry> includeMovesPerTurn;
+```
+
+**3. player 자동 계산 및 검증**
+- `nextPla`는 moveHistory 순회 중 자동 계산됨
+- 초기값: `initialPlayer` (첫 수 플레이어 또는 흑)
+- 매 턴마다: `nextPla = getOpp(movePla)`
+- 지정된 player와 nextPla 비교하여 검증
+- 불일치 시 경고 메시지 출력 후 해당 includeMoves 무시
+
+**4. 장점**
+- 각 analyzeTurns 턴마다 독립적인 includeMoves 지정 가능
+- player 검증으로 실수 방지
+- 연속 착수 등 예외 케이스 자동 처리
+
 ## 최종 테스트 결과
 
-### 테스트 케이스: 14개 includeMoves (2개는 이미 착수됨)
+### 테스트 케이스 1: turnNumber 기반 여러 턴 분석
 ```json
 {
   "moves": [["B","Q4"],["W","C16"]],
-  "analyzeTurns": [2],
+  "analyzeTurns": [0, 2],
   "maxVisits": 100,
-  "includeMoves": [{
-    "player": "B",
-    "moves": ["Q3","R3","D4","P4","Q4","R4","C16","D16","C17","D17","E3","P3","E4","Q16"]
-  }],
-  "includeMovesMinVisits": 1
+  "includeMoves": [
+    {"turnNumber": 0, "player": "b", "moves": ["D16", "Q4", "D4"]},
+    {"turnNumber": 2, "player": "b", "moves": ["Q16", "D17", "E3"]}
+  ],
+  "includeMovesMinVisits": 5
 }
 ```
 
 **결과**:
-- 예상 includeMoves: 12개 (Q4, C16은 이미 착수되어 자동 필터링)
-- 실제 결과: 12개 모두 포함됨 (100% 성공)
-- 총 반환 moves: 111개
-- 필터링된 위치: Q4, C16 (ILLEGAL로 자동 SKIP)
+- Turn 0: D16, Q4, D4가 각 5회 이상 방문됨
+- Turn 2: Q16, D17, E3가 각 5회 이상 방문됨
+- 각 턴마다 독립적으로 includeMoves 적용됨
+
+### 테스트 케이스 2: player 검증
+```json
+{
+  "moves": [["B","Q4"],["W","C16"]],
+  "analyzeTurns": [0],
+  "includeMoves": [
+    {"turnNumber": 0, "player": "w", "moves": ["D16"]}
+  ]
+}
+```
+
+**결과**:
+- 경고 메시지: "Turn 0 expects player Black but includeMoves specified White, ignoring includeMoves for this turn"
+- includeMoves가 무시되고 정상적인 분석 진행
 
 ### 성능 특성
 - 불법 수는 isLegal() 체크로 자동 필터링되어 성능 저하 없음
@@ -353,3 +471,6 @@ if(!isLegal) {
 - ✅ 이미 착수된 위치: 자동 SKIP
 - ✅ countEdgeVisit 플래그: 방문 카운트 정확성
 - ✅ 정렬 순서: 음수 policy여도 올바른 playSelectionValue
+- ✅ turnNumber 기반: 턴별 독립적인 includeMoves 적용
+- ✅ player 검증: player 불일치 시 경고 및 무시
+- ✅ nextPla 자동 계산: 연속 착수 등 예외 케이스 처리

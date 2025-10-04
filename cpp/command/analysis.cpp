@@ -16,6 +16,12 @@
 using namespace std;
 using json = nlohmann::json;
 
+// Entry for turn-specific includeMoves with player validation
+struct IncludeMoveEntry {
+  Player player;
+  vector<Loc> moves;
+};
+
 struct AnalyzeRequest {
   int64_t internalId;
   string id;
@@ -45,6 +51,9 @@ struct AnalyzeRequest {
 
   vector<Loc> includeMovesBlack;
   vector<Loc> includeMovesWhite;
+
+  // Turn-specific includeMoves: turnNumber -> (player, moves)
+  std::map<int, IncludeMoveEntry> includeMovesPerTurn;
 
   //Starts with STATUS_IN_QUEUE.
   //Thread that grabs it from queue it changes it to STATUS_POPPED
@@ -1118,7 +1127,7 @@ int MainCmds::analysis(const vector<string>& args) {
       if(input.find("includeMoves") != input.end()) {
         json& includeParamsList = input["includeMoves"];
         if(!includeParamsList.is_array()) {
-          reportErrorForId(rbase.id, "includeMoves", string("Must be a list of dicts with subfields 'player', 'moves'"));
+          reportErrorForId(rbase.id, "includeMoves", string("Must be a list of dicts with subfields 'turnNumber', 'player', 'moves'"));
           continue;
         }
 
@@ -1126,24 +1135,45 @@ int MainCmds::analysis(const vector<string>& args) {
         for(size_t i = 0; i<includeParamsList.size(); i++) {
           json& includeParams = includeParamsList[i];
           if(includeParams.find("moves") == includeParams.end() ||
+             includeParams.find("turnNumber") == includeParams.end() ||
              includeParams.find("player") == includeParams.end()) {
-            reportErrorForId(rbase.id, "includeMoves", string("Must be a list of dicts with subfields 'player', 'moves'"));
+            reportErrorForId(rbase.id, "includeMoves", string("Must be a list of dicts with subfields 'turnNumber', 'player', 'moves'"));
             failed = true;
             break;
           }
 
+          int turnNumber;
           Player includePla;
           vector<Loc> parsedLocs;
           bool suc;
+
+          // Parse turnNumber
+          try {
+            turnNumber = includeParams["turnNumber"].get<int>();
+          }
+          catch(nlohmann::detail::exception&) {
+            reportErrorForId(rbase.id, "includeMoves", string("turnNumber must be an integer"));
+            failed = true;
+            break;
+          }
+          if(turnNumber < 0) {
+            reportErrorForId(rbase.id, "includeMoves", string("turnNumber must be non-negative"));
+            failed = true;
+            break;
+          }
+
+          // Parse player
           suc = parsePlayer(includeParams, "player", includePla);
           if(!suc) { failed = true; break; }
+
+          // Parse moves
           suc = parseBoardLocs(includeParams, "moves", parsedLocs, true);
           if(!suc) { failed = true; break; }
 
-          vector<Loc>& includeMoves = includePla == P_BLACK ? rbase.includeMovesBlack : rbase.includeMovesWhite;
-          for(Loc loc: parsedLocs) {
-            includeMoves.push_back(loc);
-          }
+          // Store entry with player and moves
+          IncludeMoveEntry& entry = rbase.includeMovesPerTurn[turnNumber];
+          entry.player = includePla;
+          entry.moves = parsedLocs;
         }
         if(failed)
           continue;
@@ -1216,8 +1246,29 @@ int MainCmds::analysis(const vector<string>& args) {
           newRequest->priority = priority;
           newRequest->avoidMoveUntilByLocBlack = rbase.avoidMoveUntilByLocBlack;
           newRequest->avoidMoveUntilByLocWhite = rbase.avoidMoveUntilByLocWhite;
-          newRequest->includeMovesBlack = rbase.includeMovesBlack;
-          newRequest->includeMovesWhite = rbase.includeMovesWhite;
+
+          // Apply turn-specific includeMoves with player validation
+          auto it = rbase.includeMovesPerTurn.find(turnNumber);
+          if(it != rbase.includeMovesPerTurn.end()) {
+            const IncludeMoveEntry& entry = it->second;
+
+            // Validate that specified player matches actual player to move
+            if(entry.player != nextPla) {
+              reportWarningForId(rbase.id, "includeMoves",
+                string("Turn ") + Global::intToString(turnNumber) +
+                " expects player " + PlayerIO::playerToString(nextPla) +
+                " but includeMoves specified " + PlayerIO::playerToString(entry.player) +
+                ", ignoring includeMoves for this turn");
+            } else {
+              // Player matches, apply the moves
+              if(nextPla == P_BLACK) {
+                newRequest->includeMovesBlack = entry.moves;
+              } else {
+                newRequest->includeMovesWhite = entry.moves;
+              }
+            }
+          }
+
           newRequest->status.store(AnalyzeRequest::STATUS_IN_QUEUE,std::memory_order_release);
           newRequests.push_back(newRequest);
         }
