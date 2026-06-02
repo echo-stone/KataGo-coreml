@@ -18,6 +18,7 @@
   * [GTP Extensions](#gtp-extensions)
   * [Analysis Engine](#analysis-engine)
 * [Compiling KataGo](#compiling-katago)
+  * [Local CoreML build script (macOS)](#local-coreml-build-script-macos)
 * [Source Code Overview](#source-code-overview)
 * [Selfplay Training](#selfplay-training)
 * [Contributors](#contributors)
@@ -234,6 +235,38 @@ KataGo also includes example code demonstrating how you can invoke the analysis 
 
 ## Compiling KataGo
 KataGo is written in C++. It should compile on Linux or OSX via g++ that supports at least C++14, or on Windows via MSVC 15 (2017) and later or MinGW. Instructions may be found at [Compiling KataGo](Compiling.md).
+
+### Local CoreML build script (macOS)
+This fork includes a local helper for building the macOS CoreML binary from the current worktree:
+
+```
+cpp/xcode/coreml-build.sh
+```
+
+The script configures `cpp/build-coreml` with CMake, uses the `METAL` backend so the CoreML sources are linked, builds the `katago` target, and prints `katago version` for the resulting binary.
+
+To replace the local runtime binary after a successful build:
+
+```
+cpp/xcode/coreml-build.sh --install
+```
+
+By default `--install` copies the binary to `$HOME/.katago/katago`. To use another destination:
+
+```
+cpp/xcode/coreml-build.sh --install --install-path /path/to/katago
+```
+
+Useful options:
+
+```
+cpp/xcode/coreml-build.sh --clean
+cpp/xcode/coreml-build.sh --jobs 8
+cpp/xcode/coreml-build.sh --build-dir cpp/build-coreml
+cpp/xcode/coreml-build.sh --smoke-gtp
+```
+
+`--smoke-gtp` starts the built binary with `$HOME/.katago/coreml_gtp.cfg` and `$HOME/.katago/model.bin.gz`, sends `quit`, and verifies that GTP startup completes. Override those paths with `--config`, `--model`, `KATAGO_CONFIG`, or `KATAGO_MODEL`.
 
 ## Source Code Overview:
 See the [cpp readme](cpp/README.md) or the [python readme](python/README.md) for some high-level overviews of the source code in this repo, if you want to get a sense of what is where and how it fits together.
