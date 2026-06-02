@@ -1011,17 +1011,18 @@ int MainCmds::analysis(const vector<string>& args) {
         if(!suc)
           continue;
       }
-      if(input.find("includeMovesMinVisits") != input.end()) {
-        bool suc = parseInteger(input, "includeMovesMinVisits", rbase.params.includeMovesMinVisits, 1, (int64_t)1 << 50, "Must be an integer from 1 to 2^50");
-        if(!suc)
-          continue;
-      }
       if(input.find("includeAllMoves") != input.end()) {
         bool suc = parseBoolean(input, "includeAllMoves", rbase.includeAllMoves, "Must be a boolean");
         if(!suc)
           continue;
         if(rbase.includeAllMoves && input.find("includeMovesMinVisits") == input.end())
           rbase.params.includeMovesMinVisits = 1;
+      }
+
+      if(input.find("includeMovesMinVisits") != input.end()) {
+        bool suc = parseInteger(input, "includeMovesMinVisits", rbase.params.includeMovesMinVisits, 1, (int64_t)1 << 50, "Must be an integer from 1 to 2^50");
+        if(!suc)
+          continue;
       }
 
       if(input.find("analysisPVLen") != input.end()) {

@@ -109,6 +109,7 @@ bool Search::getPlaySelectionValues(
     totalChildWeight += childWeight;
 
     // If the move appears to be outright illegal in policy probs, zero out the selection value.
+    // Exception: includeMoves should always get their proper selection value even with negative policy.
     // Also if we're suppressing passes.
     // We always push a value on to playSelectionValues even if that value is 0,
     // because some callers rely on this to line up with the raw indices in the children array of the node.
