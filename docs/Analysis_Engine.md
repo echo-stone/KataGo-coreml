@@ -283,7 +283,7 @@ Current fields are:
 
 ### Special Action Queries
 
-Currently a few special action queries are supported that direct the analysis engine to do something other than enqueue a new position or set of positions for analysis.
+Currently a few special action queries are supported that direct the analysis engine to do something other than a normal analysis query. Some special actions are immediate commands, while others may still use the normal parsing, worker queue, and worker pool.
 A special action query is also sent as a JSON object, but with a different set of fields depending on the query.
 
 #### query_version
@@ -325,6 +325,44 @@ Explanation: KataGo uses a cache of neural net query results to skip querying th
 
 * Testing or studying the variability of KataGo's search results for a given number of visits. Analyzing a position again after a cache clear will give a "fresh" look on that position that better matches the variety of possible results KataGo may return, simliar to if the analysis engine were entirely restarted. Each query will re-randomize the symmetry of the neural net used for that query instead of using the cached result, giving a new and more varied opinion.
 
+
+#### final_score
+
+Requests that KataGo report a GTP-style final score for one or more turns of a position. This uses the normal analysis query parsing and worker queue, but returns only final score information rather than full analysis. Required and optional fields are the same position-building fields as for a normal analysis request, including:
+
+   * `id (string)`: Required. An arbitrary string identifier for this query.
+   * `action (string)`: Required. Should be the string `final_score`.
+   * Usual position and analysis request fields such as board size, initial stones, moves, rules, komi, white handicap bonus, `analyzeTurns`, priorities, and `overrideSettings`.
+
+If `analyzeTurns` is absent, the response is for the final position after all moves, matching the default behavior of a normal analysis request. If `analyzeTurns` is provided, KataGo returns one response for each selected turn.
+
+Examples:
+```json
+{"id":"score1","action":"final_score","moves":[["B","D4"],["W","Q16"]],"rules":"chinese","komi":7.5,"boardXSize":19,"boardYSize":19}
+{"id":"score2","action":"final_score","moves":[["B","D4"],["W","Q16"]],"rules":"chinese","komi":7.5,"boardXSize":19,"boardYSize":19,"analyzeTurns":[0,2]}
+```
+
+The response does NOT include `moveInfos`, `rootInfo`, ownership, policy, or PV analysis fields. Each response contains:
+
+   * `id (string)`: The same id as the query.
+   * `action (string)`: The string `final_score`.
+   * `turnNumber (int)`: The turn number for this response.
+   * `isDuringSearch (bool)`: Always false.
+   * `winner (string)`: `B`, `W`, or `0` for a draw or no winner.
+   * `finalScore (string)`: A GTP-style score such as `B+N.N`, `W+N.N`, or `0`.
+   * `finalWhiteMinusBlackScore (float)`: The numeric final score from White's perspective. Positive means White is ahead, negative means Black is ahead.
+   * `scoreSource (string)`: `finished` if a direct game result is available under the same conditions as GTP `final_score`, otherwise `estimated`.
+
+Example response:
+```json
+{"action":"final_score","finalScore":"W+0.5","finalWhiteMinusBlackScore":0.5,"id":"score1","isDuringSearch":false,"scoreSource":"estimated","turnNumber":2,"winner":"W"}
+```
+
+For unfinished positions, this is cheaper than full normal analysis but not free. KataGo performs several short searches or probes similar to GTP `final_score`, using at least about 50 visits per probe, roughly `max(50, numSearchThreadsPerAnalysisThread * 10)` visits per probe depending on the analysis engine configuration.
+
+Since `final_score` uses the normal request parsing and worker queue, priorities and `terminate`/`terminate_all` apply similarly to normal analysis. Active final score estimation is short and may finish before termination takes effect.
+
+For the estimated score, KataGo clears request-local avoid/include constraints and disables the same major score-bias and exploration settings as GTP `final_score`.
 
 #### terminate
 
