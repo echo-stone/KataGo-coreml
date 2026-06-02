@@ -328,7 +328,7 @@ Explanation: KataGo uses a cache of neural net query results to skip querying th
 
 #### final_score
 
-Requests that KataGo report a GTP-style final score for one or more turns of a position. This uses the normal analysis query parsing and worker queue, but returns only final score information rather than full analysis. Required and optional fields are the same position-building fields as for a normal analysis request, including:
+Requests that KataGo report a GTP-style final score for one or more turns of a position. This uses the normal analysis query parsing and worker queue, but returns only final score information rather than full analysis. This uses the same request parsing as normal analysis for position setup, turn selection, priorities, and override fields, including:
 
    * `id (string)`: Required. An arbitrary string identifier for this query.
    * `action (string)`: Required. Should be the string `final_score`.
@@ -358,11 +358,11 @@ Example response:
 {"action":"final_score","finalScore":"W+0.5","finalWhiteMinusBlackScore":0.5,"id":"score1","isDuringSearch":false,"scoreSource":"estimated","turnNumber":2,"winner":"W"}
 ```
 
-For unfinished positions, this is cheaper than full normal analysis but not free. KataGo performs several short searches or probes similar to GTP `final_score`, using at least about 50 visits per probe, roughly `max(50, numSearchThreadsPerAnalysisThread * 10)` visits per probe depending on the analysis engine configuration.
+For unfinished positions, this is cheaper than full normal analysis but not free. KataGo performs several short searches or probes similar to GTP `final_score`, using at least about 50 visits per probe, roughly `max(50, params.numThreads * 10)` visits per probe, where `params.numThreads` is normally derived from `numSearchThreadsPerAnalysisThread`.
 
 Since `final_score` uses the normal request parsing and worker queue, priorities and `terminate`/`terminate_all` apply similarly to normal analysis. Active final score estimation is short and may finish before termination takes effect.
 
-For the estimated score, KataGo clears request-local avoid/include constraints and disables the same major score-bias and exploration settings as GTP `final_score`.
+For the estimated score, KataGo clears request-local avoid/include constraints and disables the same major GTP `final_score` score-bias and exploration settings.
 
 #### terminate
 
