@@ -115,6 +115,20 @@ void AsyncBot::setAvoidMoveUntilByLoc(const std::vector<int>& bVec, const std::v
   stopAndWait();
   search->setAvoidMoveUntilByLoc(bVec,wVec);
 }
+// Purpose: Set root moves that the next search must visit at least includeMovesMinVisits times.
+// Params: bVec contains black include moves, wVec contains white include moves.
+// Return: None.
+void AsyncBot::setIncludeMoves(const std::vector<Loc>& bVec, const std::vector<Loc>& wVec) {
+  stopAndWait();
+  search->setIncludeMoves(bVec,wVec);
+}
+// Purpose: Set every legal non-pass root move to receive at least includeMovesMinVisits times.
+// Params: None.
+// Return: None.
+void AsyncBot::setIncludeAllLegalMoves() {
+  stopAndWait();
+  search->setIncludeAllLegalMoves();
+}
 void AsyncBot::setAvoidMoveUntilRescaleRoot(bool b) {
   stopAndWait();
   search->setAvoidMoveUntilRescaleRoot(b);

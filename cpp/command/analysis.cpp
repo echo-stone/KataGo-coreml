@@ -13,8 +13,26 @@
 
 #include "../external/nlohmann_json/json.hpp"
 
+#include <algorithm>
+
 using namespace std;
 using json = nlohmann::json;
+
+// Purpose: Append locations from src to dst without introducing duplicates.
+// Params: dst is the destination move list, src is the move list to append.
+// Return: None.
+static void appendUniqueLocs(vector<Loc>& dst, const vector<Loc>& src) {
+  for(Loc loc: src) {
+    if(std::find(dst.begin(),dst.end(),loc) == dst.end())
+      dst.push_back(loc);
+  }
+}
+
+// Represents one includeMoves JSON entry for a specific turn and player.
+struct IncludeMoveEntry {
+  Player player;
+  vector<Loc> moves;
+};
 
 struct AnalyzeRequest {
   int64_t internalId;
@@ -42,6 +60,11 @@ struct AnalyzeRequest {
 
   vector<int> avoidMoveUntilByLocBlack;
   vector<int> avoidMoveUntilByLocWhite;
+
+  vector<Loc> includeMovesBlack;
+  vector<Loc> includeMovesWhite;
+  std::map<int, vector<IncludeMoveEntry>> includeMovesPerTurn;
+  bool includeAllLegalMoves;
 
   //Starts with STATUS_IN_QUEUE.
   //Thread that grabs it from queue it changes it to STATUS_POPPED
@@ -242,7 +265,10 @@ int MainCmds::analysis(const vector<string>& args) {
     "firstReportDuringSearchAfter",
     "priority",
     "allowMoves",
-    "avoidMoves"
+    "avoidMoves",
+    "includeMoves",
+    "includeAllLegalMoves",
+    "includeMovesMinVisits"
   };
 
   ThreadSafeQueue<string*> toWriteQueue;
@@ -357,6 +383,10 @@ int MainCmds::analysis(const vector<string>& args) {
         bot->setAlwaysIncludeOwnerMap(request->includeOwnership || request->includeOwnershipStdev || request->includeMovesOwnership || request->includeMovesOwnershipStdev);
         bot->setParams(request->params);
         bot->setAvoidMoveUntilByLoc(request->avoidMoveUntilByLocBlack,request->avoidMoveUntilByLocWhite);
+        if(request->includeAllLegalMoves)
+          bot->setIncludeAllLegalMoves();
+        else
+          bot->setIncludeMoves(request->includeMovesBlack,request->includeMovesWhite);
 
         Player pla = request->nextPla;
         double searchFactor = 1.0;
@@ -624,6 +654,10 @@ int MainCmds::analysis(const vector<string>& args) {
       rbase.priority = 0;
       rbase.avoidMoveUntilByLocBlack.clear();
       rbase.avoidMoveUntilByLocWhite.clear();
+      rbase.includeMovesBlack.clear();
+      rbase.includeMovesWhite.clear();
+      rbase.includeMovesPerTurn.clear();
+      rbase.includeAllLegalMoves = false;
 
       auto parseInteger = [&rbase,&reportErrorForId](const json& dict, const char* field, int64_t& buf, int64_t min, int64_t max, const char* errorMessage) {
         try {
@@ -977,6 +1011,18 @@ int MainCmds::analysis(const vector<string>& args) {
         if(!suc)
           continue;
       }
+      if(input.find("includeMovesMinVisits") != input.end()) {
+        bool suc = parseInteger(input, "includeMovesMinVisits", rbase.params.includeMovesMinVisits, 1, (int64_t)1 << 50, "Must be an integer from 1 to 2^50");
+        if(!suc)
+          continue;
+      }
+      if(input.find("includeAllLegalMoves") != input.end()) {
+        bool suc = parseBoolean(input, "includeAllLegalMoves", rbase.includeAllLegalMoves, "Must be a boolean");
+        if(!suc)
+          continue;
+        if(rbase.includeAllLegalMoves && input.find("includeMovesMinVisits") == input.end())
+          rbase.params.includeMovesMinVisits = 1;
+      }
 
       if(input.find("analysisPVLen") != input.end()) {
         int64_t buf;
@@ -1054,6 +1100,20 @@ int MainCmds::analysis(const vector<string>& args) {
 
       bool hasAllowMoves = input.find("allowMoves") != input.end();
       bool hasAvoidMoves = input.find("avoidMoves") != input.end();
+      if(rbase.includeAllLegalMoves) {
+        if(input.find("includeMoves") != input.end()) {
+          reportErrorForId(rbase.id, "includeAllLegalMoves", string("Cannot specify both includeAllLegalMoves and includeMoves"));
+          continue;
+        }
+        if(hasAllowMoves) {
+          reportErrorForId(rbase.id, "includeAllLegalMoves", string("Cannot specify both includeAllLegalMoves and allowMoves"));
+          continue;
+        }
+        if(hasAvoidMoves) {
+          reportErrorForId(rbase.id, "includeAllLegalMoves", string("Cannot specify both includeAllLegalMoves and avoidMoves"));
+          continue;
+        }
+      }
       if(hasAllowMoves || hasAvoidMoves) {
         if(hasAllowMoves && hasAvoidMoves) {
           reportErrorForId(rbase.id, "allowMoves", string("Cannot specify both allowMoves and avoidMoves"));
@@ -1110,6 +1170,44 @@ int MainCmds::analysis(const vector<string>& args) {
           continue;
       }
 
+      if(input.find("includeMoves") != input.end()) {
+        json& includeParamsList = input["includeMoves"];
+        if(!includeParamsList.is_array()) {
+          reportErrorForId(rbase.id, "includeMoves", string("Must be a list of dicts with subfields 'turnNumber', 'player', 'moves'"));
+          continue;
+        }
+
+        bool failed = false;
+        for(size_t i = 0; i<includeParamsList.size(); i++) {
+          json& includeParams = includeParamsList[i];
+          if(!includeParams.is_object() ||
+             includeParams.find("moves") == includeParams.end() ||
+             includeParams.find("turnNumber") == includeParams.end() ||
+             includeParams.find("player") == includeParams.end()) {
+            reportErrorForId(rbase.id, "includeMoves", string("Must be a list of dicts with subfields 'turnNumber', 'player', 'moves'"));
+            failed = true;
+            break;
+          }
+
+          int64_t turnNumberBuf;
+          Player includePla;
+          vector<Loc> parsedLocs;
+          bool suc;
+          suc = parseInteger(includeParams, "turnNumber", turnNumberBuf, 0, (int64_t)moveHistory.size(), "turnNumber must be an integer from 0 to the number of moves");
+          if(!suc) { failed = true; break; }
+          suc = parsePlayer(includeParams, "player", includePla);
+          if(!suc) { failed = true; break; }
+          suc = parseBoardLocs(includeParams, "moves", parsedLocs, true);
+          if(!suc) { failed = true; break; }
+
+          IncludeMoveEntry entry;
+          entry.player = includePla;
+          entry.moves = parsedLocs;
+          rbase.includeMovesPerTurn[(int)turnNumberBuf].push_back(entry);
+        }
+        if(failed)
+          continue;
+      }
 
       Board board(boardXSize,boardYSize);
       for(int i = 0; i<placements.size(); i++) {
@@ -1177,6 +1275,27 @@ int MainCmds::analysis(const vector<string>& args) {
           newRequest->priority = priority;
           newRequest->avoidMoveUntilByLocBlack = rbase.avoidMoveUntilByLocBlack;
           newRequest->avoidMoveUntilByLocWhite = rbase.avoidMoveUntilByLocWhite;
+          newRequest->includeMovesBlack.clear();
+          newRequest->includeMovesWhite.clear();
+          newRequest->includeAllLegalMoves = rbase.includeAllLegalMoves;
+          auto includeMovesIt = rbase.includeMovesPerTurn.find(turnNumber);
+          if(includeMovesIt != rbase.includeMovesPerTurn.end()) {
+            for(const IncludeMoveEntry& entry: includeMovesIt->second) {
+              if(entry.player != nextPla) {
+                reportWarningForId(
+                  rbase.id,
+                  "includeMoves",
+                  string("Turn ") + Global::intToString(turnNumber) +
+                  " expects player " + PlayerIO::playerToString(nextPla) +
+                  " but includeMoves specified " + PlayerIO::playerToString(entry.player) +
+                  ", ignoring those moves"
+                );
+                continue;
+              }
+              vector<Loc>& includeMoves = nextPla == P_BLACK ? newRequest->includeMovesBlack : newRequest->includeMovesWhite;
+              appendUniqueLocs(includeMoves, entry.moves);
+            }
+          }
           newRequest->status.store(AnalyzeRequest::STATUS_IN_QUEUE,std::memory_order_release);
           newRequests.push_back(newRequest);
         }

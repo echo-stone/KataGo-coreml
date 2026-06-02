@@ -497,6 +497,46 @@ void Search::selectBestChildToDescend(
 
   const std::vector<int>& avoidMoveUntilByLoc = thread.pla == P_BLACK ? avoidMoveUntilByLocBlack : avoidMoveUntilByLocWhite;
 
+  if(isRoot) {
+    const vector<Loc>& includeMoves = thread.pla == P_BLACK ? includeMovesBlack : includeMovesWhite;
+    const int64_t minVisits = std::max<int64_t>(1, searchParams.includeMovesMinVisits);
+    for(Loc moveLoc: includeMoves) {
+      if(!isLegalRootIncludeMove(moveLoc))
+        continue;
+
+      int movePos = getPos(moveLoc);
+      if(movePos < 0 || movePos >= policySize)
+        continue;
+
+      bool found = false;
+      for(int i = 0; i<childrenCapacity; i++) {
+        const SearchChildPointer& childPointer = children[i];
+        const SearchNode* child = childPointer.getIfAllocated();
+        if(child == NULL)
+          break;
+        if(childPointer.getMoveLocRelaxed() == moveLoc) {
+          found = true;
+          if(childPointer.getEdgeVisits() < minVisits) {
+            bestChildIdx = i;
+            bestChildMoveLoc = moveLoc;
+            countEdgeVisit = true;
+            thread.shouldCountPlayout = true;
+            return;
+          }
+          break;
+        }
+      }
+
+      if(!found && !posesWithChildBuf[movePos]) {
+        bestChildIdx = numChildrenFound;
+        bestChildMoveLoc = moveLoc;
+        countEdgeVisit = true;
+        thread.shouldCountPlayout = true;
+        return;
+      }
+    }
+  }
+
   //Try all the things in the eval cache that are moves we haven't visited yet.
   //Use the normal new explore selection value for them but with their eval cache utility instead of FPU.
   //Might explore things out of descending policy order!

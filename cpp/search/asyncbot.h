@@ -46,6 +46,14 @@ class AsyncBot {
   void setKomiIfNew(float newKomi);
   void setRootHintLoc(Loc loc);
   void setAvoidMoveUntilByLoc(const std::vector<int>& bVec, const std::vector<int>& wVec);
+  // Purpose: Set root moves that the next search must visit at least includeMovesMinVisits times.
+  // Params: bVec contains black include moves, wVec contains white include moves.
+  // Return: None.
+  void setIncludeMoves(const std::vector<Loc>& bVec, const std::vector<Loc>& wVec);
+  // Purpose: Set every legal non-pass root move to receive at least includeMovesMinVisits times.
+  // Params: None.
+  // Return: None.
+  void setIncludeAllLegalMoves();
   void setAvoidMoveUntilRescaleRoot(bool b);
   void setAlwaysIncludeOwnerMap(bool b);
   void setParams(SearchParams params);

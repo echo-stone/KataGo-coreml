@@ -78,6 +78,20 @@ bool Search::getPlaySelectionValues(
   double totalChildWeight = 0.0;
   const bool suppressPass = shouldSuppressPass(&node);
 
+  // Purpose: Check whether moveLoc is one of the root includeMoves whose already-created child should remain reportable.
+  // Params: moveLoc is the root move location to check.
+  // Return: True if this is the root node and moveLoc appears in the includeMoves list for rootPla.
+  auto isRootIncludedMove = [&](Loc moveLoc) {
+    if(&node != rootNode)
+      return false;
+    const vector<Loc>& includeMoves = rootPla == P_BLACK ? includeMovesBlack : includeMovesWhite;
+    for(Loc includeMoveLoc: includeMoves) {
+      if(includeMoveLoc == moveLoc)
+        return true;
+    }
+    return false;
+  };
+
   //Store up basic weights
   ConstSearchNodeChildrenReference children = node.getChildren();
   const int childrenCapacity = children.getCapacity();
@@ -98,7 +112,7 @@ bool Search::getPlaySelectionValues(
     // Also if we're suppressing passes.
     // We always push a value on to playSelectionValues even if that value is 0,
     // because some callers rely on this to line up with the raw indices in the children array of the node.
-    if((suppressPass && moveLoc == Board::PASS_LOC) || policyProbs[getPos(moveLoc)] < 0) {
+    if((suppressPass && moveLoc == Board::PASS_LOC) || (policyProbs[getPos(moveLoc)] < 0 && !isRootIncludedMove(moveLoc))) {
       playSelectionValues.push_back(0.0);
       if(retVisitCounts != NULL)
         (*retVisitCounts).push_back(0.0);
@@ -181,14 +195,16 @@ bool Search::getPlaySelectionValues(
       }
       if(i != nonLCBBestIdx) {
         int64_t edgeVisits = childPointer.getEdgeVisits();
-        double reduced = getReducedPlaySelectionWeight(
-          node, policyProbs, child,
-          moveLoc,
-          exploreScaling,
-          edgeVisits,
-          bestChildExploreSelectionValue
-        );
-        playSelectionValues[i] = ceil(reduced);
+        if(!(isRootIncludedMove(moveLoc) && policyProbs[getPos(moveLoc)] < 0)) {
+          double reduced = getReducedPlaySelectionWeight(
+            node, policyProbs, child,
+            moveLoc,
+            exploreScaling,
+            edgeVisits,
+            bestChildExploreSelectionValue
+          );
+          playSelectionValues[i] = ceil(reduced);
+        }
       }
     }
   }

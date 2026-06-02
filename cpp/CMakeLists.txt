@@ -32,7 +32,7 @@ endif()
 set(BUILD_DISTRIBUTED 0 CACHE BOOL "Build with http support for contributing to distributed training")
 set(USE_BACKEND CACHE STRING "Neural net backend")
 string(TOUPPER "${USE_BACKEND}" USE_BACKEND)
-set_property(CACHE USE_BACKEND PROPERTY STRINGS "" CUDA TENSORRT OPENCL EIGEN)
+set_property(CACHE USE_BACKEND PROPERTY STRINGS "" CUDA TENSORRT OPENCL EIGEN METAL)
 
 set(USE_TCMALLOC 0 CACHE BOOL "Use TCMalloc")
 set(NO_GIT_REVISION 0 CACHE BOOL "Disable embedding the git revision into the compiled exe")
@@ -110,13 +110,18 @@ elseif(USE_BACKEND STREQUAL "METAL")
   set(CMAKE_OSX_DEPLOYMENT_TARGET 13.0)
   set(NEURALNET_BACKEND_SOURCES
     neuralnet/metalbackend.cpp
+    neuralnet/coremlbackend.cpp
     )
   _swift_generate_cxx_header_target(
     KataGoSwift_Swift_h
     KataGoSwift
     "${CMAKE_CURRENT_BINARY_DIR}/include/KataGoSwift/KataGoSwift-swift.h"
-    SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/neuralnet/metalbackend.swift")
+    SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/neuralnet/coremlbackend.swift"
+    "${CMAKE_CURRENT_SOURCE_DIR}/neuralnet/coremlmodel.swift"
+    "${CMAKE_CURRENT_SOURCE_DIR}/neuralnet/metalbackend.swift")
   add_library(KataGoSwift STATIC
+    neuralnet/coremlbackend.swift
+    neuralnet/coremlmodel.swift
     neuralnet/metalbackend.swift)
   add_dependencies(KataGoSwift KataGoSwift_Swift_h)
   target_include_directories(KataGoSwift PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/include")
@@ -397,7 +402,7 @@ elseif(USE_BACKEND STREQUAL "TENSORRT")
   include_directories(SYSTEM ${CUDAToolkit_INCLUDE_DIRS} ${TENSORRT_INCLUDE_DIR}) #SYSTEM is for suppressing some compiler warnings in thrust libraries
   target_link_libraries(katago CUDA::cudart_static ${TENSORRT_LIBRARY})
 elseif(USE_BACKEND STREQUAL "METAL")
-  target_compile_definitions(katago PRIVATE USE_METAL_BACKEND)
+  target_compile_definitions(katago PRIVATE USE_COREML_BACKEND)
   target_link_libraries(katago KataGoSwift)
   if("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "x86_64")
     message(WARNING "You are currently running cmake on an Intel-based processor. It is known that running KataGo in this configuration may encounter performance issues. It is recommended to switch to a cmake version designed for ARM64 architecture for optimal performance.")
@@ -590,4 +595,3 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "C
 endif()
 
 target_include_directories(katago PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-

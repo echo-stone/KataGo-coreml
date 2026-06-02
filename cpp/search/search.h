@@ -95,6 +95,10 @@ struct Search {
   std::vector<int> avoidMoveUntilByLocWhite;
   bool avoidMoveUntilRescaleRoot; // When avoiding moves at the root, rescale the root policy to sum to 1.
 
+  //External user-specified root moves that should each receive at least includeMovesMinVisits edge visits.
+  std::vector<Loc> includeMovesBlack;
+  std::vector<Loc> includeMovesWhite;
+
   //If rootSymmetryPruning==true and the board is symmetric, mask all the equivalent copies of each move except one.
   bool rootSymDupLoc[Board::MAX_ARR_SIZE];
   //If rootSymmetryPruning==true, symmetries under which the root board and history are invariant, including some heuristics for ko and encore-related state.
@@ -225,6 +229,14 @@ struct Search {
   void setKomiIfNew(float newKomi); //Does not clear history, does clear search unless komi is equal.
   void setRootHintLoc(Loc hintLoc);
   void setAvoidMoveUntilByLoc(const std::vector<int>& bVec, const std::vector<int>& wVec);
+  // Purpose: Replace the per-player root moves that must receive guaranteed visits.
+  // Params: bVec contains black moves, wVec contains white moves, both in root board coordinates.
+  // Return: None.
+  void setIncludeMoves(const std::vector<Loc>& bVec, const std::vector<Loc>& wVec);
+  // Purpose: Replace includeMoves with every legal non-pass move for the current root player.
+  // Params: None.
+  // Return: None.
+  void setIncludeAllLegalMoves();
   void setAvoidMoveUntilRescaleRoot(bool b);
   void setAlwaysIncludeOwnerMap(bool b);
   void setRootSymmetryPruningOnly(const std::vector<int>& rootPruneOnlySymmetries);
@@ -419,6 +431,21 @@ private:
   static constexpr double POLICY_ILLEGAL_SELECTION_VALUE = -1e50;
   static constexpr double FUTILE_VISITS_PRUNE_VALUE = -1e40;
   static constexpr double EVALUATING_SELECTION_VALUE_PENALTY = 1e20;
+
+  // Purpose: Check whether a root include move is playable in the current root position.
+  // Params: moveLoc is the root move location to validate.
+  // Return: True if moveLoc is a legal move for rootPla, otherwise false.
+  bool isLegalRootIncludeMove(Loc moveLoc) const;
+
+  // Purpose: Check whether any requested root include move still needs forced visits.
+  // Params: None.
+  // Return: True if at least one legal include move has fewer than includeMovesMinVisits root edge visits.
+  bool hasIncludeMovesNeedingMoreVisits() const;
+
+  // Purpose: Count root visits that came from satisfying includeMoves guarantees.
+  // Params: None.
+  // Return: Sum over include moves of min(edge visits, includeMovesMinVisits).
+  int64_t getIncludeMovesGuaranteedVisits() const;
 
   //----------------------------------------------------------------------------------------
   // Dirichlet noise and temperature

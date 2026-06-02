@@ -2456,6 +2456,201 @@ x.x.x
 
   {
     cout << "===================================================================" << endl;
+    cout << "includeMoves root visit guarantees" << endl;
+    cout << "===================================================================" << endl;
+
+    // Analysis CLI e2e requires a real NN backend to load model files; this test build uses
+    // the dummy backend, so this block verifies the search-level includeMoves contract instead.
+    NNEvaluator* nnEval = startNNEval(modelFile,logger,"includeMovesRootGuarantees",9,9,0,true,false,false,true,false);
+
+    Board board = Board::parseBoard(9,9,R"%%(
+.........
+.........
+.........
+.........
+.........
+.........
+.........
+.........
+.........
+)%%");
+    Player nextPla = P_BLACK;
+    Rules rules = Rules::getTrompTaylorish();
+    BoardHistory hist(board,nextPla,rules,0);
+
+    // Purpose: Return the root edge-visit count for a move in the current root tree.
+    // Params: search is the completed search to inspect, loc is the move to find.
+    // Return: The edge visits for loc, or zero if loc has not been expanded at the root.
+    auto getRootEdgeVisits = [](const Search* search, Loc loc) {
+      ConstSearchNodeChildrenReference children = search->rootNode->getChildren();
+      int childrenCapacity = children.getCapacity();
+      for(int i = 0; i<childrenCapacity; i++) {
+        const SearchChildPointer& childPointer = children[i];
+        const SearchNode* child = childPointer.getIfAllocated();
+        if(child == NULL)
+          break;
+        if(childPointer.getMoveLocRelaxed() == loc)
+          return childPointer.getEdgeVisits();
+      }
+      return (int64_t)0;
+    };
+
+    // Purpose: Find the play selection value and reported visit count for a root move.
+    // Params: search is the completed search to inspect, loc is the move to find, selectionValue and visitCount receive outputs.
+    // Return: True if loc appears in the root play-selection list, otherwise false.
+    auto getRootPlaySelectionValue = [](Search* search, Loc loc, double& selectionValue, double& visitCount) {
+      vector<Loc> locs;
+      vector<double> playSelectionValues;
+      vector<double> visitCounts;
+      bool suc = search->getPlaySelectionValues(locs,playSelectionValues,&visitCounts,1.0);
+      testAssert(suc);
+      testAssert(locs.size() == playSelectionValues.size());
+      testAssert(locs.size() == visitCounts.size());
+      for(size_t i = 0; i<locs.size(); i++) {
+        if(locs[i] == loc) {
+          selectionValue = playSelectionValues[i];
+          visitCount = visitCounts[i];
+          return true;
+        }
+      }
+      return false;
+    };
+
+    vector<Loc> includeMovesBlack = {
+      Location::ofString("A1",board),
+      Location::ofString("B2",board),
+      Location::ofString("C3",board),
+    };
+    vector<Loc> includeMovesWhite;
+
+    {
+      SearchParams params;
+      params.maxVisits = 1;
+      params.maxPlayouts = 1;
+      params.includeMovesMinVisits = 1;
+      Search* search = new Search(params, nnEval, &logger, "includeMovesMaxVisits");
+      search->setPosition(nextPla,board,hist);
+      search->setIncludeMoves(includeMovesBlack,includeMovesWhite);
+      search->runWholeSearch(nextPla);
+
+      for(Loc loc: includeMovesBlack)
+        testAssert(getRootEdgeVisits(search,loc) >= 1);
+
+      delete search;
+    }
+
+    {
+      SearchParams params;
+      params.maxVisits = 2;
+      params.maxPlayouts = 2;
+      params.includeMovesMinVisits = 3;
+      Search* search = new Search(params, nnEval, &logger, "includeMovesMinVisits");
+      search->setPosition(nextPla,board,hist);
+      search->setIncludeMoves(includeMovesBlack,includeMovesWhite);
+      search->runWholeSearch(nextPla);
+
+      for(Loc loc: includeMovesBlack)
+        testAssert(getRootEdgeVisits(search,loc) >= 3);
+
+      delete search;
+    }
+
+    {
+      SearchParams params;
+      params.maxVisits = 2;
+      params.maxPlayouts = 2;
+      params.includeMovesMinVisits = 3;
+      Search* search = new Search(params, nnEval, &logger, "includeMovesSelectionValue");
+      search->setPosition(nextPla,board,hist);
+      search->setIncludeMoves(includeMovesBlack,includeMovesWhite);
+      search->runWholeSearch(nextPla);
+
+      Loc includeLoc = includeMovesBlack[0];
+      testAssert(getRootEdgeVisits(search,includeLoc) >= 3);
+
+      NNOutput* rootOutput = search->rootNode->getNNOutput();
+      testAssert(rootOutput != NULL);
+      rootOutput->policyProbs[search->getPos(includeLoc)] = -1.0f;
+
+      double selectionValue = 0.0;
+      double visitCount = 0.0;
+      testAssert(getRootPlaySelectionValue(search,includeLoc,selectionValue,visitCount));
+      testAssert(selectionValue > 0.0);
+      testAssert(visitCount >= 1.0);
+
+      delete search;
+    }
+
+    {
+      Board allLegalBoard = Board::parseBoard(5,5,R"%%(
+.....
+.....
+.....
+.....
+.....
+)%%");
+      BoardHistory allLegalHist(allLegalBoard,nextPla,rules,0);
+
+      SearchParams params;
+      params.maxVisits = 1;
+      params.maxPlayouts = 1;
+      params.includeMovesMinVisits = 1;
+      Search* search = new Search(params, nnEval, &logger, "includeAllLegalMovesDefaultMinVisits");
+      search->setPosition(nextPla,allLegalBoard,allLegalHist);
+      search->setIncludeAllLegalMoves();
+      search->runWholeSearch(nextPla);
+
+      for(int y = 0; y<allLegalBoard.y_size; y++) {
+        for(int x = 0; x<allLegalBoard.x_size; x++) {
+          Loc loc = Location::getLoc(x,y,allLegalBoard.x_size);
+          testAssert(allLegalHist.isLegal(allLegalBoard,loc,nextPla));
+          testAssert(getRootEdgeVisits(search,loc) >= 1);
+        }
+      }
+      testAssert(getRootEdgeVisits(search,Board::PASS_LOC) == 0);
+
+      delete search;
+    }
+
+    {
+      Board allLegalBoard = Board::parseBoard(5,5,R"%%(
+.....
+.....
+..X..
+.....
+.....
+)%%");
+      BoardHistory allLegalHist(allLegalBoard,nextPla,rules,0);
+
+      SearchParams params;
+      params.maxVisits = 1;
+      params.maxPlayouts = 1;
+      params.includeMovesMinVisits = 2;
+      Search* search = new Search(params, nnEval, &logger, "includeAllLegalMovesMinVisits");
+      search->setPosition(nextPla,allLegalBoard,allLegalHist);
+      search->setIncludeAllLegalMoves();
+      search->runWholeSearch(nextPla);
+
+      for(int y = 0; y<allLegalBoard.y_size; y++) {
+        for(int x = 0; x<allLegalBoard.x_size; x++) {
+          Loc loc = Location::getLoc(x,y,allLegalBoard.x_size);
+          if(allLegalHist.isLegal(allLegalBoard,loc,nextPla))
+            testAssert(getRootEdgeVisits(search,loc) >= 2);
+          else
+            testAssert(getRootEdgeVisits(search,loc) == 0);
+        }
+      }
+      testAssert(getRootEdgeVisits(search,Board::PASS_LOC) == 0);
+
+      delete search;
+    }
+
+    delete nnEval;
+    cout << endl;
+  }
+
+  {
+    cout << "===================================================================" << endl;
     cout << "Uninitialized search params" << endl;
     cout << "===================================================================" << endl;
     SearchParams params;
@@ -2552,5 +2747,3 @@ x.x.x
   NeuralNet::globalCleanup();
   cout << "Done" << endl;
 }
-
-

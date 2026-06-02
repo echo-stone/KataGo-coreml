@@ -35,6 +35,18 @@ static string makeSeed(const Search& search, int threadIdx) {
   return ss.str();
 }
 
+// Purpose: Remove duplicate moves while preserving the caller's requested order.
+// Params: moves is the possibly duplicated move list.
+// Return: A move list with only the first occurrence of each location.
+static vector<Loc> dedupeMovesPreservingOrder(const vector<Loc>& moves) {
+  vector<Loc> ret;
+  for(Loc moveLoc: moves) {
+    if(std::find(ret.begin(),ret.end(),moveLoc) == ret.end())
+      ret.push_back(moveLoc);
+  }
+  return ret;
+}
+
 SearchThread::SearchThread(int tIdx, const Search& search)
   :threadIdx(tIdx),
    pla(search.rootPla),board(search.rootBoard),
@@ -75,6 +87,7 @@ Search::Search(SearchParams params, NNEvaluator* nnEval, NNEvaluator* humanEval,
    rootGraphHash(),
    rootHintLoc(Board::NULL_LOC),
    avoidMoveUntilByLocBlack(),avoidMoveUntilByLocWhite(),avoidMoveUntilRescaleRoot(false),
+   includeMovesBlack(),includeMovesWhite(),
    rootSymmetries(),
    rootPruneOnlySymmetries(),
    rootSafeArea(NULL),
@@ -184,6 +197,8 @@ void Search::setPosition(Player pla, const Board& board, const BoardHistory& his
   rootKoHashTable->recompute(rootHistory);
   avoidMoveUntilByLocBlack.clear();
   avoidMoveUntilByLocWhite.clear();
+  includeMovesBlack.clear();
+  includeMovesWhite.clear();
 }
 
 void Search::setPlayerAndClearHistory(Player pla) {
@@ -224,6 +239,38 @@ void Search::setAvoidMoveUntilByLoc(const std::vector<int>& bVec, const std::vec
   clearSearch();
   avoidMoveUntilByLocBlack = bVec;
   avoidMoveUntilByLocWhite = wVec;
+}
+
+// Purpose: Replace the per-player root moves that must receive guaranteed visits.
+// Params: bVec contains black moves, wVec contains white moves, both in root board coordinates.
+// Return: None.
+void Search::setIncludeMoves(const std::vector<Loc>& bVec, const std::vector<Loc>& wVec) {
+  vector<Loc> bDeduped = dedupeMovesPreservingOrder(bVec);
+  vector<Loc> wDeduped = dedupeMovesPreservingOrder(wVec);
+  if(includeMovesBlack == bDeduped && includeMovesWhite == wDeduped)
+    return;
+  clearSearch();
+  includeMovesBlack = std::move(bDeduped);
+  includeMovesWhite = std::move(wDeduped);
+}
+
+// Purpose: Replace includeMoves with every legal non-pass move for the current root player.
+// Params: None.
+// Return: None.
+void Search::setIncludeAllLegalMoves() {
+  vector<Loc> bVec;
+  vector<Loc> wVec;
+  if(rootPla == P_BLACK || rootPla == P_WHITE) {
+    vector<Loc>& includeMoves = rootPla == P_BLACK ? bVec : wVec;
+    for(int y = 0; y<rootBoard.y_size; y++) {
+      for(int x = 0; x<rootBoard.x_size; x++) {
+        Loc moveLoc = Location::getLoc(x,y,rootBoard.x_size);
+        if(isLegalRootIncludeMove(moveLoc))
+          includeMoves.push_back(moveLoc);
+      }
+    }
+  }
+  setIncludeMoves(bVec,wVec);
 }
 
 void Search::setAvoidMoveUntilRescaleRoot(bool b) {
@@ -396,6 +443,8 @@ bool Search::makeMove(Loc moveLoc, Player movePla, bool preventEncore) {
   //Explicitly clear avoid move arrays when we play a move - user needs to respecify them if they want them.
   avoidMoveUntilByLocBlack.clear();
   avoidMoveUntilByLocWhite.clear();
+  includeMovesBlack.clear();
+  includeMovesWhite.clear();
 
   //If we're newly inferring some moves as handicap that we weren't before, clear since score will be wrong.
   if(rootHistory.whiteHandicapBonusScore != oldWhiteHandicapBonusScore)
@@ -534,9 +583,17 @@ void Search::runWholeSearch(
         if(hasTc)
           tcMaxTimeLimit = tcMaxTime.load(std::memory_order_acquire);
 
+        int64_t guaranteedVisits = getIncludeMovesGuaranteedVisits();
+        int64_t nonGuaranteedPlayouts = numPlayouts - guaranteedVisits;
+        if(nonGuaranteedPlayouts < 0)
+          nonGuaranteedPlayouts = 0;
+        int64_t nonGuaranteedVisits = numPlayouts + numNonPlayoutVisits - guaranteedVisits;
+        if(nonGuaranteedVisits < 0)
+          nonGuaranteedVisits = 0;
+        bool needsMoreIncludeVisits = hasIncludeMovesNeedingMoreVisits();
         bool shouldStop =
-          (numPlayouts >= maxPlayouts) ||
-          (numPlayouts + numNonPlayoutVisits >= maxVisits);
+          !needsMoreIncludeVisits &&
+          ((nonGuaranteedPlayouts >= maxPlayouts) || (nonGuaranteedVisits >= maxVisits));
 
         //Time limits cannot stop us from doing at least a little search so we have a non-null tree
         if(hasMaxTime && numPlayouts >= 2 && timeUsed >= maxTime)
@@ -566,8 +623,15 @@ void Search::runWholeSearch(
         double upperBoundVisitsLeft = 1e30;
         if(hasTc)
           upperBoundVisitsLeft = upperBoundVisitsLeftDueToTime.load(std::memory_order_acquire);
-        upperBoundVisitsLeft = std::min(upperBoundVisitsLeft, (double)maxPlayouts - numPlayouts);
-        upperBoundVisitsLeft = std::min(upperBoundVisitsLeft, (double)maxVisits - numPlayouts - numNonPlayoutVisits);
+        int64_t guaranteedVisitsForBound = getIncludeMovesGuaranteedVisits();
+        int64_t nonGuaranteedPlayoutsForBound = numPlayouts - guaranteedVisitsForBound;
+        if(nonGuaranteedPlayoutsForBound < 0)
+          nonGuaranteedPlayoutsForBound = 0;
+        int64_t nonGuaranteedVisitsForBound = numPlayouts + numNonPlayoutVisits - guaranteedVisitsForBound;
+        if(nonGuaranteedVisitsForBound < 0)
+          nonGuaranteedVisitsForBound = 0;
+        upperBoundVisitsLeft = std::min(upperBoundVisitsLeft, (double)maxPlayouts - nonGuaranteedPlayoutsForBound);
+        upperBoundVisitsLeft = std::min(upperBoundVisitsLeft, (double)maxVisits - nonGuaranteedVisitsForBound);
 
         bool finishedPlayout = runSinglePlayout(*stbuf, upperBoundVisitsLeft);
         if(finishedPlayout) {
@@ -614,6 +678,93 @@ void Search::runWholeSearch(
   //Relaxed load is fine since numPlayoutsShared should be synchronized already due to the joins
   lastSearchNumPlayouts = numPlayoutsShared.load(std::memory_order_relaxed);
   effectiveSearchTimeCarriedOver += timer.getSeconds() - actualSearchStartTime;
+}
+
+// Purpose: Check whether a root include move is playable in the current root position.
+// Params: moveLoc is the root move location to validate.
+// Return: True if moveLoc is a legal move for rootPla, otherwise false.
+bool Search::isLegalRootIncludeMove(Loc moveLoc) const {
+  if(rootPla != P_BLACK && rootPla != P_WHITE)
+    return false;
+  if(moveLoc <= Board::NULL_LOC || moveLoc >= Board::MAX_ARR_SIZE)
+    return false;
+  if(moveLoc != Board::PASS_LOC && !rootBoard.isOnBoard(moveLoc))
+    return false;
+  return rootHistory.isLegal(rootBoard,moveLoc,rootPla);
+}
+
+// Purpose: Check whether any requested root include move still needs forced visits.
+// Params: None.
+// Return: True if at least one legal include move has fewer than includeMovesMinVisits root edge visits.
+bool Search::hasIncludeMovesNeedingMoreVisits() const {
+  if(rootNode == NULL)
+    return false;
+
+  const vector<Loc>& includeMoves = rootPla == P_BLACK ? includeMovesBlack : includeMovesWhite;
+  if(includeMoves.empty())
+    return false;
+
+  const int64_t minVisits = std::max<int64_t>(1, searchParams.includeMovesMinVisits);
+  ConstSearchNodeChildrenReference children = rootNode->getChildren();
+  int childrenCapacity = children.getCapacity();
+
+  for(Loc moveLoc: includeMoves) {
+    if(!isLegalRootIncludeMove(moveLoc))
+      continue;
+
+    bool found = false;
+    for(int i = 0; i<childrenCapacity; i++) {
+      const SearchChildPointer& childPointer = children[i];
+      const SearchNode* child = childPointer.getIfAllocated();
+      if(child == NULL)
+        break;
+      if(childPointer.getMoveLocRelaxed() == moveLoc) {
+        found = true;
+        if(childPointer.getEdgeVisits() < minVisits)
+          return true;
+        break;
+      }
+    }
+    if(!found)
+      return true;
+  }
+
+  return false;
+}
+
+// Purpose: Count root visits that came from satisfying includeMoves guarantees.
+// Params: None.
+// Return: Sum over include moves of min(edge visits, includeMovesMinVisits).
+int64_t Search::getIncludeMovesGuaranteedVisits() const {
+  if(rootNode == NULL)
+    return 0;
+
+  const vector<Loc>& includeMoves = rootPla == P_BLACK ? includeMovesBlack : includeMovesWhite;
+  if(includeMoves.empty())
+    return 0;
+
+  const int64_t minVisits = std::max<int64_t>(1, searchParams.includeMovesMinVisits);
+  int64_t total = 0;
+  ConstSearchNodeChildrenReference children = rootNode->getChildren();
+  int childrenCapacity = children.getCapacity();
+
+  for(Loc moveLoc: includeMoves) {
+    if(!isLegalRootIncludeMove(moveLoc))
+      continue;
+
+    for(int i = 0; i<childrenCapacity; i++) {
+      const SearchChildPointer& childPointer = children[i];
+      const SearchNode* child = childPointer.getIfAllocated();
+      if(child == NULL)
+        break;
+      if(childPointer.getMoveLocRelaxed() == moveLoc) {
+        total += std::min(childPointer.getEdgeVisits(), minVisits);
+        break;
+      }
+    }
+  }
+
+  return total;
 }
 
 //If we're being asked to search from a position where the game is over, this is fine. Just keep going, the boardhistory

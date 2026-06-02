@@ -52,6 +52,7 @@ SearchParams::SearchParams()
    rootSymmetryPruning(false),
    rootDesiredPerChildVisitsCoeff(0.0),
    rootPolicyOptimism(0.0),
+   includeMovesMinVisits(1),
    chosenMoveTemperature(0.0),
    chosenMoveTemperatureEarly(0.0),
    chosenMoveTemperatureHalflife(19),
@@ -176,6 +177,7 @@ bool SearchParams::operator==(const SearchParams& other) const {
     rootDesiredPerChildVisitsCoeff == other.rootDesiredPerChildVisitsCoeff &&
 
     rootPolicyOptimism == other.rootPolicyOptimism &&
+    includeMovesMinVisits == other.includeMovesMinVisits &&
 
     chosenMoveTemperature == other.chosenMoveTemperature &&
     chosenMoveTemperatureEarly == other.chosenMoveTemperatureEarly &&
@@ -583,6 +585,7 @@ void SearchParams::printParams(std::ostream& out) const {
   PRINTPARAM(rootDesiredPerChildVisitsCoeff);
 
   PRINTPARAM(rootPolicyOptimism);
+  PRINTPARAM(includeMovesMinVisits);
 
   PRINTPARAM(chosenMoveTemperature);
   PRINTPARAM(chosenMoveTemperatureEarly);
