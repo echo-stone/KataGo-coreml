@@ -1,0 +1,66 @@
+: Running with following config:
+cudaUseFP16 = false
+cudaUseNHWC = false
+forDeterministicTesting = true
+logAllRequests = true
+logAllResponses = true
+logFile = tests/results/analysis/final_score.txt.log
+logSearchInfo = true
+logTimeStamp = false
+maxPlayouts = 10000
+maxVisits = 100
+nnCacheSizePowerOfTwo = 23
+nnMaxBatchSize = 64
+nnMutexPoolSizePowerOfTwo = 17
+nnRandSeed = analysisTest
+nnRandomize = false
+numAnalysisThreads = 1
+numSearchThreads = 1
+openclUseFP16 = false
+reportAnalysisWinratesAs = BLACK
+rootSymmetryPruning = false
+trtUseFP16 = false
+
+: Analysis Engine starting...
+: KataGo v1.16.4
+: nnRandSeed0 = analysisTest
+: After dedups: nnModelFile0 = tests/models/g170-b6c96-s175395328-d26788732.bin.gz useFP16 auto useNHWC auto
+: Initializing neural net buffer to be size 19 * 19 allowing smaller boards
+Metal backend 0: Apple M4 Max, Model version 8 g170-b6c96-s175395328-d26788732, 19x19
+: Loaded config configs/analysis_example.cfg and/or command-line and query overrides
+: Loaded model tests/models/g170-b6c96-s175395328-d26788732.bin.gz
+: Config override: cudaUseFP16 = false
+: Config override: cudaUseNHWC = false
+: Config override: forDeterministicTesting = true
+: Config override: logAllRequests = true
+: Config override: logAllResponses = true
+: Config override: logDir = 
+: Config override: logFile = tests/results/analysis/final_score.txt.log
+: Config override: logSearchInfo = true
+: Config override: logTimeStamp = false
+: Config override: maxPlayouts = 10000
+: Config override: maxVisits = 100
+: Config override: nnRandSeed = analysisTest
+: Config override: nnRandomize = false
+: Config override: numAnalysisThreads = 1
+: Config override: numSearchThreadsPerAnalysisThread = 1
+: Config override: openclUseFP16 = false
+: Config override: rootSymmetryPruning = false
+: Config override: trtUseFP16 = false
+: Analyzing up to 1 positions at a time in parallel
+: Started, ready to begin handling requests
+: Request: {"id":"final-empty","action":"final_score","initialStones":[],"moves":[],"rules":"tromp-taylor","komi":7.5,"boardXSize":9,"boardYSize":9,"overrideSettings":{"maxVisits":10}}
+: Request: {"id":"final-turns","action":"final_score","initialStones":[],"moves":[["B","D4"],["W","F6"],["B","D6"]],"rules":"chinese","komi":7.5,"boardXSize":9,"boardYSize":9,"analyzeTurns":[0,2,3],"overrideSettings":{"maxVisits":10}}
+: Request: {"id":"final-bad","action":"final_score","initialStones":[],"moves":[["B","not-a-point"]],"rules":"chinese","komi":7.5,"boardXSize":9,"boardYSize":9}
+: Error: {"error":"Could not parse board location: not-a-point","field":"moves","id":"final-bad"}
+: Response: {"error":"Could not parse board location: not-a-point","field":"moves","id":"final-bad"}
+: Response: {"action":"final_score","finalScore":"W+0.5","finalWhiteMinusBlackScore":0.5,"id":"final-empty","isDuringSearch":false,"scoreSource":"estimated","turnNumber":0,"winner":"W"}
+: Response: {"action":"final_score","finalScore":"W+0.5","finalWhiteMinusBlackScore":0.5,"id":"final-turns","isDuringSearch":false,"scoreSource":"estimated","turnNumber":0,"winner":"W"}
+: Response: {"action":"final_score","finalScore":"W+1.5","finalWhiteMinusBlackScore":1.5,"id":"final-turns","isDuringSearch":false,"scoreSource":"estimated","turnNumber":2,"winner":"W"}
+: Response: {"action":"final_score","finalScore":"W+1.5","finalWhiteMinusBlackScore":1.5,"id":"final-turns","isDuringSearch":false,"scoreSource":"estimated","turnNumber":3,"winner":"W"}
+: tests/models/g170-b6c96-s175395328-d26788732.bin.gz
+: NN rows: 913
+: NN batches: 913
+: NN avg batch size: 1
+: GPU -1 finishing, processed 913 rows 913 batches
+: All cleaned up, quitting

@@ -1,0 +1,3 @@
+{"id":"final-empty","action":"final_score","initialStones":[],"moves":[],"rules":"tromp-taylor","komi":7.5,"boardXSize":9,"boardYSize":9,"overrideSettings":{"maxVisits":10}}
+{"id":"final-turns","action":"final_score","initialStones":[],"moves":[["B","D4"],["W","F6"],["B","D6"]],"rules":"chinese","komi":7.5,"boardXSize":9,"boardYSize":9,"analyzeTurns":[0,2,3],"overrideSettings":{"maxVisits":10}}
+{"id":"final-bad","action":"final_score","initialStones":[],"moves":[["B","not-a-point"]],"rules":"chinese","komi":7.5,"boardXSize":9,"boardYSize":9}
