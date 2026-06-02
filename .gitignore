@@ -90,3 +90,12 @@ cpp/.ninja_log
 cpp/build.ninja
 cpp/KataGoSwift.*
 cpp/include/KataGoSwift/KataGoSwift-swift.h
+
+# Local assistant settings
+**/.claude/settings.local.json
+
+# Local model export artifacts
+model.ckpt
+model/
+
+.worktrees/
