@@ -1,5 +1,6 @@
 {"error":"Could not parse board location: not-a-point","field":"moves","id":"final-bad"}
 {"action":"final_score","finalScore":"W+0.5","finalWhiteMinusBlackScore":0.5,"id":"final-empty","isDuringSearch":false,"scoreSource":"estimated","turnNumber":0,"winner":"W"}
+{"action":"final_score","finalScore":"W+7.5","finalWhiteMinusBlackScore":7.5,"id":"final-finished","isDuringSearch":false,"scoreSource":"finished","turnNumber":2,"winner":"W"}
 {"action":"final_score","finalScore":"W+0.5","finalWhiteMinusBlackScore":0.5,"id":"final-turns","isDuringSearch":false,"scoreSource":"estimated","turnNumber":0,"winner":"W"}
 {"action":"final_score","finalScore":"W+1.5","finalWhiteMinusBlackScore":1.5,"id":"final-turns","isDuringSearch":false,"scoreSource":"estimated","turnNumber":2,"winner":"W"}
 {"action":"final_score","finalScore":"W+1.5","finalWhiteMinusBlackScore":1.5,"id":"final-turns","isDuringSearch":false,"scoreSource":"estimated","turnNumber":3,"winner":"W"}

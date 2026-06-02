@@ -353,6 +353,8 @@ The response does NOT include `moveInfos`, `rootInfo`, ownership, policy, or PV 
    * `finalWhiteMinusBlackScore (float)`: The numeric final score from White's perspective. Positive means White is ahead, negative means Black is ahead.
    * `scoreSource (string)`: `finished` if a direct game result is available under the same conditions as GTP `final_score`, otherwise `estimated`.
 
+If the request is terminated before any final score computation begins, KataGo may instead return the same `noResults` response described under `terminate`; in that case the final-score-specific fields above will be absent.
+
 Example response:
 ```json
 {"action":"final_score","finalScore":"W+0.5","finalWhiteMinusBlackScore":0.5,"id":"score1","isDuringSearch":false,"scoreSource":"estimated","turnNumber":2,"winner":"W"}

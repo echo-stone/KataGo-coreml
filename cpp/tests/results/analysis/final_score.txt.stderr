@@ -50,11 +50,13 @@ Metal backend 0: Apple M4 Max, Model version 8 g170-b6c96-s175395328-d26788732, 
 : Analyzing up to 1 positions at a time in parallel
 : Started, ready to begin handling requests
 : Request: {"id":"final-empty","action":"final_score","initialStones":[],"moves":[],"rules":"tromp-taylor","komi":7.5,"boardXSize":9,"boardYSize":9,"overrideSettings":{"maxVisits":10}}
+: Request: {"id":"final-finished","action":"final_score","initialStones":[],"moves":[["B","pass"],["W","pass"]],"rules":"tromp-taylor","komi":7.5,"boardXSize":9,"boardYSize":9,"overrideSettings":{"maxVisits":10}}
 : Request: {"id":"final-turns","action":"final_score","initialStones":[],"moves":[["B","D4"],["W","F6"],["B","D6"]],"rules":"chinese","komi":7.5,"boardXSize":9,"boardYSize":9,"analyzeTurns":[0,2,3],"overrideSettings":{"maxVisits":10}}
 : Request: {"id":"final-bad","action":"final_score","initialStones":[],"moves":[["B","not-a-point"]],"rules":"chinese","komi":7.5,"boardXSize":9,"boardYSize":9}
 : Error: {"error":"Could not parse board location: not-a-point","field":"moves","id":"final-bad"}
 : Response: {"error":"Could not parse board location: not-a-point","field":"moves","id":"final-bad"}
 : Response: {"action":"final_score","finalScore":"W+0.5","finalWhiteMinusBlackScore":0.5,"id":"final-empty","isDuringSearch":false,"scoreSource":"estimated","turnNumber":0,"winner":"W"}
+: Response: {"action":"final_score","finalScore":"W+7.5","finalWhiteMinusBlackScore":7.5,"id":"final-finished","isDuringSearch":false,"scoreSource":"finished","turnNumber":2,"winner":"W"}
 : Response: {"action":"final_score","finalScore":"W+0.5","finalWhiteMinusBlackScore":0.5,"id":"final-turns","isDuringSearch":false,"scoreSource":"estimated","turnNumber":0,"winner":"W"}
 : Response: {"action":"final_score","finalScore":"W+1.5","finalWhiteMinusBlackScore":1.5,"id":"final-turns","isDuringSearch":false,"scoreSource":"estimated","turnNumber":2,"winner":"W"}
 : Response: {"action":"final_score","finalScore":"W+1.5","finalWhiteMinusBlackScore":1.5,"id":"final-turns","isDuringSearch":false,"scoreSource":"estimated","turnNumber":3,"winner":"W"}
