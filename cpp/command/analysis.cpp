@@ -64,7 +64,7 @@ struct AnalyzeRequest {
   vector<Loc> includeMovesBlack;
   vector<Loc> includeMovesWhite;
   std::map<int, vector<IncludeMoveEntry>> includeMovesPerTurn;
-  bool includeAllLegalMoves;
+  bool includeAllMoves;
 
   //Starts with STATUS_IN_QUEUE.
   //Thread that grabs it from queue it changes it to STATUS_POPPED
@@ -267,7 +267,7 @@ int MainCmds::analysis(const vector<string>& args) {
     "allowMoves",
     "avoidMoves",
     "includeMoves",
-    "includeAllLegalMoves",
+    "includeAllMoves",
     "includeMovesMinVisits"
   };
 
@@ -383,8 +383,8 @@ int MainCmds::analysis(const vector<string>& args) {
         bot->setAlwaysIncludeOwnerMap(request->includeOwnership || request->includeOwnershipStdev || request->includeMovesOwnership || request->includeMovesOwnershipStdev);
         bot->setParams(request->params);
         bot->setAvoidMoveUntilByLoc(request->avoidMoveUntilByLocBlack,request->avoidMoveUntilByLocWhite);
-        if(request->includeAllLegalMoves)
-          bot->setIncludeAllLegalMoves();
+        if(request->includeAllMoves)
+          bot->setIncludeAllMoves();
         else
           bot->setIncludeMoves(request->includeMovesBlack,request->includeMovesWhite);
 
@@ -657,7 +657,7 @@ int MainCmds::analysis(const vector<string>& args) {
       rbase.includeMovesBlack.clear();
       rbase.includeMovesWhite.clear();
       rbase.includeMovesPerTurn.clear();
-      rbase.includeAllLegalMoves = false;
+      rbase.includeAllMoves = false;
 
       auto parseInteger = [&rbase,&reportErrorForId](const json& dict, const char* field, int64_t& buf, int64_t min, int64_t max, const char* errorMessage) {
         try {
@@ -1016,11 +1016,11 @@ int MainCmds::analysis(const vector<string>& args) {
         if(!suc)
           continue;
       }
-      if(input.find("includeAllLegalMoves") != input.end()) {
-        bool suc = parseBoolean(input, "includeAllLegalMoves", rbase.includeAllLegalMoves, "Must be a boolean");
+      if(input.find("includeAllMoves") != input.end()) {
+        bool suc = parseBoolean(input, "includeAllMoves", rbase.includeAllMoves, "Must be a boolean");
         if(!suc)
           continue;
-        if(rbase.includeAllLegalMoves && input.find("includeMovesMinVisits") == input.end())
+        if(rbase.includeAllMoves && input.find("includeMovesMinVisits") == input.end())
           rbase.params.includeMovesMinVisits = 1;
       }
 
@@ -1100,17 +1100,17 @@ int MainCmds::analysis(const vector<string>& args) {
 
       bool hasAllowMoves = input.find("allowMoves") != input.end();
       bool hasAvoidMoves = input.find("avoidMoves") != input.end();
-      if(rbase.includeAllLegalMoves) {
+      if(rbase.includeAllMoves) {
         if(input.find("includeMoves") != input.end()) {
-          reportErrorForId(rbase.id, "includeAllLegalMoves", string("Cannot specify both includeAllLegalMoves and includeMoves"));
+          reportErrorForId(rbase.id, "includeAllMoves", string("Cannot specify both includeAllMoves and includeMoves"));
           continue;
         }
         if(hasAllowMoves) {
-          reportErrorForId(rbase.id, "includeAllLegalMoves", string("Cannot specify both includeAllLegalMoves and allowMoves"));
+          reportErrorForId(rbase.id, "includeAllMoves", string("Cannot specify both includeAllMoves and allowMoves"));
           continue;
         }
         if(hasAvoidMoves) {
-          reportErrorForId(rbase.id, "includeAllLegalMoves", string("Cannot specify both includeAllLegalMoves and avoidMoves"));
+          reportErrorForId(rbase.id, "includeAllMoves", string("Cannot specify both includeAllMoves and avoidMoves"));
           continue;
         }
       }
@@ -1277,7 +1277,7 @@ int MainCmds::analysis(const vector<string>& args) {
           newRequest->avoidMoveUntilByLocWhite = rbase.avoidMoveUntilByLocWhite;
           newRequest->includeMovesBlack.clear();
           newRequest->includeMovesWhite.clear();
-          newRequest->includeAllLegalMoves = rbase.includeAllLegalMoves;
+          newRequest->includeAllMoves = rbase.includeAllMoves;
           auto includeMovesIt = rbase.includeMovesPerTurn.find(turnNumber);
           if(includeMovesIt != rbase.includeMovesPerTurn.end()) {
             for(const IncludeMoveEntry& entry: includeMovesIt->second) {

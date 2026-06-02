@@ -125,9 +125,9 @@ void AsyncBot::setIncludeMoves(const std::vector<Loc>& bVec, const std::vector<L
 // Purpose: Set every legal non-pass root move to receive at least includeMovesMinVisits times.
 // Params: None.
 // Return: None.
-void AsyncBot::setIncludeAllLegalMoves() {
+void AsyncBot::setIncludeAllMoves() {
   stopAndWait();
-  search->setIncludeAllLegalMoves();
+  search->setIncludeAllMoves();
 }
 void AsyncBot::setAvoidMoveUntilRescaleRoot(bool b) {
   stopAndWait();

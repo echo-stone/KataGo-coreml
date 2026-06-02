@@ -53,7 +53,7 @@ class AsyncBot {
   // Purpose: Set every legal non-pass root move to receive at least includeMovesMinVisits times.
   // Params: None.
   // Return: None.
-  void setIncludeAllLegalMoves();
+  void setIncludeAllMoves();
   void setAvoidMoveUntilRescaleRoot(bool b);
   void setAlwaysIncludeOwnerMap(bool b);
   void setParams(SearchParams params);

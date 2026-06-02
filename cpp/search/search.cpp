@@ -257,7 +257,7 @@ void Search::setIncludeMoves(const std::vector<Loc>& bVec, const std::vector<Loc
 // Purpose: Replace includeMoves with every legal non-pass move for the current root player.
 // Params: None.
 // Return: None.
-void Search::setIncludeAllLegalMoves() {
+void Search::setIncludeAllMoves() {
   vector<Loc> bVec;
   vector<Loc> wVec;
   if(rootPla == P_BLACK || rootPla == P_WHITE) {

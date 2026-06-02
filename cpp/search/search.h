@@ -236,7 +236,7 @@ struct Search {
   // Purpose: Replace includeMoves with every legal non-pass move for the current root player.
   // Params: None.
   // Return: None.
-  void setIncludeAllLegalMoves();
+  void setIncludeAllMoves();
   void setAvoidMoveUntilRescaleRoot(bool b);
   void setAlwaysIncludeOwnerMap(bool b);
   void setRootSymmetryPruningOnly(const std::vector<int>& rootPruneOnlySymmetries);

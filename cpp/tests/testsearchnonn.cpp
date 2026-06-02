@@ -2595,9 +2595,9 @@ x.x.x
       params.maxVisits = 1;
       params.maxPlayouts = 1;
       params.includeMovesMinVisits = 1;
-      Search* search = new Search(params, nnEval, &logger, "includeAllLegalMovesDefaultMinVisits");
+      Search* search = new Search(params, nnEval, &logger, "includeAllMovesDefaultMinVisits");
       search->setPosition(nextPla,allLegalBoard,allLegalHist);
-      search->setIncludeAllLegalMoves();
+      search->setIncludeAllMoves();
       search->runWholeSearch(nextPla);
 
       for(int y = 0; y<allLegalBoard.y_size; y++) {
@@ -2626,9 +2626,9 @@ x.x.x
       params.maxVisits = 1;
       params.maxPlayouts = 1;
       params.includeMovesMinVisits = 2;
-      Search* search = new Search(params, nnEval, &logger, "includeAllLegalMovesMinVisits");
+      Search* search = new Search(params, nnEval, &logger, "includeAllMovesMinVisits");
       search->setPosition(nextPla,allLegalBoard,allLegalHist);
-      search->setIncludeAllLegalMoves();
+      search->setIncludeAllMoves();
       search->runWholeSearch(nextPla);
 
       for(int y = 0; y<allLegalBoard.y_size; y++) {
