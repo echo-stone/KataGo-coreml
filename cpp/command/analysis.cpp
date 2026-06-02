@@ -468,8 +468,24 @@ int MainCmds::analysis(const vector<string>& args) {
       }
       //Else, the request is live and we marked it as popped
       else {
+        // Purpose: Mark a popped request as actively handled by this worker thread, or notice that it was terminated first.
+        // Params: request is the popped request, bot is the worker bot to stop if termination won the race, threadIdx is this worker index.
+        // Return: True if this worker now owns active handling; false if the request was already terminated.
+        auto markRequestStarted = [&request,&bot,&threadIdx]() {
+          int expected2 = AnalyzeRequest::STATUS_POPPED;
+          if(!request->status.compare_exchange_strong(expected2, threadIdx, std::memory_order_acq_rel)) {
+            assert(expected2 == AnalyzeRequest::STATUS_TERMINATED);
+            bot->stopWithoutWait();
+            return false;
+          }
+          return true;
+        };
+
         if(request->kind == AnalyzeRequestKind::FINAL_SCORE) {
-          reportFinalScore(request,bot);
+          if(markRequestStarted())
+            reportFinalScore(request,bot);
+          else
+            reportNoAnalysis(request);
         }
         else {
           assert(request->kind == AnalyzeRequestKind::ANALYSIS);
@@ -487,14 +503,8 @@ int MainCmds::analysis(const vector<string>& args) {
           double searchFactor = 1.0;
 
           //Handle termination between the time we pop and the search starts
-          std::function<void()> onSearchBegun = [&request,&bot,&threadIdx]() {
-            //Try to record that we're handling this request and indicate that the search is started by this thread
-            int expected2 = AnalyzeRequest::STATUS_POPPED;
-            //If it was terminated, then stop our search
-            if(!request->status.compare_exchange_strong(expected2, threadIdx, std::memory_order_acq_rel)) {
-              assert(expected2 == AnalyzeRequest::STATUS_TERMINATED);
-              bot->stopWithoutWait();
-            }
+          std::function<void()> onSearchBegun = [&markRequestStarted]() {
+            (void)markRequestStarted();
           };
 
           if(request->reportDuringSearch) {
