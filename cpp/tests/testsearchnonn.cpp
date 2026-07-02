@@ -2556,6 +2556,41 @@ x.x.x
     }
 
     {
+      Board occupiedBoard = Board::parseBoard(9,9,R"%%(
+.........
+.........
+.........
+.........
+.........
+.........
+..X......
+.........
+.........
+)%%");
+      BoardHistory occupiedHist(occupiedBoard,nextPla,rules,0);
+      vector<Loc> mixedIncludeMovesBlack = {
+        Location::ofString("A1",occupiedBoard),
+        Location::ofString("C3",occupiedBoard),
+        Location::ofString("B2",occupiedBoard),
+      };
+
+      SearchParams params;
+      params.maxVisits = 1;
+      params.maxPlayouts = 1;
+      params.includeMovesMinVisits = 1;
+      Search* search = new Search(params, nnEval, &logger, "includeMovesLegalSubset");
+      search->setPosition(nextPla,occupiedBoard,occupiedHist);
+      search->setIncludeMoves(mixedIncludeMovesBlack,includeMovesWhite);
+      search->runWholeSearch(nextPla);
+
+      testAssert(getRootEdgeVisits(search,Location::ofString("A1",occupiedBoard)) >= 1);
+      testAssert(getRootEdgeVisits(search,Location::ofString("B2",occupiedBoard)) >= 1);
+      testAssert(getRootEdgeVisits(search,Location::ofString("C3",occupiedBoard)) == 0);
+
+      delete search;
+    }
+
+    {
       SearchParams params;
       params.maxVisits = 2;
       params.maxPlayouts = 2;
@@ -2770,9 +2805,9 @@ x.x.x
 
     // includeMoves: D4, G3, C5 - 정책망 확률과 무관하게 반드시 분석되어야 함
     vector<Loc> includeMoves;
-    includeMoves.push_back(Location::getLoc(3,3,board.x_size)); // D4
-    includeMoves.push_back(Location::getLoc(6,2,board.x_size)); // G3 (9x9 보드에 맞는 좌표)
-    includeMoves.push_back(Location::getLoc(2,4,board.x_size)); // C5
+    includeMoves.push_back(Location::ofString("D4",board));
+    includeMoves.push_back(Location::ofString("G3",board));
+    includeMoves.push_back(Location::ofString("C5",board));
 
     Player nextPla = P_BLACK;
     BoardHistory hist(board,nextPla,rules,0);

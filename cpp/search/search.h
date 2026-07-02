@@ -98,6 +98,9 @@ struct Search {
   //External user-specified root moves that should each receive at least includeMovesMinVisits edge visits.
   std::vector<Loc> includeMovesBlack;
   std::vector<Loc> includeMovesWhite;
+  // 현재 루트에서 합법인 includeMoves 부분집합. 요청 순서를 유지한다.
+  std::vector<Loc> legalIncludeMovesBlack;
+  std::vector<Loc> legalIncludeMovesWhite;
 
   //If rootSymmetryPruning==true and the board is symmetric, mask all the equivalent copies of each move except one.
   bool rootSymDupLoc[Board::MAX_ARR_SIZE];
@@ -432,20 +435,43 @@ private:
   static constexpr double FUTILE_VISITS_PRUNE_VALUE = -1e40;
   static constexpr double EVALUATING_SELECTION_VALUE_PENALTY = 1e20;
 
+  struct IncludeMoveVisitSummary {
+    int64_t guaranteedVisits;
+    bool needsMoreVisits;
+  };
+
   // Purpose: Check whether a root include move is playable in the current root position.
   // Params: moveLoc is the root move location to validate.
   // Return: True if moveLoc is a legal move for rootPla, otherwise false.
   bool isLegalRootIncludeMove(Loc moveLoc) const;
 
-  // Purpose: Check whether any requested root include move still needs forced visits.
-  // Params: None.
-  // Return: True if at least one legal include move has fewer than includeMovesMinVisits root edge visits.
-  bool hasIncludeMovesNeedingMoreVisits() const;
+  // 목적: 현재 루트에서 합법인 includeMoves만 미리 계산해 hot path의 합법성 검사를 줄인다.
+  // 매개변수: 없음.
+  // 반환값: 없음.
+  void refreshLegalIncludeMoves();
 
-  // Purpose: Count root visits that came from satisfying includeMoves guarantees.
-  // Params: None.
-  // Return: Sum over include moves of min(edge visits, includeMovesMinVisits).
-  int64_t getIncludeMovesGuaranteedVisits() const;
+  // 목적: 루트 자식 목록을 Loc에서 자식 인덱스로 바로 찾을 수 있게 채운다.
+  // 매개변수: children은 루트 자식 참조, childIndexByLoc/passChildIdx는 결과 저장 위치.
+  // 반환값: 없음.
+  void fillRootChildIndexByLoc(
+    ConstSearchNodeChildrenReference children,
+    int childIndexByLoc[Board::MAX_ARR_SIZE],
+    int& passChildIdx
+  ) const;
+
+  // 목적: 미리 채운 루트 자식 인덱스에서 특정 착점의 자식 인덱스를 찾는다.
+  // 매개변수: moveLoc은 찾을 착점, childIndexByLoc/passChildIdx는 fillRootChildIndexByLoc의 결과.
+  // 반환값: 자식 인덱스, 없으면 -1.
+  int getRootChildIndexForLoc(
+    Loc moveLoc,
+    const int childIndexByLoc[Board::MAX_ARR_SIZE],
+    int passChildIdx
+  ) const;
+
+  // 목적: includeMoves 보장 방문 수와 추가 방문 필요 여부를 한 번의 루트 스캔으로 계산한다.
+  // 매개변수: 없음.
+  // 반환값: 보장 방문 합계와 추가 include 방문 필요 여부.
+  IncludeMoveVisitSummary getIncludeMoveVisitSummary() const;
 
   //----------------------------------------------------------------------------------------
   // Dirichlet noise and temperature
