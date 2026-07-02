@@ -991,11 +991,22 @@ int64_t Search::preEvaluateIncludeMovesRawOnce(std::atomic<bool>& shouldStopNow,
       }
       transferOldNNOutputs(thread);
     };
+    int nnBatchThreadCap = 1;
+    if(nnEvaluator != NULL) {
+      int64_t totalNNBatchSize = (int64_t)nnEvaluator->getMaxBatchSize() * (int64_t)std::max(1, nnEvaluator->getNumGpus());
+      nnBatchThreadCap = (int)std::min<int64_t>((int64_t)0x3fffFFFF, std::max<int64_t>((int64_t)1, totalNNBatchSize));
+    }
+
+    // CUDA에서는 작은 wave가 비싸므로, 이 선평가 barrier에서만 NN batch 크기만큼 요청을 동시에 밀어 넣는다.
+    int desiredEvalThreads = std::max(std::max(1, searchParams.numThreads), nnBatchThreadCap);
     int evalCapThreads = std::max<int>(1, std::min<int>(
-      std::max<int>(1, capThreads),
+      std::min(std::max<int>(1, capThreads), desiredEvalThreads),
       (int)std::min<size_t>(evalTargets.size(), (size_t)0x3fffFFFF)
     ));
-    performTaskWithThreads(&evalLoop, evalCapThreads);
+    if(evalCapThreads > std::max(1, searchParams.numThreads))
+      performTaskWithTemporaryThreads(&evalLoop, evalCapThreads);
+    else
+      performTaskWithThreads(&evalLoop, evalCapThreads);
   }
 
   int32_t edgeVisitsAdded = 0;

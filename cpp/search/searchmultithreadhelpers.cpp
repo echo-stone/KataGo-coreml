@@ -90,6 +90,43 @@ void Search::performTaskWithThreads(std::function<void(int)>* task, int capThrea
   }
 }
 
+// 목적: 기존 search thread pool 한도를 넘겨야 하는 짧은 작업을 임시 스레드로 실행한다.
+// 매개변수: task는 실행할 작업, numThreads는 현재 스레드를 포함한 총 실행 스레드 수.
+// 반환값: 없음.
+void Search::performTaskWithTemporaryThreads(std::function<void(int)>* task, int numThreads) {
+  numThreads = std::max(1,numThreads);
+  if(numThreads <= 1) {
+    (*task)(0);
+    return;
+  }
+
+  std::mutex exceptionMutex;
+  std::exception_ptr firstException = nullptr;
+  auto runTask = [&](int threadIdx) {
+    try {
+      (*task)(threadIdx);
+    }
+    catch(...) {
+      std::lock_guard<std::mutex> lock(exceptionMutex);
+      if(firstException == nullptr)
+        firstException = std::current_exception();
+    }
+  };
+
+  std::vector<std::thread> temporaryThreads;
+  temporaryThreads.reserve(numThreads-1);
+  for(int threadIdx = 1; threadIdx<numThreads; threadIdx++)
+    temporaryThreads.push_back(std::thread(runTask,threadIdx));
+
+  runTask(0);
+
+  for(std::thread& thread: temporaryThreads)
+    thread.join();
+
+  if(firstException != nullptr)
+    std::rethrow_exception(firstException);
+}
+
 
 static void maybeAppendShuffledIntRange(int cap, PCG32* rand, std::vector<int>& randBuf) {
   if(rand != NULL) {
