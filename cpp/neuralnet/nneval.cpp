@@ -1,5 +1,6 @@
 #include "../neuralnet/nneval.h"
 #include "../neuralnet/modelversion.h"
+#include "../core/timer.h"
 
 using namespace std;
 
@@ -515,7 +516,9 @@ void NNEvaluator::serve(
   while(true) {
     resultBufs.clear();
     int desiredBatchSize = std::min(maxBatchSize, currentBatchSize.load(std::memory_order_acquire));
+    ClockTimer waitTimer;
     bool gotAnything = queryQueue.waitPopUpToN(resultBufs,desiredBatchSize);
+    double waitSeconds = waitTimer.getSeconds();
     //Queue being closed is a signal that we're done.
     if(!gotAnything)
       break;
@@ -619,7 +622,19 @@ void NNEvaluator::serve(
         }
       }
 
+      ClockTimer gpuTimer;
       NeuralNet::getOutput(gpuHandle, buf.inputBuffers, numRows, resultBufs.data(), outputBuf);
+      double gpuSeconds = gpuTimer.getSeconds();
+      if(logger != NULL && (numRows >= 8 || gpuSeconds >= 0.005)) {
+        logger->write(
+          "[NNPROBE] serverThread=" + Global::intToString(serverThreadIdx) +
+          " gpu=" + Global::intToString(gpuIdxForThisThread) +
+          " rows=" + Global::intToString(numRows) +
+          " desired=" + Global::intToString(desiredBatchSize) +
+          " waitSec=" + Global::doubleToString(waitSeconds) +
+          " gpuSec=" + Global::doubleToString(gpuSeconds)
+        );
+      }
       assert(outputBuf.size() == numRows);
 
       m_numRowsProcessed.fetch_add(numRows, std::memory_order_relaxed);

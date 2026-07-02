@@ -840,6 +840,18 @@ bool Search::prepareRootChildThreadState(SearchThread& thread, Loc moveLoc, bool
 // 매개변수: shouldStopNow는 중단 신호, capThreads는 이번 선평가에 사용할 최대 스레드 수.
 // 반환값: 이번 검색의 playout으로 계산해야 하는 선처리 방문 수.
 int64_t Search::preEvaluateIncludeMovesRawOnce(std::atomic<bool>& shouldStopNow, int capThreads) {
+  ClockTimer totalTimer;
+  double rootEvalSeconds = 0.0;
+  double recomputeSeconds = 0.0;
+  double collectSeconds = 0.0;
+  double evalWallSeconds = 0.0;
+  double edgeApplySeconds = 0.0;
+  int evalCapThreadsForLog = 0;
+  int nnBatchThreadCapForLog = 0;
+  std::atomic<int64_t> evalDescendNanos(0);
+  std::atomic<int64_t> evalDescendCalls(0);
+  std::atomic<int64_t> evalSkipped(0);
+
   if(rootNode == NULL)
     return 0;
 
@@ -852,12 +864,14 @@ int64_t Search::preEvaluateIncludeMovesRawOnce(std::atomic<bool>& shouldStopNow,
   int64_t preSearchPlayouts = 0;
   SearchNodeState rootState = rootNode->state.load(std::memory_order_acquire);
   if(rootState == SearchNode::STATE_UNEVALUATED) {
+    ClockTimer timer;
     SearchThread rootThread(0,*this);
     bool finishedPlayout = runSinglePlayout(rootThread, 1e30);
     if(finishedPlayout)
       preSearchPlayouts += 1;
     transferOldNNOutputs(rootThread);
     rootState = rootNode->state.load(std::memory_order_acquire);
+    rootEvalSeconds = timer.getSeconds();
   }
 
   if(shouldStopNow.load(std::memory_order_relaxed))
@@ -867,9 +881,11 @@ int64_t Search::preEvaluateIncludeMovesRawOnce(std::atomic<bool>& shouldStopNow,
     return preSearchPlayouts;
 
   {
+    ClockTimer timer;
     SearchThread rootThread(0,*this);
     maybeRecomputeExistingNNOutput(rootThread,*rootNode,true);
     transferOldNNOutputs(rootThread);
+    recomputeSeconds = timer.getSeconds();
   }
 
   struct IncludeChildTarget {
@@ -888,59 +904,64 @@ int64_t Search::preEvaluateIncludeMovesRawOnce(std::atomic<bool>& shouldStopNow,
   int passChildIdx;
   fillRootChildIndexByLoc(children,childIndexByLoc,passChildIdx);
   int numChildrenFound = children.iterateAndCountChildren();
+  int initialChildrenFound = numChildrenFound;
   bool stoppedBeforeAllChildren = false;
 
-  for(Loc moveLoc: includeMoves) {
-    if(shouldStopNow.load(std::memory_order_relaxed)) {
-      stoppedBeforeAllChildren = true;
-      break;
-    }
+  {
+    ClockTimer timer;
+    for(Loc moveLoc: includeMoves) {
+      if(shouldStopNow.load(std::memory_order_relaxed)) {
+        stoppedBeforeAllChildren = true;
+        break;
+      }
 
-    int childIdx = getRootChildIndexForLoc(moveLoc,childIndexByLoc,passChildIdx);
-    SearchNode* child = NULL;
+      int childIdx = getRootChildIndexForLoc(moveLoc,childIndexByLoc,passChildIdx);
+      SearchNode* child = NULL;
 
-    if(childIdx >= 0) {
-      child = children[childIdx].getIfAllocated();
-    }
-    else {
-      bool forceNonTerminal = false;
-      if(!prepareRootChildThreadState(createThread,moveLoc,forceNonTerminal))
+      if(childIdx >= 0) {
+        child = children[childIdx].getIfAllocated();
+      }
+      else {
+        bool forceNonTerminal = false;
+        if(!prepareRootChildThreadState(createThread,moveLoc,forceNonTerminal))
+          continue;
+
+        while(!rootNode->maybeExpandChildrenCapacityForNewChild(rootState,numChildrenFound+1)) {
+          std::this_thread::yield();
+          if(shouldStopNow.load(std::memory_order_relaxed)) {
+            stoppedBeforeAllChildren = true;
+            break;
+          }
+          rootState = rootNode->state.load(std::memory_order_acquire);
+          if(rootState < SearchNode::STATE_EXPANDED0)
+            return preSearchPlayouts;
+        }
+        if(stoppedBeforeAllChildren)
+          break;
+
+        children = rootNode->getChildren(rootState);
+        childIdx = numChildrenFound;
+        child = allocateOrFindNode(createThread,createThread.pla,moveLoc,forceNonTerminal,createThread.graphHash);
+
+        SearchChildPointer& childPointer = children[childIdx];
+        childPointer.setMoveLocRelaxed(moveLoc);
+        childPointer.store(child);
+
+        if(moveLoc == Board::PASS_LOC)
+          passChildIdx = childIdx;
+        else if(rootBoard.isOnBoard(moveLoc))
+          childIndexByLoc[moveLoc] = childIdx;
+        numChildrenFound += 1;
+      }
+
+      if(child == NULL)
         continue;
 
-      while(!rootNode->maybeExpandChildrenCapacityForNewChild(rootState,numChildrenFound+1)) {
-        std::this_thread::yield();
-        if(shouldStopNow.load(std::memory_order_relaxed)) {
-          stoppedBeforeAllChildren = true;
-          break;
-        }
-        rootState = rootNode->state.load(std::memory_order_acquire);
-        if(rootState < SearchNode::STATE_EXPANDED0)
-          return preSearchPlayouts;
-      }
-      if(stoppedBeforeAllChildren)
-        break;
-
-      children = rootNode->getChildren(rootState);
-      childIdx = numChildrenFound;
-      child = allocateOrFindNode(createThread,createThread.pla,moveLoc,forceNonTerminal,createThread.graphHash);
-
-      SearchChildPointer& childPointer = children[childIdx];
-      childPointer.setMoveLocRelaxed(moveLoc);
-      childPointer.store(child);
-
-      if(moveLoc == Board::PASS_LOC)
-        passChildIdx = childIdx;
-      else if(rootBoard.isOnBoard(moveLoc))
-        childIndexByLoc[moveLoc] = childIdx;
-      numChildrenFound += 1;
+      const SearchChildPointer& childPointer = children[childIdx];
+      if(childPointer.getEdgeVisits() < minVisits)
+        edgeTargets.push_back(IncludeChildTarget{moveLoc, childIdx, child});
     }
-
-    if(child == NULL)
-      continue;
-
-    const SearchChildPointer& childPointer = children[childIdx];
-    if(childPointer.getEdgeVisits() < minVisits)
-      edgeTargets.push_back(IncludeChildTarget{moveLoc, childIdx, child});
+    collectSeconds = timer.getSeconds();
   }
   transferOldNNOutputs(createThread);
 
@@ -964,7 +985,7 @@ int64_t Search::preEvaluateIncludeMovesRawOnce(std::atomic<bool>& shouldStopNow,
 
   if(!evalTargets.empty()) {
     std::atomic<size_t> nextTargetIdx(0);
-    std::function<void(int)> evalLoop = [this,&shouldStopNow,&evalTargets,&nextTargetIdx](int threadIdx) {
+    std::function<void(int)> evalLoop = [this,&shouldStopNow,&evalTargets,&nextTargetIdx,&evalDescendNanos,&evalDescendCalls,&evalSkipped](int threadIdx) {
       SearchThread thread(threadIdx,*this);
       while(true) {
         if(shouldStopNow.load(std::memory_order_relaxed))
@@ -978,16 +999,24 @@ int64_t Search::preEvaluateIncludeMovesRawOnce(std::atomic<bool>& shouldStopNow,
         const IncludeChildEvalTarget& target = evalTargets[targetIdx];
         int64_t childVisits = target.child->stats.visits.load(std::memory_order_acquire);
         SearchNodeState childState = target.child->state.load(std::memory_order_acquire);
-        if(childVisits > 0 || childState != SearchNode::STATE_UNEVALUATED)
+        if(childVisits > 0 || childState != SearchNode::STATE_UNEVALUATED) {
+          evalSkipped.fetch_add(1, std::memory_order_relaxed);
           continue;
+        }
 
         bool forceNonTerminal = false;
-        if(!prepareRootChildThreadState(thread,target.moveLoc,forceNonTerminal))
+        if(!prepareRootChildThreadState(thread,target.moveLoc,forceNonTerminal)) {
+          evalSkipped.fetch_add(1, std::memory_order_relaxed);
           continue;
+        }
         (void)forceNonTerminal;
 
         thread.shouldCountPlayout = true;
+        int64_t beforeNanos = ClockTimer::getPrecisionSystemTime();
         playoutDescend(thread,*target.child,false);
+        int64_t afterNanos = ClockTimer::getPrecisionSystemTime();
+        evalDescendNanos.fetch_add(afterNanos-beforeNanos, std::memory_order_relaxed);
+        evalDescendCalls.fetch_add(1, std::memory_order_relaxed);
       }
       transferOldNNOutputs(thread);
     };
@@ -996,6 +1025,7 @@ int64_t Search::preEvaluateIncludeMovesRawOnce(std::atomic<bool>& shouldStopNow,
       int64_t totalNNBatchSize = (int64_t)nnEvaluator->getMaxBatchSize() * (int64_t)std::max(1, nnEvaluator->getNumGpus());
       nnBatchThreadCap = (int)std::min<int64_t>((int64_t)0x3fffFFFF, std::max<int64_t>((int64_t)1, totalNNBatchSize));
     }
+    nnBatchThreadCapForLog = nnBatchThreadCap;
 
     // CUDA에서는 작은 wave가 비싸므로, 이 선평가 barrier에서만 NN batch 크기만큼 요청을 동시에 밀어 넣는다.
     int desiredEvalThreads = std::max(std::max(1, searchParams.numThreads), nnBatchThreadCap);
@@ -1003,22 +1033,31 @@ int64_t Search::preEvaluateIncludeMovesRawOnce(std::atomic<bool>& shouldStopNow,
       std::min(std::max<int>(1, capThreads), desiredEvalThreads),
       (int)std::min<size_t>(evalTargets.size(), (size_t)0x3fffFFFF)
     ));
-    if(evalCapThreads > std::max(1, searchParams.numThreads))
-      performTaskWithThreadsAndTemporaryThreads(&evalLoop, evalCapThreads);
-    else
-      performTaskWithThreads(&evalLoop, evalCapThreads);
+    evalCapThreadsForLog = evalCapThreads;
+    {
+      ClockTimer timer;
+      if(evalCapThreads > std::max(1, searchParams.numThreads))
+        performTaskWithThreadsAndTemporaryThreads(&evalLoop, evalCapThreads);
+      else
+        performTaskWithThreads(&evalLoop, evalCapThreads);
+      evalWallSeconds = timer.getSeconds();
+    }
   }
 
   int32_t edgeVisitsAdded = 0;
-  children = rootNode->getChildren();
-  for(const IncludeChildTarget& target: edgeTargets) {
-    SearchChildPointer& childPointer = children[target.childIdx];
-    int64_t edgeVisits = childPointer.getEdgeVisits();
-    int64_t childVisits = target.child->stats.visits.load(std::memory_order_acquire);
-    if(edgeVisits < minVisits && edgeVisits < childVisits) {
-      childPointer.addEdgeVisits(1);
-      edgeVisitsAdded += 1;
+  {
+    ClockTimer timer;
+    children = rootNode->getChildren();
+    for(const IncludeChildTarget& target: edgeTargets) {
+      SearchChildPointer& childPointer = children[target.childIdx];
+      int64_t edgeVisits = childPointer.getEdgeVisits();
+      int64_t childVisits = target.child->stats.visits.load(std::memory_order_acquire);
+      if(edgeVisits < minVisits && edgeVisits < childVisits) {
+        childPointer.addEdgeVisits(1);
+        edgeVisitsAdded += 1;
+      }
     }
+    edgeApplySeconds = timer.getSeconds();
   }
 
   if(edgeVisitsAdded > 0) {
@@ -1026,6 +1065,29 @@ int64_t Search::preEvaluateIncludeMovesRawOnce(std::atomic<bool>& shouldStopNow,
     recomputeNodeStats(*rootNode,statsThread,edgeVisitsAdded,true);
     transferOldNNOutputs(statsThread);
     preSearchPlayouts += edgeVisitsAdded;
+  }
+
+  if(logger != NULL) {
+    logger->write(
+      "[INCLUDE_PROBE] includeMoves=" + Global::int64ToString((int64_t)includeMoves.size()) +
+      " initialChildren=" + Global::intToString(initialChildrenFound) +
+      " finalChildren=" + Global::intToString(numChildrenFound) +
+      " edgeTargets=" + Global::int64ToString((int64_t)edgeTargets.size()) +
+      " evalTargets=" + Global::int64ToString((int64_t)evalTargets.size()) +
+      " evalCalls=" + Global::int64ToString(evalDescendCalls.load(std::memory_order_relaxed)) +
+      " evalSkipped=" + Global::int64ToString(evalSkipped.load(std::memory_order_relaxed)) +
+      " edgeAdded=" + Global::intToString(edgeVisitsAdded) +
+      " searchThreads=" + Global::intToString(std::max(1, searchParams.numThreads)) +
+      " nnBatchThreadCap=" + Global::intToString(nnBatchThreadCapForLog) +
+      " evalCapThreads=" + Global::intToString(evalCapThreadsForLog) +
+      " rootEvalSec=" + Global::doubleToString(rootEvalSeconds) +
+      " recomputeSec=" + Global::doubleToString(recomputeSeconds) +
+      " collectSec=" + Global::doubleToString(collectSeconds) +
+      " evalWallSec=" + Global::doubleToString(evalWallSeconds) +
+      " evalDescendSumSec=" + Global::doubleToString((double)evalDescendNanos.load(std::memory_order_relaxed) / 1000000000.0) +
+      " edgeApplySec=" + Global::doubleToString(edgeApplySeconds) +
+      " totalSec=" + Global::doubleToString(totalTimer.getSeconds())
+    );
   }
 
   return preSearchPlayouts;
