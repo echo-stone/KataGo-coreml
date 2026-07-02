@@ -474,9 +474,9 @@ private:
   IncludeMoveVisitSummary getIncludeMoveVisitSummary() const;
 
   // 목적: includeMoves의 1회 보장 방문을 searchLoop 전에 raw NN 평가와 일괄 edge 반영으로 처리한다.
-  // 매개변수: 없음.
+  // 매개변수: shouldStopNow는 중단 신호, capThreads는 이번 선평가에 사용할 최대 스레드 수.
   // 반환값: 이번 검색의 playout으로 계산해야 하는 선처리 방문 수.
-  int64_t preEvaluateIncludeMovesRawOnce();
+  int64_t preEvaluateIncludeMovesRawOnce(std::atomic<bool>& shouldStopNow, int capThreads);
 
   // 목적: 루트 착점 하나를 둔 뒤 thread를 해당 자식 포지션 상태로 준비한다.
   // 매개변수: thread는 갱신할 스레드 상태, moveLoc은 루트 착점, forceNonTerminal은 자식 노드 생성 플래그 출력값.

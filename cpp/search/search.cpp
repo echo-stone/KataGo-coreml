@@ -519,8 +519,6 @@ void Search::runWholeSearch(
 
   //Do this first, just in case this causes us to clear things and have 0 effective time carried over
   beginSearch(pondering);
-  if(searchBegun != NULL)
-    (*searchBegun)();
   const int64_t numNonPlayoutVisits = getRootVisits();
 
   //Compute caps on search
@@ -556,10 +554,11 @@ void Search::runWholeSearch(
 
   const bool hasMaxTime = maxTime < 1.0e12;
   const bool hasTc = !pondering && !tc.isEffectivelyUnlimitedTime();
+  const bool canRawPreEvaluateIncludeMoves = searchParams.graphSearchCatchUpLeakProb <= 0.0;
 
   double actualSearchStartTime = timer.getSeconds();
-  if(!hasMaxTime && !hasTc && !shouldStopNow.load(std::memory_order_relaxed)) {
-    int64_t preSearchPlayouts = preEvaluateIncludeMovesRawOnce();
+  if(!hasMaxTime && !hasTc && canRawPreEvaluateIncludeMoves && !shouldStopNow.load(std::memory_order_relaxed)) {
+    int64_t preSearchPlayouts = preEvaluateIncludeMovesRawOnce(shouldStopNow, capThreads);
     if(preSearchPlayouts > 0)
       numPlayoutsShared.store(preSearchPlayouts,std::memory_order_relaxed);
   }
@@ -578,6 +577,9 @@ void Search::runWholeSearch(
     double upperBoundVisits = computeUpperBoundVisitsLeftDueToTime(rootVisits, timeUsed, std::min(tcLimit,maxTime));
     upperBoundVisitsLeftDueToTime.store(upperBoundVisits, std::memory_order_release);
   }
+
+  if(searchBegun != NULL)
+    (*searchBegun)();
 
   std::function<void(int)> searchLoop = [
     this,&timer,&numPlayoutsShared,numNonPlayoutVisits,&tcMaxTime,&upperBoundVisitsLeftDueToTime,&tc,
@@ -835,14 +837,16 @@ bool Search::prepareRootChildThreadState(SearchThread& thread, Loc moveLoc, bool
 }
 
 // 목적: includeMoves의 1회 보장 방문을 searchLoop 전에 raw NN 평가와 일괄 edge 반영으로 처리한다.
-// 매개변수: 없음.
+// 매개변수: shouldStopNow는 중단 신호, capThreads는 이번 선평가에 사용할 최대 스레드 수.
 // 반환값: 이번 검색의 playout으로 계산해야 하는 선처리 방문 수.
-int64_t Search::preEvaluateIncludeMovesRawOnce() {
+int64_t Search::preEvaluateIncludeMovesRawOnce(std::atomic<bool>& shouldStopNow, int capThreads) {
   if(rootNode == NULL)
     return 0;
 
   const vector<Loc>& includeMoves = rootPla == P_BLACK ? legalIncludeMovesBlack : legalIncludeMovesWhite;
   if(includeMoves.empty())
+    return 0;
+  if(shouldStopNow.load(std::memory_order_relaxed))
     return 0;
 
   int64_t preSearchPlayouts = 0;
@@ -855,6 +859,9 @@ int64_t Search::preEvaluateIncludeMovesRawOnce() {
     transferOldNNOutputs(rootThread);
     rootState = rootNode->state.load(std::memory_order_acquire);
   }
+
+  if(shouldStopNow.load(std::memory_order_relaxed))
+    return preSearchPlayouts;
 
   if(rootState < SearchNode::STATE_EXPANDED0)
     return preSearchPlayouts;
@@ -881,8 +888,14 @@ int64_t Search::preEvaluateIncludeMovesRawOnce() {
   int passChildIdx;
   fillRootChildIndexByLoc(children,childIndexByLoc,passChildIdx);
   int numChildrenFound = children.iterateAndCountChildren();
+  bool stoppedBeforeAllChildren = false;
 
   for(Loc moveLoc: includeMoves) {
+    if(shouldStopNow.load(std::memory_order_relaxed)) {
+      stoppedBeforeAllChildren = true;
+      break;
+    }
+
     int childIdx = getRootChildIndexForLoc(moveLoc,childIndexByLoc,passChildIdx);
     SearchNode* child = NULL;
 
@@ -896,10 +909,16 @@ int64_t Search::preEvaluateIncludeMovesRawOnce() {
 
       while(!rootNode->maybeExpandChildrenCapacityForNewChild(rootState,numChildrenFound+1)) {
         std::this_thread::yield();
+        if(shouldStopNow.load(std::memory_order_relaxed)) {
+          stoppedBeforeAllChildren = true;
+          break;
+        }
         rootState = rootNode->state.load(std::memory_order_acquire);
         if(rootState < SearchNode::STATE_EXPANDED0)
           return preSearchPlayouts;
       }
+      if(stoppedBeforeAllChildren)
+        break;
 
       children = rootNode->getChildren(rootState);
       childIdx = numChildrenFound;
@@ -935,6 +954,8 @@ int64_t Search::preEvaluateIncludeMovesRawOnce() {
   std::unordered_set<SearchNode*> evalTargetSet;
   evalTargetSet.reserve(edgeTargets.size());
   for(const IncludeChildTarget& target: edgeTargets) {
+    if(shouldStopNow.load(std::memory_order_relaxed))
+      break;
     int64_t childVisits = target.child->stats.visits.load(std::memory_order_acquire);
     SearchNodeState childState = target.child->state.load(std::memory_order_acquire);
     if(childVisits <= 0 && childState == SearchNode::STATE_UNEVALUATED && evalTargetSet.insert(target.child).second)
@@ -943,11 +964,15 @@ int64_t Search::preEvaluateIncludeMovesRawOnce() {
 
   if(!evalTargets.empty()) {
     std::atomic<size_t> nextTargetIdx(0);
-    std::function<void(int)> evalLoop = [this,&evalTargets,&nextTargetIdx](int threadIdx) {
+    std::function<void(int)> evalLoop = [this,&shouldStopNow,&evalTargets,&nextTargetIdx](int threadIdx) {
       SearchThread thread(threadIdx,*this);
       while(true) {
+        if(shouldStopNow.load(std::memory_order_relaxed))
+          break;
         size_t targetIdx = nextTargetIdx.fetch_add((size_t)1, std::memory_order_relaxed);
         if(targetIdx >= evalTargets.size())
+          break;
+        if(shouldStopNow.load(std::memory_order_relaxed))
           break;
 
         const IncludeChildEvalTarget& target = evalTargets[targetIdx];
@@ -966,8 +991,11 @@ int64_t Search::preEvaluateIncludeMovesRawOnce() {
       }
       transferOldNNOutputs(thread);
     };
-    int capThreads = std::max<int>(1, (int)std::min<size_t>(evalTargets.size(), (size_t)0x3fffFFFF));
-    performTaskWithThreads(&evalLoop, capThreads);
+    int evalCapThreads = std::max<int>(1, std::min<int>(
+      std::max<int>(1, capThreads),
+      (int)std::min<size_t>(evalTargets.size(), (size_t)0x3fffFFFF)
+    ));
+    performTaskWithThreads(&evalLoop, evalCapThreads);
   }
 
   int32_t edgeVisitsAdded = 0;
