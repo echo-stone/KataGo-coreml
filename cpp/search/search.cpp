@@ -558,7 +558,7 @@ void Search::runWholeSearch(
 
   double actualSearchStartTime = timer.getSeconds();
   if(!hasMaxTime && !hasTc && canRawPreEvaluateIncludeMoves && !shouldStopNow.load(std::memory_order_relaxed)) {
-    int64_t preSearchPlayouts = preEvaluateIncludeMovesRawOnce(shouldStopNow, capThreads);
+    int64_t preSearchPlayouts = preEvaluateIncludeMovesRawOnce(shouldStopNow);
     if(preSearchPlayouts > 0)
       numPlayoutsShared.store(preSearchPlayouts,std::memory_order_relaxed);
   }
@@ -837,9 +837,9 @@ bool Search::prepareRootChildThreadState(SearchThread& thread, Loc moveLoc, bool
 }
 
 // 목적: includeMoves의 1회 보장 방문을 searchLoop 전에 raw NN 평가와 일괄 edge 반영으로 처리한다.
-// 매개변수: shouldStopNow는 중단 신호, capThreads는 이번 선평가에 사용할 최대 스레드 수.
+// 매개변수: shouldStopNow는 중단 신호.
 // 반환값: 이번 검색의 playout으로 계산해야 하는 선처리 방문 수.
-int64_t Search::preEvaluateIncludeMovesRawOnce(std::atomic<bool>& shouldStopNow, int capThreads) {
+int64_t Search::preEvaluateIncludeMovesRawOnce(std::atomic<bool>& shouldStopNow) {
   ClockTimer totalTimer;
   double rootEvalSeconds = 0.0;
   double recomputeSeconds = 0.0;
@@ -1028,9 +1028,10 @@ int64_t Search::preEvaluateIncludeMovesRawOnce(std::atomic<bool>& shouldStopNow,
     nnBatchThreadCapForLog = nnBatchThreadCap;
 
     // CUDA에서는 작은 wave가 비싸므로, 이 선평가 barrier에서만 NN batch 크기만큼 요청을 동시에 밀어 넣는다.
+    // maxVisits에서 파생된 일반 검색용 capThreads에 묶으면 maxVisits=1 include 요청이 1-row eval로 쪼개진다.
     int desiredEvalThreads = std::max(std::max(1, searchParams.numThreads), nnBatchThreadCap);
     int evalCapThreads = std::max<int>(1, std::min<int>(
-      std::min(std::max<int>(1, capThreads), desiredEvalThreads),
+      desiredEvalThreads,
       (int)std::min<size_t>(evalTargets.size(), (size_t)0x3fffFFFF)
     ));
     evalCapThreadsForLog = evalCapThreads;
