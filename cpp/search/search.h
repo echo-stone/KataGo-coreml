@@ -556,10 +556,10 @@ private:
   void spawnThreadsIfNeeded();
   void killThreads();
   void performTaskWithThreads(std::function<void(int)>* task, int capThreads);
-  // 목적: 기존 search thread pool 한도를 넘겨야 하는 짧은 작업을 임시 스레드로 실행한다.
+  // 목적: 기존 search thread pool을 먼저 쓰고 부족한 짧은 작업 스레드만 임시 스레드로 실행한다.
   // 매개변수: task는 실행할 작업, numThreads는 현재 스레드를 포함한 총 실행 스레드 수.
   // 반환값: 없음.
-  void performTaskWithTemporaryThreads(std::function<void(int)>* task, int numThreads);
+  void performTaskWithThreadsAndTemporaryThreads(std::function<void(int)>* task, int numThreads);
 
   void applyRecursivelyPostOrderMulithreaded(const std::vector<SearchNode*>& nodes, std::function<void(SearchNode*,int)>* f);
   void applyRecursivelyPostOrderMulithreadedHelper(

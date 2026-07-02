@@ -1004,7 +1004,7 @@ int64_t Search::preEvaluateIncludeMovesRawOnce(std::atomic<bool>& shouldStopNow,
       (int)std::min<size_t>(evalTargets.size(), (size_t)0x3fffFFFF)
     ));
     if(evalCapThreads > std::max(1, searchParams.numThreads))
-      performTaskWithTemporaryThreads(&evalLoop, evalCapThreads);
+      performTaskWithThreadsAndTemporaryThreads(&evalLoop, evalCapThreads);
     else
       performTaskWithThreads(&evalLoop, evalCapThreads);
   }

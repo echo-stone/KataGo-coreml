@@ -219,11 +219,11 @@ int main(int argc, const char* const* argv) {
 
 
 string Version::getKataGoVersion() {
-  return string("1.16.4-coreml5");
+  return string("1.16.4-coreml6");
 }
 
 string Version::getKataGoVersionForHelp() {
-  return string("KataGo v1.16.4-coreml5");
+  return string("KataGo v1.16.4-coreml6");
 }
 
 string Version::getKataGoVersionFullInfo() {

@@ -90,15 +90,19 @@ void Search::performTaskWithThreads(std::function<void(int)>* task, int capThrea
   }
 }
 
-// 목적: 기존 search thread pool 한도를 넘겨야 하는 짧은 작업을 임시 스레드로 실행한다.
+// 목적: 기존 search thread pool을 먼저 쓰고 부족한 짧은 작업 스레드만 임시 스레드로 실행한다.
 // 매개변수: task는 실행할 작업, numThreads는 현재 스레드를 포함한 총 실행 스레드 수.
 // 반환값: 없음.
-void Search::performTaskWithTemporaryThreads(std::function<void(int)>* task, int numThreads) {
+void Search::performTaskWithThreadsAndTemporaryThreads(std::function<void(int)>* task, int numThreads) {
   numThreads = std::max(1,numThreads);
   if(numThreads <= 1) {
     (*task)(0);
     return;
   }
+
+  spawnThreadsIfNeeded();
+  int numExistingThreadsToUse = std::min(numThreads-1, numAdditionalThreadsToUseForTasks());
+  int numTemporaryThreadsToUse = numThreads-1-numExistingThreadsToUse;
 
   std::mutex exceptionMutex;
   std::exception_ptr firstException = nullptr;
@@ -114,14 +118,43 @@ void Search::performTaskWithTemporaryThreads(std::function<void(int)>* task, int
   };
 
   std::vector<std::thread> temporaryThreads;
-  temporaryThreads.reserve(numThreads-1);
-  for(int threadIdx = 1; threadIdx<numThreads; threadIdx++)
-    temporaryThreads.push_back(std::thread(runTask,threadIdx));
+  temporaryThreads.reserve(numTemporaryThreadsToUse);
+  auto joinTemporaryThreads = [&]() {
+    for(std::thread& thread: temporaryThreads) {
+      if(thread.joinable())
+        thread.join();
+    }
+  };
+
+  try {
+    for(int i = 0; i<numTemporaryThreadsToUse; i++) {
+      int threadIdx = numExistingThreadsToUse+1+i;
+      temporaryThreads.push_back(std::thread(runTask,threadIdx));
+    }
+  }
+  catch(...) {
+    {
+      std::lock_guard<std::mutex> lock(exceptionMutex);
+      if(firstException == nullptr)
+        firstException = std::current_exception();
+    }
+    joinTemporaryThreads();
+    std::rethrow_exception(firstException);
+  }
+
+  std::function<void(int)> wrappedTask = runTask;
+  if(numExistingThreadsToUse > 0) {
+    assert(numExistingThreadsToUse <= numThreadsSpawned);
+    threadTasksRemaining->add(numExistingThreadsToUse);
+    for(int i = 0; i<numExistingThreadsToUse; i++)
+      threadTasks[i].forcePush(&wrappedTask);
+  }
 
   runTask(0);
 
-  for(std::thread& thread: temporaryThreads)
-    thread.join();
+  if(numExistingThreadsToUse > 0)
+    threadTasksRemaining->waitUntilZero();
+  joinTemporaryThreads();
 
   if(firstException != nullptr)
     std::rethrow_exception(firstException);
