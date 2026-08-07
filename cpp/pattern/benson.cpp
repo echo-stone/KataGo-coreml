@@ -234,7 +234,7 @@ static vector<Pattern> detectForPlayer(const Board& board, Player pla, bool suic
   vector<Pattern> patterns;
   const string color = pla == P_BLACK ? "B" : "W";
   for(Loc chainHead: alive) {
-    vector<string> vitalRegionIds;
+    vector<BensonVitalRegion> vitalRegions;
     for(const BensonRegion& region: regions) {
       bool regionActive = true;
       for(Loc borderingHead: region.borderingChainHeads) {
@@ -248,14 +248,20 @@ static vector<Pattern> detectForPlayer(const Board& board, Player pla, bool suic
         find(region.vitalForChainHeads.begin(),region.vitalForChainHeads.end(),chainHead) !=
           region.vitalForChainHeads.end()
       )
-        vitalRegionIds.push_back(region.id);
+        vitalRegions.push_back(BensonVitalRegion{region.id,region.points});
     }
-    sort(vitalRegionIds.begin(),vitalRegionIds.end());
+    sort(
+      vitalRegions.begin(),
+      vitalRegions.end(),
+      [](const BensonVitalRegion& left, const BensonVitalRegion& right) {
+        return left.id < right.id;
+      }
+    );
 
     vector<Loc> points = chainPoints(board,chainHead);
     Pattern pattern;
     pattern.kind = Kind::BENSON_ALIVE;
-    pattern.schemaVersion = 1;
+    pattern.schemaVersion = 2;
     pattern.subject.type = SubjectType::CHAIN;
     pattern.subject.color = pla;
     pattern.subject.id = stablePointID("chain:" + color,points,board);
@@ -263,8 +269,8 @@ static vector<Pattern> detectForPlayer(const Board& board, Player pla, bool suic
     pattern.outcome = Outcome::ALIVE;
     pattern.confidence = Confidence::PROVEN;
     pattern.details = BensonAliveDetails{
-      vitalRegionIds,
-      static_cast<int>(vitalRegionIds.size()),
+      vitalRegions,
+      static_cast<int>(vitalRegions.size()),
     };
     patterns.push_back(std::move(pattern));
   }

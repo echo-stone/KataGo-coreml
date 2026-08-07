@@ -84,12 +84,19 @@ static vector<string> sortedPointStrings(const vector<Loc>& points, const Board&
   return result;
 }
 
-// detailsToJson은 BensonAlive v1의 typed details를 공개 JSON 객체로 직렬화한다.
+// detailsToJson은 BensonAlive v2의 typed details를 공개 JSON 객체로 직렬화한다.
 // details는 검증된 BensonAlive 근거이며, 반환값은 해당 Kind의 details 객체다.
-static json detailsToJson(const BensonAliveDetails& details, const Board&) {
+static json detailsToJson(const BensonAliveDetails& details, const Board& board) {
+  json vitalRegions = json::array();
+  for(const BensonVitalRegion& region: details.vitalRegions) {
+    vitalRegions.push_back(json{
+      {"id", region.id},
+      {"points", sortedPointStrings(region.points,board)},
+    });
+  }
   return json{
-    {"vitalRegionIds", details.vitalRegionIds},
     {"eyeCount", details.eyeCount},
+    {"vitalRegions", std::move(vitalRegions)},
   };
 }
 

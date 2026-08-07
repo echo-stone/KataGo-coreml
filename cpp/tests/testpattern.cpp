@@ -944,10 +944,10 @@ void Tests::runPatternTests() {
   cout << "Running pattern tests" << endl;
 
   {
-    Board board = Board::parseBoard(5,3,R"%%(
-xxxxx
-x.x.x
-xxxxx
+    Board board = Board::parseBoard(7,3,R"%%(
+xxxxxxx
+x..x..x
+xxxxxxx
 )%%");
     BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
     GoPattern::DetectionResult result = GoPattern::detect(board,hist);
@@ -958,18 +958,30 @@ xxxxx
     json actual = GoPattern::toJson(*pattern,board);
     json expected = {
       {"kind", "bensonAlive"},
-      {"schemaVersion", 1},
+      {"schemaVersion", 2},
       {"subject", {
         {"type", "chain"},
         {"color", "B"},
         {"id", "chain:B:A1"},
-        {"points", {"A1","A2","A3","B1","B3","C1","C2","C3","D1","D3","E1","E2","E3"}},
+        {"points", {
+          "A1","A2","A3","B1","B3","C1","C3","D1","D2",
+          "D3","E1","E3","F1","F3","G1","G2","G3"
+        }},
       }},
       {"outcome", "alive"},
       {"confidence", "proven"},
       {"details", {
-        {"vitalRegionIds", {"region:B:B2","region:B:D2"}},
         {"eyeCount", 2},
+        {"vitalRegions", {
+          {
+            {"id", "region:B:B2"},
+            {"points", {"B2","C2"}},
+          },
+          {
+            {"id", "region:B:E2"},
+            {"points", {"E2","F2"}},
+          },
+        }},
       }},
     };
     testAssert(actual == expected);

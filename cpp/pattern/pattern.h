@@ -44,9 +44,15 @@ struct PatternSubject {
   std::vector<Loc> points;
 };
 
-// BensonAliveDetails는 BensonAlive schemaVersion 1의 증명 근거다.
+// BensonVitalRegion은 Benson certificate에 포함된 활력 영역의 ID와 전체 좌표다.
+struct BensonVitalRegion {
+  std::string id;
+  std::vector<Loc> points;
+};
+
+// BensonAliveDetails는 BensonAlive schemaVersion 2의 증명 근거다.
 struct BensonAliveDetails {
-  std::vector<std::string> vitalRegionIds;
+  std::vector<BensonVitalRegion> vitalRegions;
   int eyeCount;
 };
 
