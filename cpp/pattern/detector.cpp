@@ -1,5 +1,6 @@
 #include "detector.h"
 #include "benson.h"
+#include "ladder.h"
 
 #include <algorithm>
 
@@ -15,6 +16,10 @@ static constexpr size_t MAX_PATTERNS = 256;
 static int confidenceRank(Confidence confidence) {
   if(confidence == Confidence::PROVEN)
     return 0;
+  if(confidence == Confidence::HIGH)
+    return 1;
+  if(confidence == Confidence::MEDIUM)
+    return 2;
   ASSERT_UNREACHABLE;
 }
 
@@ -23,6 +28,30 @@ static int confidenceRank(Confidence confidence) {
 DetectionResult detect(const Board& board, const BoardHistory& hist) {
   DetectionResult result;
   result.patterns = detectBensonAlive(board,hist);
+  LadderDetectionResult ladders = detectLadders(board,hist);
+  for(Pattern& ladder: ladders.patterns) {
+    bool conflictsWithBenson = false;
+    if(ladder.outcome == Outcome::ATTACKER_WINS) {
+      for(const Pattern& existing: result.patterns) {
+        if(
+          existing.kind == Kind::BENSON_ALIVE &&
+          existing.subject.id == ladder.subject.id
+        ) {
+          conflictsWithBenson = true;
+          break;
+        }
+      }
+    }
+    if(!conflictsWithBenson)
+      result.patterns.push_back(std::move(ladder));
+  }
+  if(ladders.incompleteSearches > 0) {
+    result.warnings.push_back(
+      "Ladder search budget was exhausted for " +
+      Global::intToString(ladders.incompleteSearches) +
+      " candidate chains"
+    );
+  }
   sort(
     result.patterns.begin(),
     result.patterns.end(),

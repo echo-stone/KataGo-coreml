@@ -14,6 +14,8 @@ static string kindToString(Kind kind) {
   switch(kind) {
   case Kind::BENSON_ALIVE:
     return "bensonAlive";
+  case Kind::LADDER:
+    return "ladder";
   default:
     ASSERT_UNREACHABLE;
   }
@@ -36,6 +38,12 @@ static string outcomeToString(Outcome outcome) {
   switch(outcome) {
   case Outcome::ALIVE:
     return "alive";
+  case Outcome::ATTACKER_WINS:
+    return "attackerWins";
+  case Outcome::DEFENDER_ESCAPES:
+    return "defenderEscapes";
+  case Outcome::AMBIGUOUS:
+    return "ambiguous";
   default:
     ASSERT_UNREACHABLE;
   }
@@ -47,6 +55,10 @@ static string confidenceToString(Confidence confidence) {
   switch(confidence) {
   case Confidence::PROVEN:
     return "proven";
+  case Confidence::HIGH:
+    return "high";
+  case Confidence::MEDIUM:
+    return "medium";
   default:
     ASSERT_UNREACHABLE;
   }
@@ -74,10 +86,24 @@ static vector<string> sortedPointStrings(const vector<Loc>& points, const Board&
 
 // detailsToJson은 BensonAlive v1의 typed details를 공개 JSON 객체로 직렬화한다.
 // details는 검증된 BensonAlive 근거이며, 반환값은 해당 Kind의 details 객체다.
-static json detailsToJson(const BensonAliveDetails& details) {
+static json detailsToJson(const BensonAliveDetails& details, const Board&) {
   return json{
     {"vitalRegionIds", details.vitalRegionIds},
     {"eyeCount", details.eyeCount},
+  };
+}
+
+// detailsToJson은 Ladder v1의 참가자·선후수·축머리를 공개 JSON으로 직렬화한다.
+// details는 완결 또는 패 의존 사다리 근거이며 반환값은 Kind별 details 객체다.
+static json detailsToJson(const LadderDetails& details, const Board& board) {
+  json ladderBreaker = nullptr;
+  if(details.ladderBreaker != Board::NULL_LOC)
+    ladderBreaker = Location::toString(details.ladderBreaker,board);
+  return json{
+    {"attacker", playerToPatternColor(details.attacker)},
+    {"defender", playerToPatternColor(details.defender)},
+    {"defenderFirst", details.defenderFirst},
+    {"ladderBreaker", std::move(ladderBreaker)},
   };
 }
 
@@ -95,8 +121,8 @@ nlohmann::json toJson(const Pattern& pattern, const Board& board) {
   result["outcome"] = outcomeToString(pattern.outcome);
   result["confidence"] = confidenceToString(pattern.confidence);
   result["details"] = visit(
-    [](const auto& details) {
-      return detailsToJson(details);
+    [&board](const auto& details) {
+      return detailsToJson(details,board);
     },
     pattern.details
   );

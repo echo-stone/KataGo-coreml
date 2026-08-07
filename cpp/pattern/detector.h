@@ -12,6 +12,7 @@ namespace GoPattern {
 struct DetectionResult {
   std::vector<Pattern> patterns;
   bool truncated;
+  std::vector<std::string> warnings;
 };
 
 // detect는 활성화된 Kind 검출기를 실행하고 공통 정렬·출력 상한을 적용한다.

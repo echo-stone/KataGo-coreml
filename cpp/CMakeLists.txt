@@ -324,6 +324,8 @@ add_executable(katago
   program/selfplaymanager.cpp
   pattern/pattern.cpp
   pattern/benson.cpp
+  pattern/eyefacts.cpp
+  pattern/ladder.cpp
   pattern/detector.cpp
   ${GIT_HEADER_FILE_ALWAYS_UPDATED}
   tests/testboardarea.cpp

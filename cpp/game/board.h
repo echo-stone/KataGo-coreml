@@ -85,6 +85,24 @@ namespace Location
 //Simple structure for storing moves. Not used below, but this is a convenient place to define it.
 STRUCT_NAMED_PAIR(Loc,loc,Player,pla,Move);
 
+// LadderSearchStatus는 패턴 검출 경로가 사다리 탐색의 완결 여부를 보존하기 위한 결과다.
+enum class LadderSearchStatus {
+  CAPTURED,
+  ESCAPED,
+  UNKNOWN,
+};
+
+// LadderSearchResult는 사다리 판정과 패·방어 따냄·반복·예산 원인을 함께 반환한다.
+struct LadderSearchResult {
+  LadderSearchStatus status;
+  bool koDependent;
+  bool tacticalCaptureDependent;
+  bool repetitionDependent;
+  bool sequenceLimitReached;
+  bool budgetExhausted;
+  int searchedNodes;
+};
+
 //Fast lightweight board designed for playouts and simulations, where speed is essential.
 //Simple ko rule only.
 //Does not enforce player turn order.
@@ -275,6 +293,19 @@ struct Board
   //WILL perform a mutable search - may alter the linked lists or heads, etc.
   bool searchIsLadderCaptured(Loc loc, bool defenderFirst, std::vector<Loc>& buf);
   bool searchIsLadderCapturedAttackerFirst2Libs(Loc loc, std::vector<Loc>& buf, std::vector<Loc>& workingMoves);
+  //기존 bool 의미는 바꾸지 않고 패턴 경로에 불확실성 원인을 별도로 반환한다.
+  LadderSearchResult searchIsLadderCapturedDetailed(
+    Loc loc,
+    bool defenderFirst,
+    std::vector<Loc>& buf,
+    int maxNodeBudget = 25000
+  );
+  LadderSearchResult searchIsLadderCapturedAttackerFirst2LibsDetailed(
+    Loc loc,
+    std::vector<Loc>& buf,
+    std::vector<Loc>& workingMoves,
+    int maxNodeBudget = 25000
+  );
 
   //If a point is a pass-alive stone or pass-alive territory for a color, mark it that color.
   //If nonPassAliveStones, also marks non-pass-alive stones that are not part of the opposing pass-alive territory.
@@ -358,6 +389,23 @@ struct Board
   int findLiberties(Loc loc, std::vector<Loc>& buf, int bufStart, int bufIdx) const;
   int findLibertyGainingCaptures(Loc loc, std::vector<Loc>& buf, int bufStart, int bufIdx) const;
   bool hasLibertyGainingCaptures(Loc loc) const;
+
+  struct LadderSearchDiagnostics {
+    bool koEncountered;
+    bool tacticalCaptureEncountered;
+    bool repetitionEncountered;
+    bool nodeBudgetExhausted;
+    bool stackLimitReached;
+    int searchedNodes;
+  };
+  template<bool recordDiagnostics>
+  bool searchIsLadderCapturedInternal(
+    Loc loc,
+    bool defenderFirst,
+    std::vector<Loc>& buf,
+    LadderSearchDiagnostics* diagnostics,
+    int maxNodeBudget
+  );
 
   void calculateAreaForPla(
     Player pla,

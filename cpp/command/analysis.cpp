@@ -385,6 +385,8 @@ int MainCmds::analysis(const vector<string>& args) {
         GoPattern::DetectionResult result = GoPattern::detect(request->board,request->hist);
         for(const GoPattern::Pattern& pattern: result.patterns)
           ret["patterns"].push_back(GoPattern::toJson(pattern,request->board));
+        for(const string& warning: result.warnings)
+          reportWarningForId(request->id,"patterns",warning);
         if(result.truncated)
           reportWarningForId(request->id,"patterns","Pattern output exceeded 256 entries and was truncated");
       }

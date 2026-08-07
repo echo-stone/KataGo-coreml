@@ -1626,6 +1626,128 @@ bool Board::searchIsLadderCapturedAttackerFirst2Libs(Loc loc, vector<Loc>& buf, 
 }
 
 bool Board::searchIsLadderCaptured(Loc loc, bool defenderFirst, vector<Loc>& buf) {
+  return searchIsLadderCapturedInternal<false>(loc,defenderFirst,buf,nullptr,25000);
+}
+
+LadderSearchResult Board::searchIsLadderCapturedDetailed(
+  Loc loc,
+  bool defenderFirst,
+  vector<Loc>& buf,
+  int maxNodeBudget
+) {
+  LadderSearchDiagnostics diagnostics{
+    false,
+    false,
+    false,
+    false,
+    false,
+    0,
+  };
+  bool captured = searchIsLadderCapturedInternal<true>(
+    loc,
+    defenderFirst,
+    buf,
+    &diagnostics,
+    maxNodeBudget
+  );
+  const bool budgetExhausted = diagnostics.nodeBudgetExhausted;
+  LadderSearchStatus status = captured ? LadderSearchStatus::CAPTURED : LadderSearchStatus::ESCAPED;
+  if(
+    budgetExhausted ||
+    diagnostics.koEncountered ||
+    diagnostics.tacticalCaptureEncountered ||
+    diagnostics.repetitionEncountered ||
+    diagnostics.stackLimitReached
+  )
+    status = LadderSearchStatus::UNKNOWN;
+  return LadderSearchResult{
+    status,
+    diagnostics.koEncountered,
+    diagnostics.tacticalCaptureEncountered,
+    diagnostics.repetitionEncountered,
+    diagnostics.stackLimitReached,
+    budgetExhausted,
+    diagnostics.searchedNodes,
+  };
+}
+
+LadderSearchResult Board::searchIsLadderCapturedAttackerFirst2LibsDetailed(
+  Loc loc,
+  vector<Loc>& buf,
+  vector<Loc>& workingMoves,
+  int maxNodeBudget
+) {
+  workingMoves.clear();
+  if(loc < 0 || loc >= MAX_ARR_SIZE)
+    return LadderSearchResult{LadderSearchStatus::ESCAPED,false,false,false,false,false,0};
+  if(colors[loc] != C_BLACK && colors[loc] != C_WHITE)
+    return LadderSearchResult{LadderSearchStatus::ESCAPED,false,false,false,false,false,0};
+  if(chain_data[chain_head[loc]].num_liberties != 2)
+    return LadderSearchResult{LadderSearchStatus::ESCAPED,false,false,false,false,false,0};
+
+  Player attacker = getOpp(colors[loc]);
+  int numLiberties = findLiberties(loc,buf,0,0);
+  assert(numLiberties == 2);
+  (void)numLiberties;
+  Loc attackMoves[2] = {buf[0],buf[1]};
+
+  bool foundCaptured = false;
+  bool foundUnknown = false;
+  bool koDependent = false;
+  bool tacticalCaptureDependent = false;
+  bool repetitionDependent = false;
+  bool sequenceLimitReached = false;
+  bool budgetExhausted = false;
+  int searchedNodes = 0;
+  for(Loc move: attackMoves) {
+    if(!isLegal(move,attacker,false))
+      continue;
+    MoveRecord record = playMoveRecorded(move,attacker);
+    int remainingNodeBudget = maxNodeBudget - searchedNodes;
+    if(remainingNodeBudget < 0)
+      remainingNodeBudget = 0;
+    LadderSearchResult child =
+      searchIsLadderCapturedDetailed(loc,true,buf,remainingNodeBudget);
+    undo(record);
+    searchedNodes += child.searchedNodes;
+    if(child.status == LadderSearchStatus::CAPTURED) {
+      foundCaptured = true;
+      workingMoves.push_back(move);
+    }
+    else if(child.status == LadderSearchStatus::UNKNOWN) {
+      foundUnknown = true;
+      koDependent = koDependent || child.koDependent;
+      tacticalCaptureDependent =
+        tacticalCaptureDependent || child.tacticalCaptureDependent;
+      repetitionDependent = repetitionDependent || child.repetitionDependent;
+      sequenceLimitReached = sequenceLimitReached || child.sequenceLimitReached;
+      budgetExhausted = budgetExhausted || child.budgetExhausted;
+    }
+  }
+
+  if(foundCaptured)
+    return LadderSearchResult{LadderSearchStatus::CAPTURED,false,false,false,false,false,searchedNodes};
+  if(foundUnknown)
+    return LadderSearchResult{
+      LadderSearchStatus::UNKNOWN,
+      koDependent,
+      tacticalCaptureDependent,
+      repetitionDependent,
+      sequenceLimitReached,
+      budgetExhausted,
+      searchedNodes,
+    };
+  return LadderSearchResult{LadderSearchStatus::ESCAPED,false,false,false,false,false,searchedNodes};
+}
+
+template<bool recordDiagnostics>
+bool Board::searchIsLadderCapturedInternal(
+  Loc loc,
+  bool defenderFirst,
+  vector<Loc>& buf,
+  LadderSearchDiagnostics* diagnostics,
+  int maxNodeBudget
+) {
   if(loc < 0 || loc >= MAX_ARR_SIZE)
     return false;
   if(colors[loc] != C_BLACK && colors[loc] != C_WHITE)
@@ -1640,8 +1762,16 @@ bool Board::searchIsLadderCaptured(Loc loc, bool defenderFirst, vector<Loc>& buf
 
   //Clear the ko loc for the defender at the root node - assume all kos work for the defender
   Loc ko_loc_saved = ko_loc;
-  if(defenderFirst)
+  if(defenderFirst) {
+    if constexpr(recordDiagnostics) {
+      if(
+        ko_loc_saved != NULL_LOC &&
+        (isLibertyOf(ko_loc_saved,chain_head[loc]) || wouldBeCapture(ko_loc_saved,pla))
+      )
+        diagnostics->koEncountered = true;
+    }
     ko_loc = NULL_LOC;
+  }
 
   //Stack for the search. These point to lists of possible moves to search at each level of the stack, indices refer to indices in [buf].
   int stackSize = x_size*y_size*3/2+1; //A bit bigger due to paranoia about recaptures making the sequence longer.
@@ -1650,9 +1780,9 @@ bool Board::searchIsLadderCaptured(Loc loc, bool defenderFirst, vector<Loc>& buf
   int moveListLens[arrSize]; //Len of list
   int moveListCur[arrSize]; //Current move list idx searched, equal to -1 if list has not been generated.
   MoveRecord records[arrSize]; //Records so that we can undo moves as we search back up.
+  Hash128 situationHashes[arrSize]; //진단 경로에서 같은 착수자·simple-ko 상태 반복을 찾는다.
   int stackIdx = 0;
   int searchNodeCount = 0;
-  static const int MAX_LADDER_SEARCH_NODE_BUDGET = 25000;
 
   moveListCur[0] = -1;
   moveListStarts[0] = 0;
@@ -1668,15 +1798,23 @@ bool Board::searchIsLadderCaptured(Loc loc, bool defenderFirst, vector<Loc>& buf
     if(stackIdx <= -1) {
       assert(stackIdx == -1);
       ko_loc = ko_loc_saved;
+      if constexpr(recordDiagnostics)
+        diagnostics->searchedNodes = searchNodeCount;
       return returnValue;
     }
 
     //If we hit the stack limit, just consider it a failed ladder.
     if(stackIdx >= stackSize-1) {
+      if constexpr(recordDiagnostics)
+        diagnostics->stackLimitReached = true;
       returnValue = true; returnedFromDeeper = true; stackIdx--; continue;
     }
     //If we hit a total node count limit, then just assume it doesn't work.
-    if(searchNodeCount >= MAX_LADDER_SEARCH_NODE_BUDGET) {
+    if(searchNodeCount >= (recordDiagnostics ? maxNodeBudget : 25000)) {
+      if constexpr(recordDiagnostics) {
+        diagnostics->nodeBudgetExhausted = true;
+        diagnostics->searchedNodes = searchNodeCount;
+      }
       stackIdx -= 1;
       while(stackIdx >= 0) {
         undo(records[stackIdx]);
@@ -1689,6 +1827,17 @@ bool Board::searchIsLadderCaptured(Loc loc, bool defenderFirst, vector<Loc>& buf
 
     //We just entered this level?
     if(moveListCur[stackIdx] == -1) {
+      if constexpr(recordDiagnostics) {
+        Player nextPlayer = isDefender ? pla : opp;
+        Hash128 situation = getSitHashWithSimpleKo(nextPlayer);
+        for(int previousDepth = 0; previousDepth < stackIdx; previousDepth++) {
+          if(situationHashes[previousDepth] == situation) {
+            diagnostics->repetitionEncountered = true;
+            break;
+          }
+        }
+        situationHashes[stackIdx] = situation;
+      }
       int libs = chain_data[chain_head[loc]].num_liberties;
 
       //Base cases.
@@ -1702,7 +1851,11 @@ bool Board::searchIsLadderCaptured(Loc loc, bool defenderFirst, vector<Loc>& buf
       //because we don't want to say yes on ladders that depend on kos
       //This should also hopefully prevent any possible infinite loops - I don't know of any infinite loop
       //that would come up in a continuous atari sequence that doesn't ever leave a simple ko point.
-      if(isDefender && ko_loc != NULL_LOC) { returnValue = false; returnedFromDeeper = true; stackIdx--; continue; }
+      if(isDefender && ko_loc != NULL_LOC) {
+        if constexpr(recordDiagnostics)
+          diagnostics->koEncountered = true;
+        returnValue = false; returnedFromDeeper = true; stackIdx--; continue;
+      }
 
       //Otherwise we need to keep searching.
       //Generate the move list. Attacker and defender generate moves on the group's liberties, but only the defender
@@ -1710,6 +1863,10 @@ bool Board::searchIsLadderCaptured(Loc loc, bool defenderFirst, vector<Loc>& buf
       int start = moveListStarts[stackIdx];
       int moveListLen = 0;
       if(isDefender) {
+        if constexpr(recordDiagnostics) {
+          if(hasLibertyGainingCaptures(loc))
+            diagnostics->tacticalCaptureEncountered = true;
+        }
         moveListLen = findLibertyGainingCaptures(loc,buf,start,start);
         moveListLen += findLiberties(loc,buf,start,start+moveListLen);
 
@@ -1748,6 +1905,8 @@ bool Board::searchIsLadderCaptured(Loc loc, bool defenderFirst, vector<Loc>& buf
         //the attacker has stones in atari, but where the defender is still in inescapable atari even if they have
         //a large finite number of ko threats. But it's better than nothing.
         if(libs0 == 0 && libs1 == 0 && wouldBeKoCapture(buf[start],opp) && wouldBeKoCapture(buf[start+1],opp)) {
+          if constexpr(recordDiagnostics)
+            diagnostics->koEncountered = true;
           if(getNumLibertiesAfterPlay(buf[start],pla,3) <= 2 && getNumLibertiesAfterPlay(buf[start+1],pla,3) <= 2) {
             if(!hasLibertyGainingCaptures(loc))
             { returnValue = true; returnedFromDeeper = true; stackIdx--; continue; }
@@ -1831,6 +1990,10 @@ bool Board::searchIsLadderCaptured(Loc loc, bool defenderFirst, vector<Loc>& buf
     //loop again and just try the next move.
     bool isMultiStoneSuicideLegal = false;
     if(!isLegal(move,p,isMultiStoneSuicideLegal)) {
+      if constexpr(recordDiagnostics) {
+        if(move == ko_loc)
+          diagnostics->koEncountered = true;
+      }
       returnValue = isDefender;
       returnedFromDeeper = false;
       // if(print) cout << "illegal " << endl;

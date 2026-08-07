@@ -1,5 +1,6 @@
 #include "../tests/tests.h"
 #include "../pattern/detector.h"
+#include "../pattern/eyefacts.h"
 #include "../core/rand.h"
 
 #include <algorithm>
@@ -98,6 +99,278 @@ static void runSmallBoardExhaustiveBensonTest() {
   }
 }
 
+// runEyePointFactsTest는 단일점 눈의 공개 출력 없이 내부 Board 사실만 추출하는지 검증한다.
+// 반환값은 없으며 단순 눈, 거짓 눈, 따냄 진입, 혼합 경계를 각각 검사한다.
+static void runEyePointFactsTest() {
+  {
+    Board board = Board::parseBoard(5,5,R"%%(
+.....
+..x..
+.x.x.
+..x..
+.....
+)%%");
+    BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+    vector<GoPattern::EyePointFact> facts = GoPattern::extractEyePointFacts(board,hist);
+    testAssert(facts.size() == 1);
+    testAssert(facts[0].owner == P_BLACK);
+    testAssert(facts[0].simpleEye);
+    testAssert(!facts[0].opponentEntryLegalIgnoringKo);
+    testAssert(facts[0].hostileDiagonalPoints.empty());
+    testAssert(facts[0].borderingChainHeads.size() == 4);
+  }
+
+  {
+    Board board = Board::parseBoard(5,5,R"%%(
+.....
+.oxo.
+.x.x.
+..x..
+.....
+)%%");
+    Loc center = Location::getLoc(2,2,board.x_size);
+    BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+    vector<GoPattern::EyePointFact> facts = GoPattern::extractEyePointFacts(board,hist);
+    testAssert(facts.size() == 1);
+    testAssert(facts[0].loc == center);
+    testAssert(!facts[0].simpleEye);
+    testAssert(facts[0].hostileDiagonalPoints.size() == 2);
+  }
+
+  {
+    Board board = Board::parseBoard(7,7,R"%%(
+.......
+.ooooo.
+.oxxxo.
+.ox.xo.
+.oxxxo.
+.ooooo.
+.......
+)%%");
+    BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+    vector<GoPattern::EyePointFact> facts = GoPattern::extractEyePointFacts(board,hist);
+    testAssert(facts.size() == 1);
+    testAssert(facts[0].simpleEye);
+    testAssert(facts[0].opponentEntryLegalIgnoringKo);
+    testAssert(facts[0].borderingChainHeads.size() == 1);
+  }
+
+  {
+    Board board = Board::parseBoard(5,3,R"%%(
+.....
+.xox.
+.....
+)%%");
+    BoardHistory hist(board,P_BLACK,Rules::getTrompTaylorish(),0,false);
+    vector<GoPattern::EyePointFact> facts = GoPattern::extractEyePointFacts(board,hist);
+    testAssert(facts.empty());
+  }
+}
+
+// runLadderPatternTest는 완결 승패, 기존 bool 호환, 패 의존, 예산 미완결을 분리해 검증한다.
+// 반환값은 없으며 공개 Ladder v1 봉투와 내부 tri-state를 함께 검사한다.
+static void runLadderPatternTest() {
+  Board board = Board::parseBoard(9,9,R"%%(
+xo.x..oxo
+xo.o..o..
+xxo......
+..o.x....
+xo..xo...
+...ooxo..
+.....xo..
+xoox..xo.
+.xx.o.xxo
+)%%");
+  BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+  GoPattern::DetectionResult detection = GoPattern::detect(board,hist);
+  int attackerWins = 0;
+  int ambiguous = 0;
+  Loc highSubjectPoint = Board::NULL_LOC;
+  for(const GoPattern::Pattern& pattern: detection.patterns) {
+    if(pattern.kind != GoPattern::Kind::LADDER)
+      continue;
+    testAssert(pattern.subject.type == GoPattern::SubjectType::CHAIN);
+    const GoPattern::LadderDetails& details = get<GoPattern::LadderDetails>(pattern.details);
+    testAssert(pattern.subject.color == details.defender);
+    testAssert(details.attacker == getOpp(details.defender));
+    testAssert(details.defenderFirst == (details.defender == P_WHITE));
+    testAssert(details.ladderBreaker == Board::NULL_LOC);
+    testAssert(
+      board.getNumLiberties(pattern.subject.points[0]) ==
+      (details.defenderFirst ? 1 : 2)
+    );
+    if(pattern.outcome == GoPattern::Outcome::ATTACKER_WINS) {
+      testAssert(pattern.confidence == GoPattern::Confidence::HIGH);
+      attackerWins += 1;
+      if(highSubjectPoint == Board::NULL_LOC)
+        highSubjectPoint = pattern.subject.points[0];
+    }
+    else if(pattern.outcome == GoPattern::Outcome::DEFENDER_ESCAPES) {
+      testAssert(pattern.confidence == GoPattern::Confidence::HIGH);
+      testAssert(pattern.outcome == GoPattern::Outcome::DEFENDER_ESCAPES);
+      if(highSubjectPoint == Board::NULL_LOC)
+        highSubjectPoint = pattern.subject.points[0];
+    }
+    else {
+      testAssert(pattern.outcome == GoPattern::Outcome::AMBIGUOUS);
+      testAssert(pattern.confidence == GoPattern::Confidence::MEDIUM);
+      ambiguous += 1;
+    }
+
+    json encoded = GoPattern::toJson(pattern,board);
+    testAssert(encoded["kind"] == "ladder");
+    testAssert(encoded["schemaVersion"] == 1);
+    testAssert(
+      encoded["details"]["attacker"] ==
+      (details.attacker == P_BLACK ? "B" : "W")
+    );
+    testAssert(
+      encoded["details"]["defender"] ==
+      (details.defender == P_BLACK ? "B" : "W")
+    );
+    testAssert(encoded["details"]["defenderFirst"] == details.defenderFirst);
+    testAssert(encoded["details"]["ladderBreaker"].is_null());
+  }
+  testAssert(attackerWins > 0);
+  testAssert(ambiguous > 0);
+  testAssert(detection.warnings.empty());
+  testAssert(highSubjectPoint != Board::NULL_LOC);
+
+  BoardHistory historyBoundaryHist(hist);
+  Loc historyBoundaryMove = Board::NULL_LOC;
+  Loc highHead = board.chain_head[highSubjectPoint];
+  Loc highStone = highHead;
+  do {
+    for(int i = 0; i < 4; i++) {
+      Loc adjacent = highStone + board.adj_offsets[i];
+      if(board.colors[adjacent] == C_EMPTY) {
+        historyBoundaryMove = adjacent;
+        break;
+      }
+    }
+    highStone = board.next_in_chain[highStone];
+  } while(historyBoundaryMove == Board::NULL_LOC && highStone != highHead);
+  testAssert(historyBoundaryMove != Board::NULL_LOC);
+  historyBoundaryHist.superKoBanned[historyBoundaryMove] = true;
+  GoPattern::DetectionResult historyBoundaryDetection =
+    GoPattern::detect(board,historyBoundaryHist);
+  bool foundHistoryBoundary = false;
+  for(const GoPattern::Pattern& pattern: historyBoundaryDetection.patterns) {
+    if(pattern.kind != GoPattern::Kind::LADDER)
+      continue;
+    for(Loc point: pattern.subject.points) {
+      if(board.chain_head[point] == highHead) {
+        testAssert(pattern.outcome == GoPattern::Outcome::AMBIGUOUS);
+        testAssert(pattern.confidence == GoPattern::Confidence::MEDIUM);
+        foundHistoryBoundary = true;
+        break;
+      }
+    }
+  }
+  testAssert(foundHistoryBoundary);
+
+  bool checkedLegacyCompatibility = false;
+  bool checkedBudget = false;
+  bool checkedTacticalCaptureBoundary = false;
+  for(int y = 0; y < board.y_size; y++) {
+    for(int x = 0; x < board.x_size; x++) {
+      Loc loc = Location::getLoc(x,y,board.x_size);
+      if(
+        board.colors[loc] != P_BLACK ||
+        board.chain_head[loc] != loc ||
+        board.getNumLiberties(loc) != 2
+      )
+        continue;
+      Board legacyBoard(board);
+      Board detailedBoard(board);
+      vector<Loc> legacyBuffer;
+      vector<Loc> legacyMoves;
+      vector<Loc> detailedBuffer;
+      vector<Loc> detailedMoves;
+      bool legacyCaptured = legacyBoard.searchIsLadderCapturedAttackerFirst2Libs(
+        loc,
+        legacyBuffer,
+        legacyMoves
+      );
+      LadderSearchResult detailed = detailedBoard.searchIsLadderCapturedAttackerFirst2LibsDetailed(
+        loc,
+        detailedBuffer,
+        detailedMoves
+      );
+      if(detailed.status != LadderSearchStatus::UNKNOWN) {
+        testAssert(
+          legacyCaptured ==
+          (detailed.status == LadderSearchStatus::CAPTURED)
+        );
+        checkedLegacyCompatibility = true;
+      }
+      else if(detailed.tacticalCaptureDependent) {
+        checkedTacticalCaptureBoundary = true;
+      }
+
+      if(!checkedBudget) {
+        Board budgetBoard(board);
+        vector<Loc> budgetBuffer;
+        vector<Loc> budgetMoves;
+        LadderSearchResult budgetResult =
+          budgetBoard.searchIsLadderCapturedAttackerFirst2LibsDetailed(
+            loc,
+            budgetBuffer,
+            budgetMoves,
+            0
+          );
+        testAssert(budgetResult.status == LadderSearchStatus::UNKNOWN);
+        testAssert(budgetResult.budgetExhausted);
+        testAssert(!budgetResult.koDependent);
+        testAssert(!budgetResult.tacticalCaptureDependent);
+        testAssert(!budgetResult.repetitionDependent);
+        testAssert(!budgetResult.sequenceLimitReached);
+        checkedBudget = true;
+      }
+    }
+    if(checkedLegacyCompatibility && checkedBudget && checkedTacticalCaptureBoundary)
+      break;
+  }
+  testAssert(checkedLegacyCompatibility);
+  testAssert(checkedBudget);
+  testAssert(checkedTacticalCaptureBoundary);
+
+  Board koBoard = Board::parseBoard(18,9,R"%%(
+..................
+..................
+....ox.......ox...
+..xooox....xooox..
+..xoxox....xoxox..
+..xx.x......x.x...
+...ox.......ox....
+....o.............
+..................
+)%%");
+  bool foundKoDependent = false;
+  for(int y = 0; y < koBoard.y_size && !foundKoDependent; y++) {
+    for(int x = 0; x < koBoard.x_size; x++) {
+      Loc loc = Location::getLoc(x,y,koBoard.x_size);
+      if(
+        (koBoard.colors[loc] != P_BLACK && koBoard.colors[loc] != P_WHITE) ||
+        koBoard.chain_head[loc] != loc ||
+        koBoard.getNumLiberties(loc) != 2
+      )
+        continue;
+      Board workingBoard(koBoard);
+      vector<Loc> buffer;
+      vector<Loc> workingMoves;
+      LadderSearchResult result = workingBoard.searchIsLadderCapturedAttackerFirst2LibsDetailed(
+        loc,
+        buffer,
+        workingMoves
+      );
+      if(result.status == LadderSearchStatus::UNKNOWN && result.koDependent)
+        foundKoDependent = true;
+    }
+  }
+  testAssert(foundKoDependent);
+}
+
 // playRandomLegalMove는 현재 차례에 둘 수 있는 보드 위 수 중 하나를 결정적으로 골라 적용한다.
 // board와 hist는 수정할 게임 상태, nextPla는 현재 차례, rand는 고정 seed 난수이며, 반환값은 착수 성공 여부다.
 static bool playRandomLegalMove(Board& board, BoardHistory& hist, Player& nextPla, Rand& rand) {
@@ -139,6 +412,284 @@ static BoardHistory randomLegalPosition(
       break;
   }
   return hist;
+}
+
+enum class LadderOracleStatus {
+  CAPTURED,
+  ESCAPED,
+  UNKNOWN,
+};
+
+// appendUniqueLoc는 테스트 oracle의 좌표 목록에 중복 없는 값만 추가한다.
+static void appendUniqueLoc(vector<Loc>& values, Loc value) {
+  if(find(values.begin(),values.end(),value) == values.end())
+    values.push_back(value);
+}
+
+// oracleChainLiberties는 Board 공개 연결 정보만으로 대상 chain의 활로를 독립 열거한다.
+static vector<Loc> oracleChainLiberties(const Board& board, Loc anchor) {
+  vector<Loc> liberties;
+  if(board.colors[anchor] != P_BLACK && board.colors[anchor] != P_WHITE)
+    return liberties;
+  Loc head = board.chain_head[anchor];
+  Loc stone = head;
+  do {
+    for(int i = 0; i < 4; i++) {
+      Loc adj = stone + board.adj_offsets[i];
+      if(board.colors[adj] == C_EMPTY)
+        appendUniqueLoc(liberties,adj);
+    }
+    stone = board.next_in_chain[stone];
+  } while(stone != head);
+  return liberties;
+}
+
+// oracleDefenderMoves는 목표 chain의 활로와 인접 단수 상대군 따냄 수를 독립 열거한다.
+static vector<Loc> oracleDefenderMoves(const Board& board, Loc anchor, Player defender) {
+  vector<Loc> moves = oracleChainLiberties(board,anchor);
+  Loc targetHead = board.chain_head[anchor];
+  Loc stone = targetHead;
+  do {
+    for(int i = 0; i < 4; i++) {
+      Loc adjacent = stone + board.adj_offsets[i];
+      if(
+        board.colors[adjacent] != getOpp(defender) ||
+        board.getNumLiberties(adjacent) != 1
+      )
+        continue;
+      vector<Loc> captureLiberties = oracleChainLiberties(board,adjacent);
+      testAssert(captureLiberties.size() == 1);
+      appendUniqueLoc(moves,captureLiberties[0]);
+    }
+    stone = board.next_in_chain[stone];
+  } while(stone != targetHead);
+  return moves;
+}
+
+// solveLadderOracle는 작은 판에서 활로·인접 단수 따냄만 생성하는 독립 minimax로 사다리를 판정한다.
+static LadderOracleStatus solveLadderOracle(
+  const Board& board,
+  Loc anchor,
+  Player defender,
+  bool defenderTurn,
+  int remainingDepth,
+  vector<Hash128>& path
+) {
+  if(board.colors[anchor] != defender)
+    return LadderOracleStatus::CAPTURED;
+  const int liberties = board.getNumLiberties(anchor);
+  if(defenderTurn && liberties >= 2)
+    return LadderOracleStatus::ESCAPED;
+  if(!defenderTurn && liberties <= 1)
+    return LadderOracleStatus::CAPTURED;
+  if(!defenderTurn && liberties >= 3)
+    return LadderOracleStatus::ESCAPED;
+  if(remainingDepth <= 0)
+    return LadderOracleStatus::UNKNOWN;
+
+  Player nextPlayer = defenderTurn ? defender : getOpp(defender);
+  Hash128 situation = board.getSitHashWithSimpleKo(nextPlayer);
+  if(find(path.begin(),path.end(),situation) != path.end())
+    return LadderOracleStatus::UNKNOWN;
+  path.push_back(situation);
+
+  vector<Loc> moves = defenderTurn ?
+    oracleDefenderMoves(board,anchor,defender) :
+    oracleChainLiberties(board,anchor);
+  bool foundLegalMove = false;
+  bool foundUnknown = false;
+  for(Loc move: moves) {
+    if(move == board.ko_loc) {
+      foundUnknown = true;
+      continue;
+    }
+    Board child(board);
+    if(!child.playMove(move,nextPlayer,false))
+      continue;
+    foundLegalMove = true;
+    LadderOracleStatus childStatus = solveLadderOracle(
+      child,
+      anchor,
+      defender,
+      !defenderTurn,
+      remainingDepth - 1,
+      path
+    );
+    if(defenderTurn && childStatus == LadderOracleStatus::ESCAPED) {
+      path.pop_back();
+      return LadderOracleStatus::ESCAPED;
+    }
+    if(!defenderTurn && childStatus == LadderOracleStatus::CAPTURED) {
+      path.pop_back();
+      return LadderOracleStatus::CAPTURED;
+    }
+    if(childStatus == LadderOracleStatus::UNKNOWN)
+      foundUnknown = true;
+  }
+  path.pop_back();
+
+  if(foundUnknown)
+    return LadderOracleStatus::UNKNOWN;
+  if(!foundLegalMove)
+    return defenderTurn ? LadderOracleStatus::CAPTURED : LadderOracleStatus::ESCAPED;
+  return defenderTurn ? LadderOracleStatus::CAPTURED : LadderOracleStatus::ESCAPED;
+}
+
+// runLadderIndependentPropertyTest는 작은 합법 상태에서 상세 탐색을 독립 minimax와 500건 대조한다.
+// 반환값은 검증한 완결 후보 수이며 captured·escaped를 각각 200건 이상 포함한다.
+static int runLadderIndependentPropertyTest() {
+  Rand rand("ladder-independent-property-20260807");
+  int checked = 0;
+  int captured = 0;
+  int escaped = 0;
+  int applicable = 0;
+  int emitted = 0;
+  int validatedStates = 0;
+  int lastValidatedSample = -1;
+  int nonSquareChecked = 0;
+  int defenderFirstChecked = 0;
+  int attackerFirstChecked = 0;
+  bool validatedEscapedSerialization = false;
+  for(int sample = 0; sample < 20000; sample++) {
+    int xSize = 4 + static_cast<int>(rand.nextUInt(4));
+    int ySize = 4 + static_cast<int>(rand.nextUInt(4));
+    int area = xSize * ySize;
+    Board board;
+    int targetMoves = static_cast<int>(rand.nextUInt(static_cast<uint32_t>(area * 2 + 1)));
+    BoardHistory generatedHist =
+      randomLegalPosition(board,xSize,ySize,sample % 2 == 1,targetMoves,rand);
+
+    for(int y = 0; y < board.y_size; y++) {
+      for(int x = 0; x < board.x_size; x++) {
+        Loc loc = Location::getLoc(x,y,board.x_size);
+        Player defender = board.colors[loc];
+        if(
+          (defender != P_BLACK && defender != P_WHITE) ||
+          board.chain_head[loc] != loc
+        )
+          continue;
+        int liberties = board.getNumLiberties(loc);
+        if(liberties != 1 && liberties != 2)
+          continue;
+        applicable += 1;
+
+        bool defenderTurn = liberties == 1;
+        Board detailedBoard(board);
+        vector<Loc> buffer;
+        vector<Loc> workingMoves;
+        LadderSearchResult detailed = defenderTurn ?
+          detailedBoard.searchIsLadderCapturedDetailed(loc,true,buffer) :
+          detailedBoard.searchIsLadderCapturedAttackerFirst2LibsDetailed(
+            loc,
+            buffer,
+            workingMoves
+          );
+        if(!detailed.budgetExhausted && (
+          detailed.status != LadderSearchStatus::UNKNOWN ||
+          detailed.koDependent ||
+          detailed.tacticalCaptureDependent ||
+          detailed.repetitionDependent ||
+          detailed.sequenceLimitReached
+        ))
+          emitted += 1;
+        if(detailed.status == LadderSearchStatus::UNKNOWN)
+          continue;
+
+        vector<Hash128> path;
+        LadderOracleStatus oracle = solveLadderOracle(
+          board,
+          loc,
+          defender,
+          defenderTurn,
+          area * 2,
+          path
+        );
+        if(oracle == LadderOracleStatus::UNKNOWN)
+          continue;
+        bool detailedCaptured = detailed.status == LadderSearchStatus::CAPTURED;
+        bool oracleCaptured = oracle == LadderOracleStatus::CAPTURED;
+        testAssert(detailedCaptured == oracleCaptured);
+        checked += 1;
+        if(lastValidatedSample != sample) {
+          validatedStates += 1;
+          lastValidatedSample = sample;
+        }
+        if(xSize != ySize)
+          nonSquareChecked += 1;
+        if(defenderTurn)
+          defenderFirstChecked += 1;
+        else
+          attackerFirstChecked += 1;
+        if(detailedCaptured)
+          captured += 1;
+        else {
+          escaped += 1;
+          if(!validatedEscapedSerialization) {
+            Player nextPlayer = defenderTurn ? defender : getOpp(defender);
+            BoardHistory outputHist(
+              board,
+              nextPlayer,
+              generatedHist.rules,
+              generatedHist.initialTurnNumber,
+              false
+            );
+            GoPattern::DetectionResult detection = GoPattern::detect(board,outputHist);
+            bool foundEscaped = false;
+            for(const GoPattern::Pattern& pattern: detection.patterns) {
+              if(
+                pattern.kind != GoPattern::Kind::LADDER ||
+                pattern.outcome != GoPattern::Outcome::DEFENDER_ESCAPES
+              )
+                continue;
+              for(Loc point: pattern.subject.points) {
+                if(board.chain_head[point] == board.chain_head[loc]) {
+                  json encoded = GoPattern::toJson(pattern,board);
+                  testAssert(encoded["outcome"] == "defenderEscapes");
+                  testAssert(encoded["confidence"] == "high");
+                  foundEscaped = true;
+                  break;
+                }
+              }
+              if(foundEscaped)
+                break;
+            }
+            testAssert(foundEscaped);
+            validatedEscapedSerialization = true;
+          }
+        }
+        if(
+          checked >= 500 &&
+          captured >= 200 &&
+          escaped >= 200 &&
+          nonSquareChecked >= 100 &&
+          defenderFirstChecked >= 100 &&
+          attackerFirstChecked >= 100 &&
+          validatedEscapedSerialization &&
+          emitted * 100 >= applicable * 90
+        ) {
+          cout
+            << "Ladder independent validation: "
+            << checked << " candidates, "
+            << captured << " captured, "
+            << escaped << " escaped, "
+            << validatedStates << " states, "
+            << nonSquareChecked << " non-square, "
+            << emitted << "/" << applicable << " emitted"
+            << endl;
+          return checked;
+        }
+      }
+    }
+  }
+  testAssert(checked >= 500);
+  testAssert(captured >= 200);
+  testAssert(escaped >= 200);
+  testAssert(nonSquareChecked >= 100);
+  testAssert(defenderFirstChecked >= 100);
+  testAssert(attackerFirstChecked >= 100);
+  testAssert(emitted * 100 >= applicable * 90);
+  testAssert(validatedEscapedSerialization);
+  return checked;
 }
 
 // runSquareBoardPropertyTest는 4×4~19×19 합법 수순 상태를 두 suicide 모드로 대조한다.
@@ -450,6 +1001,9 @@ ooooo
   }
 
   runSmallBoardExhaustiveBensonTest();
+  runEyePointFactsTest();
+  runLadderPatternTest();
+  runLadderIndependentPropertyTest();
   int squareStates = runSquareBoardPropertyTest();
   pair<int,int> nonSquareResult = runNonSquarePropertyTest();
   int suicideFixtures = runSuicideSensitiveFixtureTest();
