@@ -449,6 +449,10 @@ void Search::selectBestChildToDescend(
   );
 
   bool posesWithChildBuf[NNPos::MAX_NN_POLICY_SIZE] = { }; // Initialize all to false
+  int rootChildIdxByLoc[Board::MAX_ARR_SIZE];
+  int rootPassChildIdx = -1;
+  if(isRoot)
+    std::fill(rootChildIdxByLoc, rootChildIdxByLoc + Board::MAX_ARR_SIZE, -1);
   bool antiMirror = searchParams.antiMirror && mirroringPla != C_EMPTY && isMirroringSinceSearchStart(thread.history,0);
 
   double exploreScaling;
@@ -493,9 +497,49 @@ void Search::selectBestChildToDescend(
     }
 
     posesWithChildBuf[getPos(moveLoc)] = true;
+    if(isRoot) {
+      if(moveLoc == Board::PASS_LOC)
+        rootPassChildIdx = i;
+      else if(rootBoard.isOnBoard(moveLoc))
+        rootChildIdxByLoc[moveLoc] = i;
+    }
   }
 
   const std::vector<int>& avoidMoveUntilByLoc = thread.pla == P_BLACK ? avoidMoveUntilByLocBlack : avoidMoveUntilByLocWhite;
+
+  if(isRoot) {
+    const vector<Loc>& includeMoves = thread.pla == P_BLACK ? legalIncludeMovesBlack : legalIncludeMovesWhite;
+    const int64_t minVisits = std::max<int64_t>(1, searchParams.includeMovesMinVisits);
+    for(Loc moveLoc: includeMoves) {
+      int movePos = getPos(moveLoc);
+      if(movePos < 0 || movePos >= policySize)
+        continue;
+
+      int childIdx = getRootChildIndexForLoc(moveLoc,rootChildIdxByLoc,rootPassChildIdx);
+      if(childIdx >= 0) {
+        const SearchChildPointer& childPointer = children[childIdx];
+        const SearchNode* child = childPointer.getIfAllocated();
+        if(child == NULL)
+          continue;
+        if(childPointer.getEdgeVisits() < minVisits) {
+          bestChildIdx = childIdx;
+          bestChildMoveLoc = moveLoc;
+          countEdgeVisit = true;
+          thread.shouldCountPlayout = true;
+          return;
+        }
+        continue;
+      }
+
+      if(!posesWithChildBuf[movePos]) {
+        bestChildIdx = numChildrenFound;
+        bestChildMoveLoc = moveLoc;
+        countEdgeVisit = true;
+        thread.shouldCountPlayout = true;
+        return;
+      }
+    }
+  }
 
   //Try all the things in the eval cache that are moves we haven't visited yet.
   //Use the normal new explore selection value for them but with their eval cache utility instead of FPU.

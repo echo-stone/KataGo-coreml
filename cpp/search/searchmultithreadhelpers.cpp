@@ -90,6 +90,75 @@ void Search::performTaskWithThreads(std::function<void(int)>* task, int capThrea
   }
 }
 
+// 목적: 기존 검색 스레드와 부족한 수만큼의 임시 스레드로 짧은 작업을 실행한다.
+// 매개변수: task는 실행할 작업, numThreads는 현재 스레드를 포함한 총 실행 스레드 수다.
+// 반환값: 없음.
+void Search::performTaskWithThreadsAndTemporaryThreads(std::function<void(int)>* task, int numThreads) {
+  numThreads = std::max(1,numThreads);
+  if(numThreads <= 1) {
+    (*task)(0);
+    return;
+  }
+
+  spawnThreadsIfNeeded();
+  int numExistingThreadsToUse = std::min(numThreads-1, numAdditionalThreadsToUseForTasks());
+  int numTemporaryThreadsToUse = numThreads-1-numExistingThreadsToUse;
+
+  std::mutex exceptionMutex;
+  std::exception_ptr firstException = nullptr;
+  auto runTask = [&](int threadIdx) {
+    try {
+      (*task)(threadIdx);
+    }
+    catch(...) {
+      std::lock_guard<std::mutex> lock(exceptionMutex);
+      if(firstException == nullptr)
+        firstException = std::current_exception();
+    }
+  };
+
+  std::vector<std::thread> temporaryThreads;
+  temporaryThreads.reserve(numTemporaryThreadsToUse);
+  auto joinTemporaryThreads = [&]() {
+    for(std::thread& thread: temporaryThreads) {
+      if(thread.joinable())
+        thread.join();
+    }
+  };
+
+  try {
+    for(int i = 0; i<numTemporaryThreadsToUse; i++) {
+      int threadIdx = numExistingThreadsToUse+1+i;
+      temporaryThreads.push_back(std::thread(runTask,threadIdx));
+    }
+  }
+  catch(...) {
+    {
+      std::lock_guard<std::mutex> lock(exceptionMutex);
+      if(firstException == nullptr)
+        firstException = std::current_exception();
+    }
+    joinTemporaryThreads();
+    std::rethrow_exception(firstException);
+  }
+
+  std::function<void(int)> wrappedTask = runTask;
+  if(numExistingThreadsToUse > 0) {
+    testAssert(numExistingThreadsToUse <= numThreadsSpawned);
+    threadTasksRemaining->add(numExistingThreadsToUse);
+    for(int i = 0; i<numExistingThreadsToUse; i++)
+      threadTasks[i].forcePush(&wrappedTask);
+  }
+
+  runTask(0);
+  if(numExistingThreadsToUse > 0)
+    threadTasksRemaining->waitUntilZero();
+  joinTemporaryThreads();
+
+  if(firstException != nullptr)
+    std::rethrow_exception(firstException);
+}
+
 
 static void maybeAppendShuffledIntRange(int cap, PCG32* rand, std::vector<int>& randBuf) {
   if(rand != NULL) {

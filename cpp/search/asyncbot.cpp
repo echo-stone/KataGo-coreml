@@ -117,6 +117,20 @@ void AsyncBot::setAvoidMoveUntilByLoc(const std::vector<int>& bVec, const std::v
   stopAndWait();
   search->setAvoidMoveUntilByLoc(bVec,wVec);
 }
+// 목적: 다음 검색에서 최소 includeMovesMinVisits회 방문할 루트 착점 목록을 설정한다.
+// 매개변수: bVec은 흑 착점, wVec은 백 착점 목록이다.
+// 반환값: 없음.
+void AsyncBot::setIncludeMoves(const std::vector<Loc>& bVec, const std::vector<Loc>& wVec) {
+  stopAndWait();
+  search->setIncludeMoves(bVec,wVec);
+}
+// 목적: 모든 합법적인 패스 이외의 루트 착점을 최소 includeMovesMinVisits회 방문하도록 설정한다.
+// 매개변수: 없음.
+// 반환값: 없음.
+void AsyncBot::setIncludeAllMoves() {
+  stopAndWait();
+  search->setIncludeAllMoves();
+}
 void AsyncBot::setAvoidMoveUntilRescaleRoot(bool b) {
   stopAndWait();
   search->setAvoidMoveUntilRescaleRoot(b);

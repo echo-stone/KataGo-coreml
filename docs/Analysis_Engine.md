@@ -85,6 +85,15 @@ Explanation of fields (including some optional fields not present in the above q
    * `boardYSize (integer)`: Required. The height of the board. Sizes > 19 are NOT supported unless KataGo has been compiled to support them (cpp/game/board.h, MAX_LEN = 19). KataGo's official neural nets have also not been trained for larger boards, but should work fine for mildly larger sizes (21,23,25).
    * `analyzeTurns (list of integers)`: Optional. Which turns of the game to analyze. 0 is the initial position, 1 is the position after `moves[0]`, 2 is the position after `moves[1]`, etc. If this field is not specified, defaults to analyzing only the last turn, which is the position after all specified `moves` are made.
    * `maxVisits (integer)`: Optional. The maximum number of visits to use. If not specified, defaults to the value in the analysis config file. If specified, overrides it.
+   * `includeMoves (list of dicts)`: 선택 사항. 각 분석 턴에서 반드시 결과에 포함하고 최소 방문 수를 보장할 착점을 지정합니다. 각 dict에는 다음 필드가 필요합니다.
+      * `turnNumber` - `0`부터 `moves` 길이까지의 정수입니다. `analyzeTurns`와 같은 턴 번호 체계를 사용합니다.
+      * `player` - 해당 턴의 착수자이며 `"B"` 또는 `"W"`입니다. 실제 착수자와 다르면 경고를 출력하고 그 항목을 무시합니다.
+      * `moves` - 보장할 착점 배열입니다. 예: `["C3","Q4"]`. 중복 착점은 한 번만 처리하며 불법 착점은 무시합니다.
+      * 명시한 착점은 정책값이 낮거나 `allowMoves`/`avoidMoves`에 의해 일반 탐색에서 제외되더라도 우선 방문합니다.
+   * `includeAllMoves (boolean)`: 선택 사항. `true`이면 분석할 각 턴의 모든 합법적인 패스 이외 착점을 방문 보장 대상으로 설정합니다. `includeMoves`, `allowMoves`, `avoidMoves`와 동시에 사용할 수 없습니다.
+   * `includeMovesMinVisits (integer)`: 선택 사항. `includeMoves` 또는 `includeAllMoves`의 각 착점에 보장할 최소 루트 edge 방문 수입니다. 기본값은 1이며 범위는 1부터 2^50까지입니다.
+      * 보장 방문은 일반 `maxVisits`와 `maxPlayouts` 예산과 별도로 계산되므로 실제 총 방문 수가 해당 값보다 커질 수 있습니다.
+      * 시간 제한이나 `terminate` 요청은 즉시 중단을 우선하므로 최소 방문 수를 채우기 전에 검색을 끝낼 수 있습니다.
    * `rootPolicyTemperature (float)`: Optional. Set this to a value > 1 to make KataGo do a wider search.
    * `rootFpuReductionMax (float)`: Optional. Set this to 0 to make KataGo more willing to try a variety of moves.
    * `analysisPVLen (integer)`: Optional. The maximum length of the PV to send for each move (not including the first move).
@@ -116,6 +125,25 @@ Explanation of fields (including some optional fields not present in the above q
    * `reportDuringSearchEvery (float)`: Optional. Specify a number of seconds such that while this position is being searched, KataGo will report the partial analysis every that many seconds.
    * `priority (int)`: Optional. Analysis threads will prefer handling queries with the highest priority unless already started on another task, breaking ties in favor of earlier queries. If not specified, defaults to 0.
    * `priorities (list of integers)`: Optional. When using analyzeTurns, you can use this instead of `priority` if you want a different priority per turn. Must be of same length as `analyzeTurns`, `priorities[0]` is the priority for `analyzeTurns[0]`, `priorities[1]` is the priority for `analyzeTurns[1]`, etc.
+
+`includeMoves` 사용 예:
+
+```json
+{
+  "id": "forced-candidates",
+  "moves": [["B", "Q16"]],
+  "rules": "tromp-taylor",
+  "komi": 7.5,
+  "boardXSize": 19,
+  "boardYSize": 19,
+  "analyzeTurns": [0, 1],
+  "includeMoves": [
+    {"turnNumber": 0, "player": "B", "moves": ["D4", "Q4"]},
+    {"turnNumber": 1, "player": "W", "moves": ["D16", "Q4"]}
+  ],
+  "includeMovesMinVisits": 3
+}
+```
 
 
 ### Responses

@@ -99,6 +99,13 @@ struct Search {
   std::vector<int> avoidMoveUntilByLocWhite;
   bool avoidMoveUntilRescaleRoot; // When avoiding moves at the root, rescale the root policy to sum to 1.
 
+  // 외부 요청으로 루트에서 최소 방문 수를 보장해야 하는 착점들이다.
+  std::vector<Loc> includeMovesBlack;
+  std::vector<Loc> includeMovesWhite;
+  // 현재 루트에서 합법인 includeMoves 부분집합이며 요청 순서를 유지한다.
+  std::vector<Loc> legalIncludeMovesBlack;
+  std::vector<Loc> legalIncludeMovesWhite;
+
   //If rootSymmetryPruning==true and the board is symmetric, mask all the equivalent copies of each move except one.
   bool rootSymDupLoc[Board::MAX_ARR_SIZE];
   //If rootSymmetryPruning==true, symmetries under which the root board and history are invariant, including some heuristics for ko and encore-related state.
@@ -229,6 +236,14 @@ struct Search {
   void setKomiIfNew(float newKomi); //Does not clear history, does clear search unless komi is equal.
   void setRootHintLoc(Loc hintLoc);
   void setAvoidMoveUntilByLoc(const std::vector<int>& bVec, const std::vector<int>& wVec);
+  // 목적: 플레이어별로 방문을 보장할 루트 착점 목록을 교체한다.
+  // 매개변수: bVec은 흑 착점, wVec은 백 착점 목록이다.
+  // 반환값: 없음.
+  void setIncludeMoves(const std::vector<Loc>& bVec, const std::vector<Loc>& wVec);
+  // 목적: 현재 루트 플레이어의 모든 합법적인 패스 이외 착점을 방문 보장 목록으로 설정한다.
+  // 매개변수: 없음.
+  // 반환값: 없음.
+  void setIncludeAllMoves();
   void setAvoidMoveUntilRescaleRoot(bool b);
   void setAlwaysIncludeOwnerMap(bool b);
   void setRootSymmetryPruningOnly(const std::vector<int>& rootPruneOnlySymmetries);
@@ -428,6 +443,57 @@ private:
   static constexpr double FUTILE_VISITS_PRUNE_VALUE = -1e40;
   static constexpr double EVALUATING_SELECTION_VALUE_PENALTY = 1e20;
 
+  struct IncludeMoveVisitSummary {
+    int64_t guaranteedVisits;
+    bool needsMoreVisits;
+  };
+
+  // 목적: 루트 includeMove가 현재 루트에서 합법인지 확인한다.
+  // 매개변수: moveLoc은 검사할 루트 착점이다.
+  // 반환값: 합법이면 true, 아니면 false다.
+  bool isLegalRootIncludeMove(Loc moveLoc) const;
+
+  // 목적: 현재 루트에서 합법인 includeMoves 목록을 미리 계산한다.
+  // 매개변수: 없음.
+  // 반환값: 없음.
+  void refreshLegalIncludeMoves();
+
+  // 목적: 루트 자식 목록의 착점을 자식 인덱스로 바로 찾을 수 있도록 인덱스를 채운다.
+  // 매개변수: children은 루트 자식, childIndexByLoc과 passChildIdx는 결과 저장 위치다.
+  // 반환값: 없음.
+  void fillRootChildIndexByLoc(
+    ConstSearchNodeChildrenReference children,
+    int childIndexByLoc[Board::MAX_ARR_SIZE],
+    int& passChildIdx
+  ) const;
+
+  // 목적: 미리 만든 인덱스에서 특정 루트 착점의 자식 인덱스를 찾는다.
+  // 매개변수: moveLoc은 착점, childIndexByLoc과 passChildIdx는 인덱스 정보다.
+  // 반환값: 자식 인덱스이며 없으면 -1이다.
+  int getRootChildIndexForLoc(
+    Loc moveLoc,
+    const int childIndexByLoc[Board::MAX_ARR_SIZE],
+    int passChildIdx
+  ) const;
+
+  // 목적: 보장 방문 수와 추가 includeMove 방문 필요 여부를 한 번의 루트 스캔으로 계산한다.
+  // 매개변수: 없음.
+  // 반환값: 보장 방문 합계와 추가 방문 필요 여부다.
+  IncludeMoveVisitSummary getIncludeMoveVisitSummary() const;
+
+  // 목적: includeMoves의 최초 방문을 본 검색 전에 신경망으로 병렬 선평가한다.
+  // 매개변수: shouldStopNow와 shouldStopEarly는 중단 신호다.
+  // 반환값: 이번 검색의 playout으로 계산할 선처리 방문 수다.
+  int64_t preEvaluateIncludeMovesRawOnce(
+    std::atomic<bool>& shouldStopNow,
+    std::function<bool()>* shouldStopEarly
+  );
+
+  // 목적: 루트 착점을 적용해 스레드 상태를 해당 자식 포지션으로 준비한다.
+  // 매개변수: thread는 갱신할 상태, moveLoc은 루트 착점, forceNonTerminal은 자식 생성 플래그 출력이다.
+  // 반환값: 착점 적용에 성공하면 true, 아니면 false다.
+  bool prepareRootChildThreadState(SearchThread& thread, Loc moveLoc, bool& forceNonTerminal) const;
+
   //----------------------------------------------------------------------------------------
   // Dirichlet noise and temperature
   // searchhelpers.cpp
@@ -501,6 +567,10 @@ private:
   void spawnThreadsIfNeeded();
   void killThreads();
   void performTaskWithThreads(std::function<void(int)>* task, int capThreads);
+  // 목적: 기존 검색 스레드와 부족한 수만큼의 임시 스레드로 짧은 작업을 실행한다.
+  // 매개변수: task는 실행할 작업, numThreads는 현재 스레드를 포함한 총 실행 스레드 수다.
+  // 반환값: 없음.
+  void performTaskWithThreadsAndTemporaryThreads(std::function<void(int)>* task, int numThreads);
 
   void applyRecursivelyPostOrderMulithreaded(const std::vector<SearchNode*>& nodes, std::function<void(SearchNode*,int)>* f);
   void applyRecursivelyPostOrderMulithreadedHelper(

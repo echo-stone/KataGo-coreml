@@ -46,6 +46,14 @@ class AsyncBot {
   void setKomiIfNew(float newKomi);
   void setRootHintLoc(Loc loc);
   void setAvoidMoveUntilByLoc(const std::vector<int>& bVec, const std::vector<int>& wVec);
+  // 목적: 다음 검색에서 최소 includeMovesMinVisits회 방문할 루트 착점 목록을 설정한다.
+  // 매개변수: bVec은 흑 착점, wVec은 백 착점 목록이다.
+  // 반환값: 없음.
+  void setIncludeMoves(const std::vector<Loc>& bVec, const std::vector<Loc>& wVec);
+  // 목적: 모든 합법적인 패스 이외의 루트 착점을 최소 includeMovesMinVisits회 방문하도록 설정한다.
+  // 매개변수: 없음.
+  // 반환값: 없음.
+  void setIncludeAllMoves();
   void setAvoidMoveUntilRescaleRoot(bool b);
   void setAlwaysIncludeOwnerMap(bool b);
   void setParams(const SearchParams& params);

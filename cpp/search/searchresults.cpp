@@ -79,6 +79,20 @@ bool Search::getPlaySelectionValues(
   double totalChildWeight = 0.0;
   const bool suppressPass = shouldSuppressPass(&node);
 
+  // 목적: 이미 생성된 루트 자식이 includeMoves에 포함되어 결과에서 제거되면 안 되는지 확인한다.
+  // 매개변수: moveLoc은 확인할 루트 착점이다.
+  // 반환값: 루트의 includeMoves 착점이면 true, 아니면 false다.
+  auto isRootIncludedMove = [&](Loc moveLoc) {
+    if(&node != rootNode)
+      return false;
+    const vector<Loc>& includeMoves = rootPla == P_BLACK ? includeMovesBlack : includeMovesWhite;
+    for(Loc includeMoveLoc: includeMoves) {
+      if(includeMoveLoc == moveLoc)
+        return true;
+    }
+    return false;
+  };
+
   //Store up basic weights
   ConstSearchNodeChildrenReference children = node.getChildren();
   const int childrenCapacity = children.getCapacity();
@@ -99,7 +113,7 @@ bool Search::getPlaySelectionValues(
     // Also if we're suppressing passes.
     // We always push a value on to playSelectionValues even if that value is 0,
     // because some callers rely on this to line up with the raw indices in the children array of the node.
-    if((suppressPass && moveLoc == Board::PASS_LOC) || policyProbs[getPos(moveLoc)] < 0) {
+    if((suppressPass && moveLoc == Board::PASS_LOC) || (policyProbs[getPos(moveLoc)] < 0 && !isRootIncludedMove(moveLoc))) {
       playSelectionValues.push_back(0.0);
       if(retVisitCounts != NULL)
         (*retVisitCounts).push_back(0.0);

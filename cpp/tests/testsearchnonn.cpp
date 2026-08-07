@@ -117,6 +117,180 @@ void Tests::runNNLessSearchTests() {
 
   {
     cout << "===================================================================" << endl;
+    cout << "includeMoves root visit guarantees" << endl;
+    cout << "===================================================================" << endl;
+
+    NNEvaluator* nnEval = startNNEval(modelFile,logger,"includeMovesRootGuarantees",9,9,0,true,false,false,true,false);
+
+    Board board = Board::parseBoard(9,9,R"%%(
+.........
+.........
+.........
+.........
+.........
+.........
+.........
+.........
+.........
+)%%");
+    Player nextPla = P_BLACK;
+    Rules rules = Rules::getTrompTaylorish();
+    BoardHistory hist(board,nextPla,rules,0,false);
+
+    // 목적: 현재 루트 트리에서 특정 착점의 edge 방문 수를 찾는다.
+    // 매개변수: search는 완료된 검색, loc은 찾을 착점이다.
+    // 반환값: 착점의 edge 방문 수이며 확장되지 않았으면 0이다.
+    auto getRootEdgeVisits = [](const Search* search, Loc loc) {
+      ConstSearchNodeChildrenReference children = search->rootNode->getChildren();
+      int childrenCapacity = children.getCapacity();
+      for(int i = 0; i<childrenCapacity; i++) {
+        const SearchChildPointer& childPointer = children[i];
+        const SearchNode* child = childPointer.getIfAllocated();
+        if(child == NULL)
+          break;
+        if(childPointer.getMoveLocRelaxed() == loc)
+          return childPointer.getEdgeVisits();
+      }
+      return (int64_t)0;
+    };
+
+    vector<Loc> includeMovesBlack = {
+      Location::ofString("A1",board),
+      Location::ofString("B2",board),
+      Location::ofString("C3",board),
+    };
+    vector<Loc> includeMovesWhite;
+
+    {
+      SearchParams params;
+      params.maxVisits = 1;
+      params.maxPlayouts = 1;
+      params.includeMovesMinVisits = 1;
+      Search* search = new Search(params, nnEval, &logger, "includeMovesMaxVisits");
+      search->setPosition(nextPla,board,hist);
+      search->setIncludeMoves(includeMovesBlack,includeMovesWhite);
+      search->runWholeSearch(nextPla);
+
+      for(Loc loc: includeMovesBlack)
+        testAssert(getRootEdgeVisits(search,loc) >= 1);
+
+      delete search;
+    }
+
+    {
+      SearchParams params;
+      params.maxVisits = 2;
+      params.maxPlayouts = 2;
+      params.includeMovesMinVisits = 3;
+      Search* search = new Search(params, nnEval, &logger, "includeMovesMinVisits");
+      search->setPosition(nextPla,board,hist);
+      search->setIncludeMoves(includeMovesBlack,includeMovesWhite);
+      search->runWholeSearch(nextPla);
+
+      for(Loc loc: includeMovesBlack)
+        testAssert(getRootEdgeVisits(search,loc) >= 3);
+
+      delete search;
+    }
+
+    {
+      Board occupiedBoard = Board::parseBoard(9,9,R"%%(
+.........
+.........
+.........
+.........
+.........
+.........
+..X......
+.........
+.........
+)%%");
+      BoardHistory occupiedHist(occupiedBoard,nextPla,rules,0,false);
+      vector<Loc> mixedIncludeMovesBlack = {
+        Location::ofString("A1",occupiedBoard),
+        Location::ofString("C3",occupiedBoard),
+        Location::ofString("B2",occupiedBoard),
+        Location::ofString("A1",occupiedBoard),
+      };
+
+      SearchParams params;
+      params.maxVisits = 1;
+      params.maxPlayouts = 1;
+      params.includeMovesMinVisits = 1;
+      Search* search = new Search(params, nnEval, &logger, "includeMovesLegalSubset");
+      search->setPosition(nextPla,occupiedBoard,occupiedHist);
+      search->setIncludeMoves(mixedIncludeMovesBlack,includeMovesWhite);
+      search->runWholeSearch(nextPla);
+
+      testAssert(getRootEdgeVisits(search,Location::ofString("A1",occupiedBoard)) >= 1);
+      testAssert(getRootEdgeVisits(search,Location::ofString("B2",occupiedBoard)) >= 1);
+      testAssert(getRootEdgeVisits(search,Location::ofString("C3",occupiedBoard)) == 0);
+
+      delete search;
+    }
+
+    {
+      Board allLegalBoard = Board::parseBoard(5,5,R"%%(
+.....
+.....
+..X..
+.....
+.....
+)%%");
+      BoardHistory allLegalHist(allLegalBoard,nextPla,rules,0,false);
+
+      SearchParams params;
+      params.maxVisits = 1;
+      params.maxPlayouts = 1;
+      params.includeMovesMinVisits = 2;
+      Search* search = new Search(params, nnEval, &logger, "includeAllMovesMinVisits");
+      search->setPosition(nextPla,allLegalBoard,allLegalHist);
+      search->setIncludeAllMoves();
+      search->runWholeSearch(nextPla);
+
+      for(int y = 0; y<allLegalBoard.y_size; y++) {
+        for(int x = 0; x<allLegalBoard.x_size; x++) {
+          Loc loc = Location::getLoc(x,y,allLegalBoard.x_size);
+          if(allLegalHist.isLegal(allLegalBoard,loc,nextPla))
+            testAssert(getRootEdgeVisits(search,loc) >= 2);
+          else
+            testAssert(getRootEdgeVisits(search,loc) == 0);
+        }
+      }
+      testAssert(getRootEdgeVisits(search,Board::PASS_LOC) == 0);
+
+      delete search;
+    }
+
+    {
+      SearchParams params;
+      params.maxVisits = 1;
+      params.maxPlayouts = 1;
+      params.includeMovesMinVisits = 2;
+      params.numThreads = 1;
+      Search* search = new Search(params, nnEval, &logger, "includeMovesCancellation");
+      search->setPosition(nextPla,board,hist);
+      search->setIncludeAllMoves();
+
+      std::atomic<int> stopPolls(0);
+      std::function<bool()> shouldStopEarly = [&stopPolls]() {
+        stopPolls.fetch_add(1,std::memory_order_relaxed);
+        return true;
+      };
+      search->runWholeSearch(nextPla,false,&shouldStopEarly);
+
+      testAssert(stopPolls.load(std::memory_order_relaxed) > 0);
+      testAssert(search->lastSearchNumPlayouts == 0);
+
+      delete search;
+    }
+
+    delete nnEval;
+    cout << endl;
+  }
+
+  {
+    cout << "===================================================================" << endl;
     cout << "Testing preservation of search tree across moves" << endl;
     cout << "===================================================================" << endl;
 
@@ -2557,9 +2731,12 @@ x.x.x
     paramsB.cpuctExploration = paramsA.cpuctExploration + 0.5;
 
     SearchParams paramsA2 = paramsA;
+    SearchParams paramsWithDifferentIncludeMovesMinVisits = paramsA;
+    paramsWithDifferentIncludeMovesMinVisits.includeMovesMinVisits += 1;
 
     testAssert(paramsA.getHash() == paramsA2.getHash());
     testAssert(paramsA.getHash() != paramsB.getHash());
+    testAssert(paramsA.getHash() != paramsWithDifferentIncludeMovesMinVisits.getHash());
     cout << "Equal params hash equal: " << (paramsA.getHash() == paramsA2.getHash()) << endl;
     cout << "Differing params hash differ: " << (paramsA.getHash() != paramsB.getHash()) << endl;
 
@@ -2655,5 +2832,3 @@ x.x.x
   NeuralNet::globalCleanup();
   cout << "Done" << endl;
 }
-
-

@@ -36,6 +36,18 @@ static string makeSeed(const Search& search, int threadIdx) {
   return ss.str();
 }
 
+// 목적: 착점의 요청 순서를 유지하면서 중복을 제거한다.
+// 매개변수: moves는 중복될 수 있는 착점 목록이다.
+// 반환값: 각 착점의 첫 번째 항목만 남긴 목록이다.
+static vector<Loc> dedupeMovesPreservingOrder(const vector<Loc>& moves) {
+  vector<Loc> ret;
+  for(Loc moveLoc: moves) {
+    if(std::find(ret.begin(),ret.end(),moveLoc) == ret.end())
+      ret.push_back(moveLoc);
+  }
+  return ret;
+}
+
 SearchThread::SearchThread(int tIdx, const Search& search)
   :threadIdx(tIdx),
    pla(search.rootPla),board(search.rootBoard),
@@ -76,6 +88,8 @@ Search::Search(const SearchParams& params, NNEvaluator* nnEval, NNEvaluator* hum
    rootGraphHash(),
    rootHintLoc(Board::NULL_LOC),
    avoidMoveUntilByLocBlack(),avoidMoveUntilByLocWhite(),avoidMoveUntilRescaleRoot(false),
+   includeMovesBlack(),includeMovesWhite(),
+   legalIncludeMovesBlack(),legalIncludeMovesWhite(),
    rootSymmetries(),
    rootPruneOnlySymmetries(),
    rootSafeArea(NULL),
@@ -200,6 +214,10 @@ void Search::setPosition(Player pla, const Board& board, const BoardHistory& his
   rootKoHashTable->recompute(rootHistory);
   avoidMoveUntilByLocBlack.clear();
   avoidMoveUntilByLocWhite.clear();
+  includeMovesBlack.clear();
+  includeMovesWhite.clear();
+  legalIncludeMovesBlack.clear();
+  legalIncludeMovesWhite.clear();
 }
 
 void Search::setPlayerAndClearHistory(Player pla) {
@@ -215,6 +233,7 @@ void Search::setPlayerAndClearHistory(Player pla) {
   applyPassAliveModeToRootHistory();
 
   rootKoHashTable->recompute(rootHistory);
+  refreshLegalIncludeMoves();
 
   //If changing the player alone, don't clear these, leave the user's setting - the user may have tried
   //to adjust the player or will be calling runWholeSearchAndGetMove with a different player and will
@@ -242,6 +261,39 @@ void Search::setAvoidMoveUntilByLoc(const std::vector<int>& bVec, const std::vec
   clearSearch();
   avoidMoveUntilByLocBlack = bVec;
   avoidMoveUntilByLocWhite = wVec;
+}
+
+// 목적: 플레이어별로 방문을 보장할 루트 착점 목록을 교체한다.
+// 매개변수: bVec은 흑 착점, wVec은 백 착점 목록이다.
+// 반환값: 없음.
+void Search::setIncludeMoves(const std::vector<Loc>& bVec, const std::vector<Loc>& wVec) {
+  vector<Loc> bDeduped = dedupeMovesPreservingOrder(bVec);
+  vector<Loc> wDeduped = dedupeMovesPreservingOrder(wVec);
+  if(includeMovesBlack == bDeduped && includeMovesWhite == wDeduped)
+    return;
+  clearSearch();
+  includeMovesBlack = std::move(bDeduped);
+  includeMovesWhite = std::move(wDeduped);
+  refreshLegalIncludeMoves();
+}
+
+// 목적: 현재 루트 플레이어의 모든 합법적인 패스 이외 착점을 방문 보장 목록으로 설정한다.
+// 매개변수: 없음.
+// 반환값: 없음.
+void Search::setIncludeAllMoves() {
+  vector<Loc> bVec;
+  vector<Loc> wVec;
+  if(rootPla == P_BLACK || rootPla == P_WHITE) {
+    vector<Loc>& includeMoves = rootPla == P_BLACK ? bVec : wVec;
+    for(int y = 0; y<rootBoard.y_size; y++) {
+      for(int x = 0; x<rootBoard.x_size; x++) {
+        Loc moveLoc = Location::getLoc(x,y,rootBoard.x_size);
+        if(isLegalRootIncludeMove(moveLoc))
+          includeMoves.push_back(moveLoc);
+      }
+    }
+  }
+  setIncludeMoves(bVec,wVec);
 }
 
 void Search::setAvoidMoveUntilRescaleRoot(bool b) {
@@ -419,6 +471,10 @@ bool Search::makeMove(Loc moveLoc, Player movePla, bool preventEncore) {
   //Explicitly clear avoid move arrays when we play a move - user needs to respecify them if they want them.
   avoidMoveUntilByLocBlack.clear();
   avoidMoveUntilByLocWhite.clear();
+  includeMovesBlack.clear();
+  includeMovesWhite.clear();
+  legalIncludeMovesBlack.clear();
+  legalIncludeMovesWhite.clear();
 
   //If we're newly inferring some moves as handicap that we weren't before, clear since score will be wrong.
   if(rootHistory.whiteHandicapBonusScore != oldWhiteHandicapBonusScore)
@@ -524,11 +580,19 @@ void Search::runWholeSearch(
     }
   }
 
+  const bool hasMaxTime = maxTime < 1.0e12;
+  const bool hasTc = !pondering && !tc.isEffectivelyUnlimitedTime();
+  const bool canRawPreEvaluateIncludeMoves = searchParams.graphSearchCatchUpLeakProb <= 0.0;
+  double actualSearchStartTime = timer.getSeconds();
+  if(!hasMaxTime && !hasTc && canRawPreEvaluateIncludeMoves && !shouldStopNow.load(std::memory_order_relaxed)) {
+    int64_t preSearchPlayouts = preEvaluateIncludeMovesRawOnce(shouldStopNow,shouldStopEarly);
+    if(preSearchPlayouts > 0)
+      numPlayoutsShared.store(preSearchPlayouts,std::memory_order_relaxed);
+  }
+
   //Apply time controls. These two don't particularly need to be synchronized with each other so its fine to have two separate atomics.
   std::atomic<double> tcMaxTime(1e30);
   std::atomic<double> upperBoundVisitsLeftDueToTime(1e30);
-  const bool hasMaxTime = maxTime < 1.0e12;
-  const bool hasTc = !pondering && !tc.isEffectivelyUnlimitedTime();
   if(!pondering && (hasTc || hasMaxTime)) {
     int64_t rootVisits = numPlayoutsShared.load(std::memory_order_relaxed) + numNonPlayoutVisits;
     double timeUsed = timer.getSeconds();
@@ -560,9 +624,16 @@ void Search::runWholeSearch(
         if(hasTc)
           tcMaxTimeLimit = tcMaxTime.load(std::memory_order_acquire);
 
+        IncludeMoveVisitSummary includeMoveVisitSummary = getIncludeMoveVisitSummary();
+        int64_t nonGuaranteedPlayouts = numPlayouts - includeMoveVisitSummary.guaranteedVisits;
+        if(nonGuaranteedPlayouts < 0)
+          nonGuaranteedPlayouts = 0;
+        int64_t nonGuaranteedVisits = numPlayouts + numNonPlayoutVisits - includeMoveVisitSummary.guaranteedVisits;
+        if(nonGuaranteedVisits < 0)
+          nonGuaranteedVisits = 0;
         bool shouldStop =
-          (numPlayouts >= maxPlayouts) ||
-          (numPlayouts + numNonPlayoutVisits >= maxVisits);
+          !includeMoveVisitSummary.needsMoreVisits &&
+          ((nonGuaranteedPlayouts >= maxPlayouts) || (nonGuaranteedVisits >= maxVisits));
 
         //Time limits cannot stop us from doing at least a little search so we have a non-null tree
         if(hasMaxTime && numPlayouts >= 2 && timeUsed >= maxTime)
@@ -594,8 +665,8 @@ void Search::runWholeSearch(
         double upperBoundVisitsLeft = 1e30;
         if(hasTc)
           upperBoundVisitsLeft = upperBoundVisitsLeftDueToTime.load(std::memory_order_acquire);
-        upperBoundVisitsLeft = std::min(upperBoundVisitsLeft, (double)maxPlayouts - numPlayouts);
-        upperBoundVisitsLeft = std::min(upperBoundVisitsLeft, (double)maxVisits - numPlayouts - numNonPlayoutVisits);
+        upperBoundVisitsLeft = std::min(upperBoundVisitsLeft, (double)maxPlayouts - nonGuaranteedPlayouts);
+        upperBoundVisitsLeft = std::min(upperBoundVisitsLeft, (double)maxVisits - nonGuaranteedVisits);
 
         bool finishedPlayout = runSinglePlayout(*stbuf, upperBoundVisitsLeft);
         if(finishedPlayout) {
@@ -619,7 +690,6 @@ void Search::runWholeSearch(
     delete stbuf;
   };
 
-  double actualSearchStartTime = timer.getSeconds();
   performTaskWithThreads(&searchLoop, capThreads);
 
   //If the search did not actually do anything, we need to still make sure to update the root node if it needs
@@ -642,6 +712,356 @@ void Search::runWholeSearch(
   //Relaxed load is fine since numPlayoutsShared should be synchronized already due to the joins
   lastSearchNumPlayouts = numPlayoutsShared.load(std::memory_order_relaxed);
   effectiveSearchTimeCarriedOver += timer.getSeconds() - actualSearchStartTime;
+}
+
+// 목적: 루트 includeMove가 현재 루트에서 합법인지 확인한다.
+// 매개변수: moveLoc은 검사할 루트 착점이다.
+// 반환값: 합법이면 true, 아니면 false다.
+bool Search::isLegalRootIncludeMove(Loc moveLoc) const {
+  if(rootPla != P_BLACK && rootPla != P_WHITE)
+    return false;
+  if(moveLoc <= Board::NULL_LOC || moveLoc >= Board::MAX_ARR_SIZE)
+    return false;
+  if(moveLoc != Board::PASS_LOC && !rootBoard.isOnBoard(moveLoc))
+    return false;
+  return rootHistory.isLegal(rootBoard,moveLoc,rootPla);
+}
+
+// 목적: 현재 루트에서 합법인 includeMoves 목록을 미리 계산한다.
+// 매개변수: 없음.
+// 반환값: 없음.
+void Search::refreshLegalIncludeMoves() {
+  legalIncludeMovesBlack.clear();
+  legalIncludeMovesWhite.clear();
+
+  if(rootPla == P_BLACK) {
+    for(Loc moveLoc: includeMovesBlack) {
+      if(isLegalRootIncludeMove(moveLoc))
+        legalIncludeMovesBlack.push_back(moveLoc);
+    }
+  }
+  else if(rootPla == P_WHITE) {
+    for(Loc moveLoc: includeMovesWhite) {
+      if(isLegalRootIncludeMove(moveLoc))
+        legalIncludeMovesWhite.push_back(moveLoc);
+    }
+  }
+}
+
+// 목적: 루트 자식 목록의 착점을 자식 인덱스로 바로 찾을 수 있도록 인덱스를 채운다.
+// 매개변수: children은 루트 자식, childIndexByLoc과 passChildIdx는 결과 저장 위치다.
+// 반환값: 없음.
+void Search::fillRootChildIndexByLoc(
+  ConstSearchNodeChildrenReference children,
+  int childIndexByLoc[Board::MAX_ARR_SIZE],
+  int& passChildIdx
+) const {
+  std::fill(childIndexByLoc, childIndexByLoc + Board::MAX_ARR_SIZE, -1);
+  passChildIdx = -1;
+
+  int childrenCapacity = children.getCapacity();
+  for(int i = 0; i<childrenCapacity; i++) {
+    const SearchChildPointer& childPointer = children[i];
+    const SearchNode* child = childPointer.getIfAllocated();
+    if(child == NULL)
+      break;
+
+    Loc moveLoc = childPointer.getMoveLocRelaxed();
+    if(moveLoc == Board::PASS_LOC)
+      passChildIdx = i;
+    else if(rootBoard.isOnBoard(moveLoc))
+      childIndexByLoc[moveLoc] = i;
+  }
+}
+
+// 목적: 미리 만든 인덱스에서 특정 루트 착점의 자식 인덱스를 찾는다.
+// 매개변수: moveLoc은 착점, childIndexByLoc과 passChildIdx는 인덱스 정보다.
+// 반환값: 자식 인덱스이며 없으면 -1이다.
+int Search::getRootChildIndexForLoc(
+  Loc moveLoc,
+  const int childIndexByLoc[Board::MAX_ARR_SIZE],
+  int passChildIdx
+) const {
+  if(moveLoc == Board::PASS_LOC)
+    return passChildIdx;
+  if(rootBoard.isOnBoard(moveLoc))
+    return childIndexByLoc[moveLoc];
+  return -1;
+}
+
+// 목적: 보장 방문 수와 추가 includeMove 방문 필요 여부를 한 번의 루트 스캔으로 계산한다.
+// 매개변수: 없음.
+// 반환값: 보장 방문 합계와 추가 방문 필요 여부다.
+Search::IncludeMoveVisitSummary Search::getIncludeMoveVisitSummary() const {
+  IncludeMoveVisitSummary summary = {0, false};
+  if(rootNode == NULL)
+    return summary;
+
+  const vector<Loc>& includeMoves = rootPla == P_BLACK ? legalIncludeMovesBlack : legalIncludeMovesWhite;
+  if(includeMoves.empty())
+    return summary;
+
+  const int64_t minVisits = std::max<int64_t>(1, searchParams.includeMovesMinVisits);
+  ConstSearchNodeChildrenReference children = rootNode->getChildren();
+  int childIndexByLoc[Board::MAX_ARR_SIZE];
+  int passChildIdx;
+  fillRootChildIndexByLoc(children,childIndexByLoc,passChildIdx);
+
+  for(Loc moveLoc: includeMoves) {
+    int childIdx = getRootChildIndexForLoc(moveLoc,childIndexByLoc,passChildIdx);
+    if(childIdx < 0) {
+      summary.needsMoreVisits = true;
+      continue;
+    }
+
+    const SearchChildPointer& childPointer = children[childIdx];
+    const SearchNode* child = childPointer.getIfAllocated();
+    if(child == NULL) {
+      summary.needsMoreVisits = true;
+      continue;
+    }
+
+    int64_t edgeVisits = childPointer.getEdgeVisits();
+    summary.guaranteedVisits += std::min(edgeVisits, minVisits);
+    if(edgeVisits < minVisits)
+      summary.needsMoreVisits = true;
+  }
+
+  return summary;
+}
+
+// 목적: 루트 착점을 적용해 스레드 상태를 해당 자식 포지션으로 준비한다.
+// 매개변수: thread는 갱신할 상태, moveLoc은 루트 착점, forceNonTerminal은 자식 생성 플래그 출력이다.
+// 반환값: 착점 적용에 성공하면 true, 아니면 false다.
+bool Search::prepareRootChildThreadState(SearchThread& thread, Loc moveLoc, bool& forceNonTerminal) const {
+  if(!rootHistory.isLegal(rootBoard,moveLoc,rootPla))
+    return false;
+
+  thread.pla = rootPla;
+  thread.board = rootBoard;
+  thread.history = rootHistory;
+  thread.graphHash = rootGraphHash;
+  thread.graphPath.clear();
+  thread.shouldCountPlayout = true;
+
+  const bool canForceNonTerminalDueToFriendlyPass =
+    moveLoc == Board::PASS_LOC &&
+    thread.history.shouldSuppressEndGameFromFriendlyPass(thread.board, thread.pla);
+
+  thread.history.makeBoardMoveAssumeLegal(thread.board,moveLoc,thread.pla,rootKoHashTable);
+  thread.pla = getOpp(thread.pla);
+  if(searchParams.useGraphSearch)
+    thread.graphHash = GraphHash::getGraphHash(
+      thread.graphHash, thread.history, thread.pla, searchParams.graphSearchRepBound, searchParams.drawEquivalentWinsForWhite
+    );
+
+  forceNonTerminal = moveLoc == Board::PASS_LOC && thread.history.isGameFinished && (
+    searchParams.conservativePass ||
+    canForceNonTerminalDueToFriendlyPass
+  );
+  return true;
+}
+
+// 목적: includeMoves의 최초 방문을 본 검색 전에 신경망으로 병렬 선평가한다.
+// 매개변수: shouldStopNow와 shouldStopEarly는 중단 신호다.
+// 반환값: 이번 검색의 playout으로 계산할 선처리 방문 수다.
+int64_t Search::preEvaluateIncludeMovesRawOnce(
+  std::atomic<bool>& shouldStopNow,
+  std::function<bool()>* shouldStopEarly
+) {
+  auto stopRequested = [&]() {
+    if(shouldStopNow.load(std::memory_order_relaxed))
+      return true;
+    if(shouldStopEarly != NULL && (*shouldStopEarly)()) {
+      shouldStopNow.store(true,std::memory_order_relaxed);
+      return true;
+    }
+    return false;
+  };
+
+  if(rootNode == NULL)
+    return 0;
+
+  const vector<Loc>& includeMoves = rootPla == P_BLACK ? legalIncludeMovesBlack : legalIncludeMovesWhite;
+  if(includeMoves.empty() || stopRequested())
+    return 0;
+
+  int64_t preSearchPlayouts = 0;
+  SearchNodeState rootState = rootNode->state.load(std::memory_order_acquire);
+  if(rootState == SearchNode::STATE_UNEVALUATED) {
+    SearchThread rootThread(0,*this);
+    bool finishedPlayout = runSinglePlayout(rootThread, 1e30);
+    if(finishedPlayout)
+      preSearchPlayouts += 1;
+    transferOldNNOutputs(rootThread);
+    rootState = rootNode->state.load(std::memory_order_acquire);
+  }
+
+  if(stopRequested())
+    return preSearchPlayouts;
+  if(rootState < SearchNode::STATE_EXPANDED0)
+    return preSearchPlayouts;
+
+  {
+    SearchThread rootThread(0,*this);
+    maybeRecomputeExistingNNOutput(rootThread,*rootNode,true);
+    transferOldNNOutputs(rootThread);
+  }
+
+  struct IncludeChildTarget {
+    Loc moveLoc;
+    int childIdx;
+    SearchNode* child;
+  };
+
+  const int64_t minVisits = std::max<int64_t>(1, searchParams.includeMovesMinVisits);
+  vector<IncludeChildTarget> edgeTargets;
+  edgeTargets.reserve(includeMoves.size());
+
+  SearchThread createThread(0,*this);
+  SearchNodeChildrenReference children = rootNode->getChildren(rootState);
+  int childIndexByLoc[Board::MAX_ARR_SIZE];
+  int passChildIdx;
+  fillRootChildIndexByLoc(children,childIndexByLoc,passChildIdx);
+  int numChildrenFound = children.iterateAndCountChildren();
+  bool stoppedBeforeAllChildren = false;
+
+  for(Loc moveLoc: includeMoves) {
+    if(stopRequested()) {
+      stoppedBeforeAllChildren = true;
+      break;
+    }
+
+    int childIdx = getRootChildIndexForLoc(moveLoc,childIndexByLoc,passChildIdx);
+    SearchNode* child = NULL;
+
+    if(childIdx >= 0) {
+      child = children[childIdx].getIfAllocated();
+    }
+    else {
+      bool forceNonTerminal = false;
+      if(!prepareRootChildThreadState(createThread,moveLoc,forceNonTerminal))
+        continue;
+
+      while(!rootNode->maybeExpandChildrenCapacityForNewChild(rootState,numChildrenFound+1)) {
+        std::this_thread::yield();
+        if(stopRequested()) {
+          stoppedBeforeAllChildren = true;
+          break;
+        }
+        rootState = rootNode->state.load(std::memory_order_acquire);
+        if(rootState < SearchNode::STATE_EXPANDED0)
+          return preSearchPlayouts;
+      }
+      if(stoppedBeforeAllChildren)
+        break;
+
+      children = rootNode->getChildren(rootState);
+      childIdx = numChildrenFound;
+      child = allocateOrFindNode(createThread,createThread.pla,moveLoc,forceNonTerminal,createThread.graphHash);
+
+      SearchChildPointer& childPointer = children[childIdx];
+      childPointer.setMoveLocRelaxed(moveLoc);
+      childPointer.store(child);
+
+      if(moveLoc == Board::PASS_LOC)
+        passChildIdx = childIdx;
+      else if(rootBoard.isOnBoard(moveLoc))
+        childIndexByLoc[moveLoc] = childIdx;
+      numChildrenFound += 1;
+    }
+
+    if(child == NULL)
+      continue;
+
+    const SearchChildPointer& childPointer = children[childIdx];
+    if(childPointer.getEdgeVisits() < minVisits)
+      edgeTargets.push_back(IncludeChildTarget{moveLoc, childIdx, child});
+  }
+  transferOldNNOutputs(createThread);
+
+  struct IncludeChildEvalTarget {
+    Loc moveLoc;
+    SearchNode* child;
+  };
+
+  vector<IncludeChildEvalTarget> evalTargets;
+  evalTargets.reserve(edgeTargets.size());
+  std::unordered_set<SearchNode*> evalTargetSet;
+  evalTargetSet.reserve(edgeTargets.size());
+  for(const IncludeChildTarget& target: edgeTargets) {
+    if(stopRequested())
+      break;
+    int64_t childVisits = target.child->stats.visits.load(std::memory_order_acquire);
+    SearchNodeState childState = target.child->state.load(std::memory_order_acquire);
+    if(childVisits <= 0 && childState == SearchNode::STATE_UNEVALUATED && evalTargetSet.insert(target.child).second)
+      evalTargets.push_back(IncludeChildEvalTarget{target.moveLoc, target.child});
+  }
+
+  if(!evalTargets.empty()) {
+    std::atomic<size_t> nextTargetIdx(0);
+    std::function<void(int)> evalLoop = [this,&stopRequested,&evalTargets,&nextTargetIdx](int threadIdx) {
+      SearchThread thread(threadIdx,*this);
+      while(true) {
+        if(stopRequested())
+          break;
+        size_t targetIdx = nextTargetIdx.fetch_add((size_t)1, std::memory_order_relaxed);
+        if(targetIdx >= evalTargets.size() || stopRequested())
+          break;
+
+        const IncludeChildEvalTarget& target = evalTargets[targetIdx];
+        int64_t childVisits = target.child->stats.visits.load(std::memory_order_acquire);
+        SearchNodeState childState = target.child->state.load(std::memory_order_acquire);
+        if(childVisits > 0 || childState != SearchNode::STATE_UNEVALUATED)
+          continue;
+
+        bool forceNonTerminal = false;
+        if(!prepareRootChildThreadState(thread,target.moveLoc,forceNonTerminal))
+          continue;
+        (void)forceNonTerminal;
+
+        thread.shouldCountPlayout = true;
+        playoutDescend(thread,*target.child,false);
+      }
+      transferOldNNOutputs(thread);
+    };
+    int nnBatchThreadCap = 1;
+    if(nnEvaluator != NULL) {
+      int64_t totalNNBatchSize = (int64_t)nnEvaluator->getMaxBatchSize() * (int64_t)std::max(1, nnEvaluator->getNumGpus());
+      nnBatchThreadCap = (int)std::min<int64_t>((int64_t)0x3fffFFFF, std::max<int64_t>((int64_t)1, totalNNBatchSize));
+    }
+
+    int desiredEvalThreads = std::max(std::max(1, searchParams.numThreads), nnBatchThreadCap);
+    int evalCapThreads = std::max<int>(1, std::min<int>(
+      desiredEvalThreads,
+      (int)std::min<size_t>(evalTargets.size(), (size_t)0x3fffFFFF)
+    ));
+    if(evalCapThreads > std::max(1, searchParams.numThreads))
+      performTaskWithThreadsAndTemporaryThreads(&evalLoop, evalCapThreads);
+    else
+      performTaskWithThreads(&evalLoop, evalCapThreads);
+  }
+
+  int32_t edgeVisitsAdded = 0;
+  children = rootNode->getChildren();
+  for(const IncludeChildTarget& target: edgeTargets) {
+    SearchChildPointer& childPointer = children[target.childIdx];
+    int64_t edgeVisits = childPointer.getEdgeVisits();
+    int64_t childVisits = target.child->stats.visits.load(std::memory_order_acquire);
+    if(edgeVisits < minVisits && edgeVisits < childVisits) {
+      childPointer.addEdgeVisits(1);
+      edgeVisitsAdded += 1;
+    }
+  }
+
+  if(edgeVisitsAdded > 0) {
+    SearchThread statsThread(0,*this);
+    recomputeNodeStats(*rootNode,statsThread,edgeVisitsAdded,true);
+    transferOldNNOutputs(statsThread);
+    preSearchPlayouts += edgeVisitsAdded;
+  }
+
+  return preSearchPlayouts;
 }
 
 //If we're being asked to search from a position where the game is over, this is fine. Just keep going, the boardhistory

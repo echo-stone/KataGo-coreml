@@ -17914,6 +17914,12 @@ B2 14
 : GPU 0 finishing, processed 0 rows 0 batches
 
 ===================================================================
+includeMoves root visit guarantees
+===================================================================
+: Initializing neural net buffer to be size 9 * 9 allowing smaller boards
+: GPU 0 finishing, processed 0 rows 0 batches
+
+===================================================================
 Testing preservation of search tree across moves
 ===================================================================
 : Initializing neural net buffer to be size 19 * 19 allowing smaller boards
@@ -20714,6 +20720,7 @@ rootNumSymmetriesToSample: 1
 rootSymmetryPruning: 0
 rootDesiredPerChildVisitsCoeff: 0
 rootPolicyOptimism: 0
+includeMovesMinVisits: 1
 chosenMoveTemperature: 0
 chosenMoveTemperatureEarly: 0
 chosenMoveTemperatureHalflife: 19
@@ -20824,6 +20831,7 @@ rootNumSymmetriesToSample: 1
 rootSymmetryPruning: 0
 rootDesiredPerChildVisitsCoeff: 0
 rootPolicyOptimism: 0
+includeMovesMinVisits: 1
 chosenMoveTemperature: 0
 chosenMoveTemperatureEarly: 0
 chosenMoveTemperatureHalflife: 19
@@ -20934,6 +20942,7 @@ rootNumSymmetriesToSample: 1
 rootSymmetryPruning: 1
 rootDesiredPerChildVisitsCoeff: 0
 rootPolicyOptimism: 0.2
+includeMovesMinVisits: 1
 chosenMoveTemperature: 0.1
 chosenMoveTemperatureEarly: 0.5
 chosenMoveTemperatureHalflife: 19
@@ -21044,6 +21053,7 @@ rootNumSymmetriesToSample: 1
 rootSymmetryPruning: 1
 rootDesiredPerChildVisitsCoeff: 0
 rootPolicyOptimism: 0.2
+includeMovesMinVisits: 1
 chosenMoveTemperature: 0.1
 chosenMoveTemperatureEarly: 0.5
 chosenMoveTemperatureHalflife: 19
@@ -21154,6 +21164,7 @@ rootNumSymmetriesToSample: 1
 rootSymmetryPruning: 0
 rootDesiredPerChildVisitsCoeff: 0
 rootPolicyOptimism: 0.2
+includeMovesMinVisits: 1
 chosenMoveTemperature: 0.1
 chosenMoveTemperatureEarly: 0.5
 chosenMoveTemperatureHalflife: 19
@@ -21264,6 +21275,7 @@ rootNumSymmetriesToSample: 1
 rootSymmetryPruning: 0
 rootDesiredPerChildVisitsCoeff: 0
 rootPolicyOptimism: 0.2
+includeMovesMinVisits: 1
 chosenMoveTemperature: 0.1
 chosenMoveTemperatureEarly: 0.5
 chosenMoveTemperatureHalflife: 19
@@ -21374,6 +21386,7 @@ rootNumSymmetriesToSample: 1
 rootSymmetryPruning: 0
 rootDesiredPerChildVisitsCoeff: 0
 rootPolicyOptimism: 0
+includeMovesMinVisits: 1
 chosenMoveTemperature: 0.1
 chosenMoveTemperatureEarly: 0.5
 chosenMoveTemperatureHalflife: 19
@@ -21484,6 +21497,7 @@ rootNumSymmetriesToSample: 1
 rootSymmetryPruning: 0
 rootDesiredPerChildVisitsCoeff: 0
 rootPolicyOptimism: 0
+includeMovesMinVisits: 1
 chosenMoveTemperature: 0.1
 chosenMoveTemperatureEarly: 0.5
 chosenMoveTemperatureHalflife: 19

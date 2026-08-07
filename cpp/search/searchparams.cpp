@@ -53,6 +53,7 @@ SearchParams::SearchParams()
    rootSymmetryPruning(false),
    rootDesiredPerChildVisitsCoeff(0.0),
    rootPolicyOptimism(0.0),
+   includeMovesMinVisits(1),
    chosenMoveTemperature(0.0),
    chosenMoveTemperatureEarly(0.0),
    chosenMoveTemperatureHalflife(19),
@@ -178,6 +179,7 @@ bool SearchParams::operator==(const SearchParams& other) const {
     rootDesiredPerChildVisitsCoeff == other.rootDesiredPerChildVisitsCoeff &&
 
     rootPolicyOptimism == other.rootPolicyOptimism &&
+    includeMovesMinVisits == other.includeMovesMinVisits &&
 
     chosenMoveTemperature == other.chosenMoveTemperature &&
     chosenMoveTemperatureEarly == other.chosenMoveTemperatureEarly &&
@@ -540,6 +542,7 @@ Hash128 SearchParams::getHash() const {
   ret["useEvalCache"] = useEvalCache;
   ret["evalCacheMinVisits"] = evalCacheMinVisits;
   ret["nodeTableShardsPowerOfTwo"] = nodeTableShardsPowerOfTwo;
+  ret["includeMovesMinVisits"] = includeMovesMinVisits;
 
   // humanSLProfile's own getHash asserts on an uninitialized profile,
   // so only call it when initialized (the common no-human-model case leaves it uninitialized).
@@ -618,6 +621,7 @@ void SearchParams::printParams(std::ostream& out) const {
   PRINTPARAM(rootDesiredPerChildVisitsCoeff);
 
   PRINTPARAM(rootPolicyOptimism);
+  PRINTPARAM(includeMovesMinVisits);
 
   PRINTPARAM(chosenMoveTemperature);
   PRINTPARAM(chosenMoveTemperatureEarly);
