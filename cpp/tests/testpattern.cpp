@@ -299,21 +299,30 @@ static void runNakadeCatalogExhaustiveTest() {
   testAssert(shapes.size() == 54);
   testAssert(supported.size() == 6);
 
+  int orientationCount = 0;
   int emitted = 0;
   for(const vector<pair<int,int>>& shape: shapes) {
-    vector<pair<int,int>> emptyPoints = translatedNakadePoints(shape,3,3);
-    Board board = makeNakadeFixtureBoard(12,12,emptyPoints);
-    BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
-    GoPattern::DetectionResult result = GoPattern::detect(board,hist);
-    const bool actual = findKind(result.patterns,GoPattern::Kind::NAKADE) != nullptr;
-    const bool expected = supported.find(shape) != supported.end();
-    testAssert(actual == expected);
-    if(actual)
-      emitted++;
+    set<vector<pair<int,int>>> orientations;
+    for(int symmetry = 0; symmetry < 8; symmetry++)
+      orientations.insert(transformNakadeTestShape(shape,symmetry));
+    for(const vector<pair<int,int>>& orientation: orientations) {
+      vector<pair<int,int>> emptyPoints = translatedNakadePoints(orientation,3,3);
+      Board board = makeNakadeFixtureBoard(12,12,emptyPoints);
+      BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+      GoPattern::DetectionResult result = GoPattern::detect(board,hist);
+      const bool actual = findKind(result.patterns,GoPattern::Kind::NAKADE) != nullptr;
+      const bool expected = supported.find(shape) != supported.end();
+      testAssert(actual == expected);
+      orientationCount++;
+      if(actual)
+        emitted++;
+    }
   }
-  testAssert(emitted == 6);
   cout << "Nakade catalog validation: " << shapes.size()
-       << " free polyominoes, " << emitted << " supported" << endl;
+       << " free polyominoes, " << orientationCount
+       << " fixed orientations, " << emitted << " supported orientations" << endl;
+  testAssert(orientationCount == 304);
+  testAssert(emitted == 23);
 }
 
 // runNakadePatternTest는 v1의 여섯 유일 급소 형태와 공개 localEyeSpace 계약을 검증한다.
