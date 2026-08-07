@@ -17,8 +17,28 @@
 using namespace std;
 using json = nlohmann::json;
 
+// 목적: 승자와 백 기준 점수 차이를 GTP final_score 형식으로 변환한다.
+// 매개변수: winner는 승자 또는 무승부를 뜻하는 C_EMPTY이고, finalWhiteMinusBlackScore는 백 점수에서 흑 점수를 뺀 값이다.
+// 반환값: 무승부는 "0", 흑 승리는 "B+N.N", 백 승리는 "W+N.N" 형식의 문자열이다.
+static string formatFinalScore(Player winner, double finalWhiteMinusBlackScore) {
+  if(winner == C_EMPTY)
+    return "0";
+  else if(winner == P_BLACK)
+    return "B+" + Global::strprintf("%.1f",-finalWhiteMinusBlackScore);
+  else if(winner == P_WHITE)
+    return "W+" + Global::strprintf("%.1f",finalWhiteMinusBlackScore);
+  else
+    ASSERT_UNREACHABLE;
+}
+
+enum class AnalyzeRequestKind {
+  ANALYSIS,
+  FINAL_SCORE,
+};
+
 struct AnalyzeRequest {
   int64_t internalId;
+  AnalyzeRequestKind kind;
   string id;
   int turnNumber;
   int64_t priority;
@@ -335,6 +355,88 @@ int MainCmds::analysis(const vector<string>& args) {
     return success;
   };
 
+  // 목적: 요청 위치의 확정 또는 추정 최종 점수를 계산해 간결한 JSON 응답을 기록한다.
+  // 매개변수: request는 위치와 검색 설정을 제공하고, bot은 미종료 위치의 점수를 추정하는 검색 상태를 제공한다.
+  // 반환값: 점수를 출력하면 true, 계산 도중 취소되면 false를 반환한다.
+  auto reportFinalScore = [&pushToWrite](const AnalyzeRequest* request, AsyncBot* bot) {
+    SearchParams finalScoreParams = request->params;
+    finalScoreParams.playoutDoublingAdvantage = 0.0;
+    finalScoreParams.humanSLChosenMoveProp = 0.0;
+    finalScoreParams.humanSLRootExploreProbWeightful = 0.0;
+    finalScoreParams.humanSLRootExploreProbWeightless = 0.0;
+    finalScoreParams.humanSLPlaExploreProbWeightful = 0.0;
+    finalScoreParams.humanSLPlaExploreProbWeightless = 0.0;
+    finalScoreParams.humanSLOppExploreProbWeightful = 0.0;
+    finalScoreParams.humanSLOppExploreProbWeightless = 0.0;
+    finalScoreParams.antiMirror = false;
+    finalScoreParams.avoidRepeatedPatternUtility = 0.0;
+    finalScoreParams.conservativePass = true;
+
+    Board board = request->board;
+    BoardHistory hist = request->hist;
+    Player pla = request->nextPla;
+
+    bot->setParams(finalScoreParams);
+    bot->setPosition(pla,board,hist);
+    bot->setAlwaysIncludeOwnerMap(false);
+    vector<int> noAvoidMovesBlack;
+    vector<int> noAvoidMovesWhite;
+    bot->setAvoidMoveUntilByLoc(noAvoidMovesBlack,noAvoidMovesWhite);
+
+    Player winner = C_EMPTY;
+    double finalWhiteMinusBlackScore = 0.0;
+    string scoreSource;
+
+    if(hist.isGameFinished && (
+         (hist.rules.scoringRule == Rules::SCORING_AREA && !hist.rules.friendlyPassOk) ||
+         (hist.rules.scoringRule == Rules::SCORING_TERRITORY)
+       )
+    ) {
+      winner = hist.winner;
+      finalWhiteMinusBlackScore = hist.finalWhiteMinusBlackScore;
+      scoreSource = "finished";
+    }
+    else {
+      int64_t numVisits = std::max((int64_t)50, (int64_t)finalScoreParams.numThreads * 10);
+      float leadBuf;
+      // 목적: 현재 최종 점수 요청에 취소 신호가 들어왔는지 확인한다.
+      // 매개변수: 요청 상태를 캡처하므로 별도 매개변수는 없다.
+      // 반환값: 요청이 종료 상태이면 true, 아니면 false다.
+      std::function<bool()> shouldStopEarly = [request]() {
+        return request->status.load(std::memory_order_acquire) == AnalyzeRequest::STATUS_TERMINATED;
+      };
+      bool completed = PlayUtils::computeLeadCancellable(
+        bot->getSearchStopAndWait(),NULL,board,hist,pla,numVisits,OtherGameProperties(),shouldStopEarly,leadBuf
+      );
+      if(!completed)
+        return false;
+      double lead = leadBuf;
+      if(hist.rules.gameResultWillBeInteger())
+        lead = round(lead);
+      else
+        lead = round(lead+0.5)-0.5;
+
+      finalWhiteMinusBlackScore = lead;
+      winner = lead > 0 ? P_WHITE : lead < 0 ? P_BLACK : C_EMPTY;
+      scoreSource = "estimated";
+    }
+
+    if(request->status.load(std::memory_order_acquire) == AnalyzeRequest::STATUS_TERMINATED)
+      return false;
+
+    json ret;
+    ret["id"] = request->id;
+    ret["action"] = "final_score";
+    ret["turnNumber"] = request->turnNumber;
+    ret["isDuringSearch"] = false;
+    ret["winner"] = winner == P_BLACK ? "B" : winner == P_WHITE ? "W" : "0";
+    ret["finalScore"] = formatFinalScore(winner,finalWhiteMinusBlackScore);
+    ret["finalWhiteMinusBlackScore"] = Global::roundDynamic(finalWhiteMinusBlackScore,8);
+    ret["scoreSource"] = scoreSource;
+    pushToWrite(new string(ret.dump()));
+    return true;
+  };
+
   // Common eval cache for all analysis threads
   std::shared_ptr<EvalCacheTable> evalCache = nullptr;
   if(defaultParams.useEvalCache) {
@@ -342,7 +444,7 @@ int MainCmds::analysis(const vector<string>& args) {
   }
 
   auto analysisLoop = [
-    &logger,&toAnalyzeQueue,&reportAnalysis,&reportNoAnalysis,&logSearchInfo,&nnEval,&openRequestsMutex,&openRequests
+    &logger,&toAnalyzeQueue,&reportAnalysis,&reportFinalScore,&reportNoAnalysis,&logSearchInfo,&nnEval,&openRequestsMutex,&openRequests
   ](AsyncBot* bot, int threadIdx) {
     while(true) {
       std::pair<std::pair<int64_t,int64_t>,AnalyzeRequest*> analysisItem;
@@ -357,59 +459,75 @@ int MainCmds::analysis(const vector<string>& args) {
       }
       //Else, the request is live and we marked it as popped
       else {
-        bot->setPosition(request->nextPla,request->board,request->hist);
-        bot->setAlwaysIncludeOwnerMap(request->includeOwnership || request->includeOwnershipStdev || request->includeMovesOwnership || request->includeMovesOwnershipStdev);
-        bot->setParams(request->params);
-        bot->setAvoidMoveUntilByLoc(request->avoidMoveUntilByLocBlack,request->avoidMoveUntilByLocWhite);
-
-        Player pla = request->nextPla;
-        double searchFactor = 1.0;
-
-        //Handle termination between the time we pop and the search starts
-        std::function<void()> onSearchBegun = [&request,&bot,&threadIdx]() {
-          //Try to record that we're handling this request and indicate that the search is started by this thread
+        if(request->kind == AnalyzeRequestKind::FINAL_SCORE) {
           int expected2 = AnalyzeRequest::STATUS_POPPED;
-          //If it was terminated, then stop our search
-          if(!request->status.compare_exchange_strong(expected2, threadIdx, std::memory_order_acq_rel)) {
+          if(!request->status.compare_exchange_strong(expected2,threadIdx,std::memory_order_acq_rel)) {
             testAssert(expected2 == AnalyzeRequest::STATUS_TERMINATED);
-            bot->stopWithoutWait();
+            reportNoAnalysis(request);
           }
-        };
-
-        if(request->reportDuringSearch) {
-          std::function<void(const Search* search)> callback = [&request,&reportAnalysis](const Search* search) {
-            const bool isDuringSearch = true;
-            reportAnalysis(request,search,isDuringSearch);
-          };
-          bot->genMoveSynchronousAnalyze(
-            pla, TimeControls(), searchFactor,
-            request->reportDuringSearchEvery, request->firstReportDuringSearchAfter,
-            callback, onSearchBegun
-          );
+          else {
+            bool finalScoreWritten = reportFinalScore(request,bot);
+            if(!finalScoreWritten)
+              reportNoAnalysis(request);
+          }
         }
         else {
-          bot->genMoveSynchronous(pla, TimeControls(), searchFactor, onSearchBegun);
-        }
+          testAssert(request->kind == AnalyzeRequestKind::ANALYSIS);
 
-        if(logSearchInfo) {
-          ostringstream sout;
-          PlayUtils::printGenmoveLog(sout,bot->getSearch(),nnEval,Board::NULL_LOC,NAN,request->perspective,false);
-          logger.write(sout.str());
-        }
+          bot->setPosition(request->nextPla,request->board,request->hist);
+          bot->setAlwaysIncludeOwnerMap(request->includeOwnership || request->includeOwnershipStdev || request->includeMovesOwnership || request->includeMovesOwnershipStdev);
+          bot->setParams(request->params);
+          bot->setAvoidMoveUntilByLoc(request->avoidMoveUntilByLocBlack,request->avoidMoveUntilByLocWhite);
 
-        {
-          const bool isDuringSearch = false;
-          const Search* search = bot->getSearch();
-          bool analysisWritten = reportAnalysis(request,search,isDuringSearch);
-          //If the search didn't have any root or root neural net output, it must have been interrupted and we must be quitting imminently
-          if(!analysisWritten) {
-            //If the reason we stopped was because we noticed a terminate, then we will write out a dummy response even if we didn't have
-            //enough info to generate a real one, to fulfill a promise in the API docs that we always write something.
-            if(request->status.load(std::memory_order_acquire) == AnalyzeRequest::STATUS_TERMINATED)
-              reportNoAnalysis(request);
-            //Otherwise, this case is only possible if we're just shutting down
-            else
-              logger.write("Note: Search quitting due to no visits - this is normal and possible when shutting down but a bug under any other situation.");
+          Player pla = request->nextPla;
+          double searchFactor = 1.0;
+
+          //Handle termination between the time we pop and the search starts
+          std::function<void()> onSearchBegun = [&request,&bot,&threadIdx]() {
+            //Try to record that we're handling this request and indicate that the search is started by this thread
+            int expected2 = AnalyzeRequest::STATUS_POPPED;
+            //If it was terminated, then stop our search
+            if(!request->status.compare_exchange_strong(expected2, threadIdx, std::memory_order_acq_rel)) {
+              testAssert(expected2 == AnalyzeRequest::STATUS_TERMINATED);
+              bot->stopWithoutWait();
+            }
+          };
+
+          if(request->reportDuringSearch) {
+            std::function<void(const Search* search)> callback = [&request,&reportAnalysis](const Search* search) {
+              const bool isDuringSearch = true;
+              reportAnalysis(request,search,isDuringSearch);
+            };
+            bot->genMoveSynchronousAnalyze(
+              pla, TimeControls(), searchFactor,
+              request->reportDuringSearchEvery, request->firstReportDuringSearchAfter,
+              callback, onSearchBegun
+            );
+          }
+          else {
+            bot->genMoveSynchronous(pla, TimeControls(), searchFactor, onSearchBegun);
+          }
+
+          if(logSearchInfo) {
+            ostringstream sout;
+            PlayUtils::printGenmoveLog(sout,bot->getSearch(),nnEval,Board::NULL_LOC,NAN,request->perspective,false);
+            logger.write(sout.str());
+          }
+
+          {
+            const bool isDuringSearch = false;
+            const Search* search = bot->getSearch();
+            bool analysisWritten = reportAnalysis(request,search,isDuringSearch);
+            //If the search didn't have any root or root neural net output, it must have been interrupted and we must be quitting imminently
+            if(!analysisWritten) {
+              //If the reason we stopped was because we noticed a terminate, then we will write out a dummy response even if we didn't have
+              //enough info to generate a real one, to fulfill a promise in the API docs that we always write something.
+              if(request->status.load(std::memory_order_acquire) == AnalyzeRequest::STATUS_TERMINATED)
+                reportNoAnalysis(request);
+              //Otherwise, this case is only possible if we're just shutting down
+              else
+                logger.write("Note: Search quitting due to no visits - this is normal and possible when shutting down but a bug under any other situation.");
+            }
           }
         }
       }
@@ -504,6 +622,7 @@ int MainCmds::analysis(const vector<string>& args) {
       rbase.id = input["id"].get<string>();
 
       //Special actions
+      bool isFinalScoreAction = false;
       if(input.find("action") != input.end() && input["action"].is_string()) {
         string action = input["action"].get<string>();
         if(action == "query_version") {
@@ -606,14 +725,19 @@ int MainCmds::analysis(const vector<string>& args) {
           }
           pushToWrite(new string(input.dump()));
         }
+        else if(action == "final_score") {
+          isFinalScoreAction = true;
+        }
         else {
-          reportError("'action' field must be 'query_version' or 'query_models' or 'clear_cache' or 'terminate' or 'terminate_all'");
+          reportError("'action' field must be 'query_version' or 'query_models' or 'clear_cache' or 'terminate' or 'terminate_all' or 'final_score'");
         }
 
-        continue;
+        if(!isFinalScoreAction)
+          continue;
       }
 
       //Defaults
+      rbase.kind = isFinalScoreAction ? AnalyzeRequestKind::FINAL_SCORE : AnalyzeRequestKind::ANALYSIS;
       rbase.params = defaultParams;
       rbase.perspective = defaultPerspective;
       rbase.analysisPVLen = analysisPVLen;
@@ -1185,6 +1309,7 @@ int MainCmds::analysis(const vector<string>& args) {
 
           AnalyzeRequest* newRequest = new AnalyzeRequest();
           newRequest->internalId = internalIdCounter++;
+          newRequest->kind = rbase.kind;
           newRequest->id = rbase.id;
           newRequest->turnNumber = turnNumber;
           newRequest->board = board;

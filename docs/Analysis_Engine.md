@@ -285,7 +285,7 @@ Current fields are:
 
 ### Special Action Queries
 
-Currently a few special action queries are supported that direct the analysis engine to do something other than enqueue a new position or set of positions for analysis.
+Currently a few special action queries are supported that direct the analysis engine to do something other than a normal analysis query. Some special actions are immediate commands, while others may still use the normal parsing, worker queue, and worker pool.
 A special action query is also sent as a JSON object, but with a different set of fields depending on the query.
 
 #### query_version
@@ -326,6 +326,46 @@ Explanation: KataGo uses a cache of neural net query results to skip querying th
 * Freeing up RAM usage - emptying the cache should release the memory used for the results in the cache, which is typically the largest memory usage in KataGo. Memory usage will of course rise again as the cache refills.
 
 * Testing or studying the variability of KataGo's search results for a given number of visits. Analyzing a position again after a cache clear will give a "fresh" look on that position that better matches the variety of possible results KataGo may return, simliar to if the analysis engine were entirely restarted. Each query will re-randomize the symmetry of the neural net used for that query instead of using the cached result, giving a new and more varied opinion.
+
+#### final_score
+
+한 위치의 한 개 이상 착수 시점에 대해 GTP 형식의 최종 점수를 요청한다. 일반 분석 요청과 같은 파싱 및 작업 큐를 사용하지만 전체 분석 대신 최종 점수 정보만 반환한다. 다음과 같은 위치 설정, 착수 시점 선택, 우선순위 및 설정 덮어쓰기 필드는 일반 분석 요청과 동일하게 처리한다.
+
+   * `id (string)`: 필수. 요청을 식별할 임의의 문자열.
+   * `action (string)`: 필수. `final_score` 문자열이어야 한다.
+   * 판 크기, 초기 돌, 착수 목록, 규칙, 덤, 백 치수 보정, `analyzeTurns`, 우선순위, `overrideSettings` 등 일반 위치·분석 요청 필드.
+
+`analyzeTurns`가 없으면 일반 분석 요청의 기본 동작과 마찬가지로 모든 수를 진행한 최종 위치에 대해 응답한다. `analyzeTurns`가 있으면 선택한 각 착수 시점마다 응답 하나를 반환한다.
+
+요청 예:
+```json
+{"id":"score1","action":"final_score","moves":[["B","D4"],["W","Q16"]],"rules":"chinese","komi":7.5,"boardXSize":19,"boardYSize":19}
+{"id":"score2","action":"final_score","moves":[["B","D4"],["W","Q16"]],"rules":"chinese","komi":7.5,"boardXSize":19,"boardYSize":19,"analyzeTurns":[0,2]}
+```
+
+응답에는 `moveInfos`, `rootInfo`, 소유권, 정책 또는 PV 분석 필드가 포함되지 않는다. 각 응답은 다음 필드를 포함한다.
+
+   * `id (string)`: 요청과 같은 식별자.
+   * `action (string)`: `final_score` 문자열.
+   * `turnNumber (int)`: 응답 대상 착수 번호.
+   * `isDuringSearch (bool)`: 항상 `false`.
+   * `winner (string)`: 흑 승리는 `B`, 백 승리는 `W`, 무승부나 승자 없음은 `0`.
+   * `finalScore (string)`: `B+N.N`, `W+N.N`, `0` 중 하나인 GTP 형식 점수.
+   * `finalWhiteMinusBlackScore (float)`: 백 관점의 수치 점수. 양수면 백, 음수면 흑이 앞선다.
+   * `scoreSource (string)`: GTP `final_score`와 같은 조건에서 확정 결과를 사용할 수 있으면 `finished`, 아니면 `estimated`.
+
+최종 점수 계산 전이나 계산 도중 요청이 종료되면 `terminate` 절에 설명한 `noResults` 응답을 반환하며, 위 최종 점수 전용 필드는 포함하지 않는다.
+
+응답 예:
+```json
+{"action":"final_score","finalScore":"W+0.5","finalWhiteMinusBlackScore":0.5,"id":"score1","isDuringSearch":false,"scoreSource":"estimated","turnNumber":2,"winner":"W"}
+```
+
+미종료 위치는 전체 일반 분석보다 저렴하지만 계산 비용이 발생한다. KataGo는 GTP `final_score`와 유사한 짧은 검색을 여러 번 수행한다. 각 검색의 방문 수는 대략 `max(50, params.numThreads * 10)`이며, `params.numThreads`는 보통 `numSearchThreadsPerAnalysisThread`에서 결정된다.
+
+`final_score`는 일반 요청 파싱 및 작업 큐를 사용하므로 우선순위와 `terminate`/`terminate_all`도 일반 분석처럼 적용된다. 활성 계산을 종료하면 현재 짧은 검색을 취소하고 최종적으로 `noResults` 응답 하나를 반환한다.
+
+추정 점수 계산 시 요청별 착수 제한을 비우고, GTP `final_score`와 동일하게 주요 점수 편향 및 탐색 설정을 비활성화한다.
 
 
 #### terminate
@@ -533,4 +573,3 @@ This kind of setting could be interesting for handicap games or trying to elicit
 * Set `playoutDoublingAdvantage` also as desired or as typical for handicap games.
 * Set `useUncertainty` to `false` and `subtreeValueBiasFactor` to `0.0` and `useNoisePruning` to `false` (important, disables a few search features that add strength but are highly likely to interfere with this kind of weightful biasing).
    * Setting `useNoisePruning` to `false` is probably the most important of these - it adds the least strength in normal usage but might interfere the most. One could experiment with still enabling the other two for strength.
-

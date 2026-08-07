@@ -1,8 +1,36 @@
 #include "../tests/tests.h"
 #include "../dataio/sgf.h"
+#include "../program/playutils.h"
 
 using namespace std;
 using namespace TestCommon;
+
+// 목적: 점수 계산 전에 취소된 요청이 검색기를 사용하지 않고 안전하게 중단되는지 검증한다.
+// 매개변수: 없다.
+// 반환값: 검증 실패 시 testAssert가 예외를 발생시키며 별도 반환값은 없다.
+static void testComputeLeadCancellation() {
+  Board board(9,9);
+  Rules rules = Rules::getTrompTaylorish();
+  BoardHistory hist(board,P_BLACK,rules,0,false);
+  float originalKomi = hist.rules.komi;
+  float result = 123.0f;
+  int callbackCount = 0;
+  // 목적: 즉시 취소 신호를 반환하고 호출 횟수를 기록한다.
+  // 매개변수: callbackCount를 캡처하므로 별도 매개변수는 없다.
+  // 반환값: 즉시 중단을 요청하기 위해 항상 true를 반환한다.
+  std::function<bool()> shouldStopEarly = [&callbackCount]() {
+    callbackCount += 1;
+    return true;
+  };
+
+  bool completed = PlayUtils::computeLeadCancellable(
+    NULL,NULL,board,hist,P_BLACK,50,OtherGameProperties(),shouldStopEarly,result
+  );
+  testAssert(!completed);
+  testAssert(callbackCount > 0);
+  testAssert(result == 123.0f);
+  testAssert(hist.rules.komi == originalKomi);
+}
 
 static void checkKoHashConsistency(const BoardHistory& hist, const Board& board, Player nextPla) {
   testAssert(hist.koHashHistory.size() > 0);
@@ -79,6 +107,7 @@ static double finalScoreIfGameEndedNow(const BoardHistory& baseHist, const Board
 void Tests::runRulesTests() {
   cout << "Running rules tests" << endl;
   ostringstream out;
+  testComputeLeadCancellation();
 
   //Some helpers
   auto printIllegalMoves = [](ostream& o, const Board& board, const BoardHistory& hist, Player pla) {

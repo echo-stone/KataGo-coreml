@@ -388,13 +388,20 @@ static SearchParams getNoiselessParams(const SearchParams& oldParams, int64_t nu
   return newParams;
 }
 
-ReportedSearchValues PlayUtils::getWhiteScoreValues(
+class SearchComputationCancelled {};
+
+// 목적: 선택적인 취소 콜백을 사용해 백 관점의 검색 값을 계산한다.
+// 매개변수: bot은 검색기, board와 hist 및 pla는 위치, numVisits는 방문 수,
+// otherGameProps는 대국 속성, shouldStopEarly는 선택적인 취소 콜백이다.
+// 반환값: 계산된 백 관점 검색 값이며, 취소된 경우 SearchComputationCancelled를 던진다.
+static ReportedSearchValues getWhiteScoreValuesCancellable(
   Search* bot,
   const Board& board,
   const BoardHistory& hist,
   Player pla,
   int64_t numVisits,
-  const OtherGameProperties& otherGameProps
+  const OtherGameProperties& otherGameProps,
+  std::function<bool()>* shouldStopEarly
 ) {
   testAssert(numVisits > 0);
   SearchParams oldParams = bot->searchParams;
@@ -409,11 +416,26 @@ ReportedSearchValues PlayUtils::getWhiteScoreValues(
 
   bot->setParams(newParams);
   bot->setPosition(pla,board,hist);
-  bot->runWholeSearch(pla);
+  bot->runWholeSearch(pla,shouldStopEarly);
 
+  if(shouldStopEarly != NULL && (*shouldStopEarly)()) {
+    bot->setParams(oldParams);
+    throw SearchComputationCancelled();
+  }
   ReportedSearchValues values = bot->getRootValuesRequireSuccess();
   bot->setParams(oldParams);
   return values;
+}
+
+ReportedSearchValues PlayUtils::getWhiteScoreValues(
+  Search* bot,
+  const Board& board,
+  const BoardHistory& hist,
+  Player pla,
+  int64_t numVisits,
+  const OtherGameProperties& otherGameProps
+) {
+  return getWhiteScoreValuesCancellable(bot,board,hist,pla,numVisits,otherGameProps,NULL);
 }
 
 static std::pair<double,double> evalKomi(
@@ -425,8 +447,12 @@ static std::pair<double,double> evalKomi(
   Player pla,
   int64_t numVisits,
   const OtherGameProperties& otherGameProps,
-  float roundedClippedKomi
+  float roundedClippedKomi,
+  std::function<bool()>* shouldStopEarly
 ) {
+  if(shouldStopEarly != NULL && (*shouldStopEarly)())
+    throw SearchComputationCancelled();
+
   auto iter = scoreWLCache.find(roundedClippedKomi);
   if(iter != scoreWLCache.end())
     return iter->second;
@@ -434,15 +460,23 @@ static std::pair<double,double> evalKomi(
   float oldKomi = hist.rules.komi;
   hist.setKomi(roundedClippedKomi);
 
-  ReportedSearchValues values0 = PlayUtils::getWhiteScoreValues(botB, board, hist, pla, numVisits, otherGameProps);
-  double lead = values0.lead;
-  double winLoss = values0.winLossValue;
+  double lead;
+  double winLoss;
+  try {
+    ReportedSearchValues values0 = getWhiteScoreValuesCancellable(botB,board,hist,pla,numVisits,otherGameProps,shouldStopEarly);
+    lead = values0.lead;
+    winLoss = values0.winLossValue;
 
-  //If we have a second bot, average the two
-  if(botW != NULL && botW != botB) {
-    ReportedSearchValues values1 = PlayUtils::getWhiteScoreValues(botW, board, hist, pla, numVisits, otherGameProps);
-    lead = 0.5 * (values0.lead + values1.lead);
-    winLoss = 0.5 * (values0.winLossValue + values1.winLossValue);
+    //If we have a second bot, average the two
+    if(botW != NULL && botW != botB) {
+      ReportedSearchValues values1 = getWhiteScoreValuesCancellable(botW,board,hist,pla,numVisits,otherGameProps,shouldStopEarly);
+      lead = 0.5 * (values0.lead + values1.lead);
+      winLoss = 0.5 * (values0.winLossValue + values1.winLossValue);
+    }
+  }
+  catch(...) {
+    hist.setKomi(oldKomi);
+    throw;
   }
   std::pair<double,double> result = std::make_pair(lead,winLoss);
   scoreWLCache[roundedClippedKomi] = result;
@@ -459,7 +493,8 @@ static double getNaiveEvenKomiHelper(
   BoardHistory& hist,
   Player pla,
   int64_t numVisits,
-  const OtherGameProperties& otherGameProps
+  const OtherGameProperties& otherGameProps,
+  std::function<bool()>* shouldStopEarly
 ) {
   float oldKomi = hist.rules.komi;
 
@@ -468,7 +503,9 @@ static double getNaiveEvenKomiHelper(
   double lastWinLoss = 0.0;
   double lastLead = 0.0;
   for(int i = 0; i<3; i++) {
-    std::pair<double,double> result = evalKomi(scoreWLCache,botB,botW,board,hist,pla,numVisits,otherGameProps,hist.rules.komi);
+    std::pair<double,double> result = evalKomi(
+      scoreWLCache,botB,botW,board,hist,pla,numVisits,otherGameProps,hist.rules.komi,shouldStopEarly
+    );
     double lead = result.first;
     double winLoss = result.second;
 
@@ -516,7 +553,10 @@ static double getNaiveEvenKomiHelper(
   //Try a small window and do a binary search
   auto evalWinLoss = [&](double delta) {
     double newKomi = hist.rules.komi + delta;
-    double winLoss = evalKomi(scoreWLCache,botB,botW,board,hist,pla,numVisits,otherGameProps,PlayUtils::roundAndClipKomi(newKomi,board)).second;
+    double winLoss = evalKomi(
+      scoreWLCache,botB,botW,board,hist,pla,numVisits,otherGameProps,
+      PlayUtils::roundAndClipKomi(newKomi,board),shouldStopEarly
+    ).second;
     // cout << "Delta " << delta << " wr " << winLoss << endl;
     return winLoss;
   };
@@ -599,7 +639,7 @@ void PlayUtils::adjustKomiToEven(
   Rand& rand
 ) {
   map<float,std::pair<double,double>> scoreWLCache;
-  double newKomi = getNaiveEvenKomiHelper(scoreWLCache,botB,botW,board,hist,pla,numVisits,otherGameProps);
+  double newKomi = getNaiveEvenKomiHelper(scoreWLCache,botB,botW,board,hist,pla,numVisits,otherGameProps,NULL);
   double lower = floor(newKomi * 2.0) * 0.5;
   double upper = lower + 0.5;
   if(rand.nextBool((newKomi - lower) / (upper - lower)))
@@ -609,27 +649,44 @@ void PlayUtils::adjustKomiToEven(
   hist.setKomi(PlayUtils::roundAndClipKomi(newKomi,board));
 }
 
-float PlayUtils::computeLead(
+// 목적: 선택적인 취소 콜백을 사용해 백 관점의 예상 점수 차이를 계산한다.
+// 매개변수: botB와 botW는 검색기이고, board와 hist 및 pla는 위치, numVisits는 탐색당 방문 수,
+// otherGameProps는 대국 속성, shouldStopEarly는 선택적인 취소 콜백이다.
+// 반환값: 계산된 백 관점 점수 차이며, 취소된 경우 SearchComputationCancelled를 던진다.
+static float computeLeadCancellableInternal(
   Search* botB,
   Search* botW,
   const Board& board,
   BoardHistory& hist,
   Player pla,
   int64_t numVisits,
-  const OtherGameProperties& otherGameProps
+  const OtherGameProperties& otherGameProps,
+  std::function<bool()>* shouldStopEarly
 ) {
   map<float,std::pair<double,double>> scoreWLCache;
   float oldKomi = hist.rules.komi;
-  double naiveKomi = getNaiveEvenKomiHelper(scoreWLCache,botB,botW,board,hist,pla,numVisits,otherGameProps);
+  double naiveKomi;
+  try {
+    naiveKomi = getNaiveEvenKomiHelper(scoreWLCache,botB,botW,board,hist,pla,numVisits,otherGameProps,shouldStopEarly);
+  }
+  catch(...) {
+    hist.setKomi(oldKomi);
+    throw;
+  }
 
   bool granularityIsCoarse = hist.rules.scoringRule == Rules::SCORING_AREA && !hist.rules.hasButton;
   if(!granularityIsCoarse) {
     testAssert(hist.rules.komi == oldKomi);
+    if(shouldStopEarly != NULL && (*shouldStopEarly)())
+      throw SearchComputationCancelled();
     return (float)(oldKomi - naiveKomi);
   }
 
   auto evalWinLoss = [&](double newKomi) {
-    double winLoss = evalKomi(scoreWLCache,botB,botW,board,hist,pla,numVisits,otherGameProps,PlayUtils::roundAndClipKomi(newKomi,board)).second;
+    double winLoss = evalKomi(
+      scoreWLCache,botB,botW,board,hist,pla,numVisits,otherGameProps,
+      PlayUtils::roundAndClipKomi(newKomi,board),shouldStopEarly
+    ).second;
     // cout << "Delta " << delta << " wr " << winLoss << endl;
     return winLoss;
   };
@@ -639,6 +696,8 @@ float PlayUtils::computeLead(
   //If komi is exactly an integer, then we're good.
   if(naiveKomi == round(naiveKomi)) {
     testAssert(hist.rules.komi == oldKomi);
+    if(shouldStopEarly != NULL && (*shouldStopEarly)())
+      throw SearchComputationCancelled();
     return (float)(oldKomi - naiveKomi);
   }
 
@@ -661,7 +720,43 @@ float PlayUtils::computeLead(
     if(result > upper+0.5) result = upper+0.5;
   }
   testAssert(hist.rules.komi == oldKomi);
+  if(shouldStopEarly != NULL && (*shouldStopEarly)())
+    throw SearchComputationCancelled();
   return (float)(oldKomi - result);
+}
+
+float PlayUtils::computeLead(
+  Search* botB,
+  Search* botW,
+  const Board& board,
+  BoardHistory& hist,
+  Player pla,
+  int64_t numVisits,
+  const OtherGameProperties& otherGameProps
+) {
+  return computeLeadCancellableInternal(botB,botW,board,hist,pla,numVisits,otherGameProps,NULL);
+}
+
+bool PlayUtils::computeLeadCancellable(
+  Search* botB,
+  Search* botW,
+  const Board& board,
+  BoardHistory& hist,
+  Player pla,
+  int64_t numVisits,
+  const OtherGameProperties& otherGameProps,
+  std::function<bool()>& shouldStopEarly,
+  float& result
+) {
+  try {
+    result = computeLeadCancellableInternal(
+      botB,botW,board,hist,pla,numVisits,otherGameProps,&shouldStopEarly
+    );
+    return true;
+  }
+  catch(const SearchComputationCancelled&) {
+    return false;
+  }
 }
 
 
