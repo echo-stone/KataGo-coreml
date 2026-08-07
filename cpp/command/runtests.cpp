@@ -45,6 +45,7 @@ int MainCmds::runtests(const vector<string>& args) {
 
   Tests::runRulesTests();
   Tests::runPassAliveSuicideModeTests();
+  Tests::runPatternTests();
 
   Tests::runBoardUndoTest();
   Tests::runBoardHandicapTest();
@@ -775,4 +776,3 @@ int MainCmds::runconfigtests(const vector<string>& args) {
   Tests::runParseAllConfigsTest();
   return 0;
 }
-

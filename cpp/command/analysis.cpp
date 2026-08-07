@@ -8,6 +8,7 @@
 #include "../program/setup.h"
 #include "../program/playutils.h"
 #include "../program/play.h"
+#include "../pattern/detector.h"
 #include "../command/commandline.h"
 #include "../core/test.h"
 #include "../main.h"
@@ -75,6 +76,7 @@ struct AnalyzeRequest {
   bool includePolicy;
   bool includePVVisits;
   bool includeNoResultValue;
+  bool includePatterns;
 
   bool reportDuringSearch;
   double reportDuringSearchEvery;
@@ -284,6 +286,7 @@ int MainCmds::analysis(const vector<string>& args) {
     "includePolicy",
     "includePVVisits",
     "includeNoResultValue",
+    "includePatterns",
     "reportDuringSearchEvery",
     "firstReportDuringSearchAfter",
     "priority",
@@ -360,7 +363,7 @@ int MainCmds::analysis(const vector<string>& args) {
   };
 
   //Returns false if no analysis was reportable due to there being no root node or search results.
-  auto reportAnalysis = [&preventEncore,&pushToWrite](const AnalyzeRequest* request, const Search* search, bool isDuringSearch) {
+  auto reportAnalysis = [&preventEncore,&pushToWrite,&reportWarningForId](const AnalyzeRequest* request, const Search* search, bool isDuringSearch) {
     json ret;
     ret["id"] = request->id;
     ret["turnNumber"] = request->turnNumber;
@@ -375,6 +378,23 @@ int MainCmds::analysis(const vector<string>& args) {
       request->includeNoResultValue,
       ret
     );
+
+    if(success && request->includePatterns && !isDuringSearch) {
+      ret["patterns"] = json::array();
+      try {
+        GoPattern::DetectionResult result = GoPattern::detect(request->board,request->hist);
+        for(const GoPattern::Pattern& pattern: result.patterns)
+          ret["patterns"].push_back(GoPattern::toJson(pattern,request->board));
+        if(result.truncated)
+          reportWarningForId(request->id,"patterns","Pattern output exceeded 256 entries and was truncated");
+      }
+      catch(const std::exception& e) {
+        reportWarningForId(request->id,"patterns","Pattern detection failed: " + string(e.what()));
+      }
+      catch(...) {
+        reportWarningForId(request->id,"patterns","Pattern detection failed with an unknown error");
+      }
+    }
 
     if(success)
       pushToWrite(new string(ret.dump()));
@@ -504,7 +524,13 @@ int MainCmds::analysis(const vector<string>& args) {
           testAssert(request->kind == AnalyzeRequestKind::ANALYSIS);
 
           bot->setPosition(request->nextPla,request->board,request->hist);
-          bot->setAlwaysIncludeOwnerMap(request->includeOwnership || request->includeOwnershipStdev || request->includeMovesOwnership || request->includeMovesOwnershipStdev);
+          bot->setAlwaysIncludeOwnerMap(
+            request->includeOwnership ||
+            request->includeOwnershipStdev ||
+            request->includeMovesOwnership ||
+            request->includeMovesOwnershipStdev ||
+            request->includePatterns
+          );
           bot->setParams(request->params);
           bot->setAvoidMoveUntilByLoc(request->avoidMoveUntilByLocBlack,request->avoidMoveUntilByLocWhite);
           if(request->includeAllMoves)
@@ -781,6 +807,7 @@ int MainCmds::analysis(const vector<string>& args) {
       rbase.includePolicy = false;
       rbase.includePVVisits = false;
       rbase.includeNoResultValue = false;
+      rbase.includePatterns = false;
       rbase.reportDuringSearch = false;
       rbase.reportDuringSearchEvery = 1e30;
       rbase.firstReportDuringSearchAfter = 1e30;
@@ -1201,6 +1228,11 @@ int MainCmds::analysis(const vector<string>& args) {
         if(!suc)
           continue;
       }
+      if(input.find("includePatterns") != input.end()) {
+        bool suc = parseBoolean(input, "includePatterns", rbase.includePatterns, "Must be a boolean");
+        if(!suc)
+          continue;
+      }
       if(input.find("includePolicy") != input.end()) {
         bool suc = parseBoolean(input, "includePolicy", rbase.includePolicy, "Must be a boolean");
         if(!suc)
@@ -1439,6 +1471,7 @@ int MainCmds::analysis(const vector<string>& args) {
           newRequest->includePolicy = rbase.includePolicy;
           newRequest->includePVVisits = rbase.includePVVisits;
           newRequest->includeNoResultValue = rbase.includeNoResultValue;
+          newRequest->includePatterns = rbase.includePatterns;
           newRequest->reportDuringSearch = rbase.reportDuringSearch;
           newRequest->reportDuringSearchEvery = rbase.reportDuringSearchEvery;
           newRequest->firstReportDuringSearchAfter = rbase.firstReportDuringSearchAfter;

@@ -322,6 +322,9 @@ add_executable(katago
   program/playsettings.cpp
   program/play.cpp
   program/selfplaymanager.cpp
+  pattern/pattern.cpp
+  pattern/benson.cpp
+  pattern/detector.cpp
   ${GIT_HEADER_FILE_ALWAYS_UPDATED}
   tests/testboardarea.cpp
   tests/testboardbasic.cpp
@@ -331,6 +334,7 @@ add_executable(katago
   tests/testmisc.cpp
   tests/testnnevalcanary.cpp
   tests/testpassalivesuicide.cpp
+  tests/testpattern.cpp
   tests/testrules.cpp
   tests/testscore.cpp
   tests/testsgf.cpp
@@ -699,4 +703,3 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "C
 endif()
 
 target_include_directories(katago PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-

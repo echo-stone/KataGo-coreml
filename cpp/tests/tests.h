@@ -32,6 +32,9 @@ namespace Tests {
   //testpassalivesuicide.cpp
   void runPassAliveSuicideModeTests();
 
+  //testpattern.cpp
+  void runPatternTests();
+
   //testscore.cpp
   void runScoreTests();
 
