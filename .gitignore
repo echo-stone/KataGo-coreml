@@ -57,6 +57,9 @@ out.txt
 # For vscode
 .vscode
 
+# For Serena local project cache
+.serena/
+
 # For VS
 .vs
 cpp/CMakeSettings.json
