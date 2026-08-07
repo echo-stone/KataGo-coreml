@@ -60,6 +60,8 @@ MPSGraph GPU와 CoreML/ANE를 함께 사용한다.
 
 기존 장치 값 `101`, `102`는 공식 백엔드에서 유효하지 않다. 여러 ANE
 스레드를 사용하려면 각 스레드에 동일하게 `100`을 지정한다.
+공식 v1.17.2의 CoreML 변환기는 신경망 모델 버전 8~17만 지원하므로,
+ANE 배포 전 실제 운영 모델로 초기화를 검증한다.
 
 ```text
 numNNServerThreadsPerModel = 4
@@ -83,12 +85,27 @@ metalDeviceToUseThread3 = 100
 큰 버전 변경에서 백엔드 구조가 다시 바뀐 경우에는 기존 제품 브랜치에
 직접 병합하지 않고 새 공식 태그에서 독자 기능을 재이식한다.
 
+## 최초 기본 브랜치 전환
+
+기존 `master`를 강제로 덮어쓰거나 이력을 재작성하지 않는다. 공식 태그에서
+만든 이관 브랜치가 검증되면 다음 순서로 전환한다.
+
+1. 기존 `master`를 `legacy/coreml-stable-before-v1.17.2`로 보존한다.
+2. 이관 브랜치에서 기존 `master`를 `ours` 전략의 병합 커밋으로 연결한다.
+   이 커밋은 기존 계보를 두 번째 부모로 기록하지만 검증된 공식 기반 파일은
+   바꾸지 않는다.
+3. `master`를 이관 브랜치로 fast-forward한다.
+4. 원격 반영 전 최종 테스트와 두 부모의 연결 여부를 다시 확인한다.
+
+이 방식은 `origin/master`에서 새 `master`로의 fast-forward 관계를 유지하므로
+강제 푸시가 필요 없고, 문제가 생기면 보존 브랜치로 비교하거나 복구할 수 있다.
+
 ## 필수 검증
 
 | 영역 | 검증 내용 |
 | --- | --- |
 | 공통 C++ | `katago runtests`와 관련 분석 테스트 |
-| Analysis Engine | 포함 착점 보장, `maxVisits=0`, 취소·종료, `final_score` |
+| Analysis Engine | 포함 착점 보장, `maxVisits=0` 거부, 취소·종료, `final_score` |
 | macOS | Metal 빌드, GPU 전용, ANE 전용, GPU+ANE 혼합 |
 | Linux | TensorRT 10 이상 빌드 및 KataServer 실행 |
 | KataServer | 분석 API 계약과 실제 KataGo 프로세스 E2E |
