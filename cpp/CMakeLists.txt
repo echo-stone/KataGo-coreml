@@ -327,6 +327,7 @@ add_executable(katago
   pattern/eyefacts.cpp
   pattern/ladder.cpp
   pattern/nakade.cpp
+  pattern/semeai.cpp
   pattern/detector.cpp
   ${GIT_HEADER_FILE_ALWAYS_UPDATED}
   tests/testboardarea.cpp

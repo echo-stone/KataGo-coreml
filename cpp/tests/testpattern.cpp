@@ -1,10 +1,12 @@
 #include "../tests/tests.h"
 #include "../pattern/detector.h"
 #include "../pattern/eyefacts.h"
+#include "../pattern/semeai.h"
 #include "../core/rand.h"
 
 #include <algorithm>
 #include <chrono>
+#include <iterator>
 #include <set>
 
 using namespace std;
@@ -483,6 +485,401 @@ static void runNakadePatternTest() {
       ) == nullptr
     );
   }
+}
+
+// runSemeaiPatternTest는 좁은 sharedLibertyRace 봉투와 제외 경계를 검증한다.
+static void runSemeaiPatternTest() {
+  Board board = Board::parseBoard(3,3,R"%%(
+...
+.o.
+.xx
+)%%");
+  BoardHistory blackTurn(board,P_BLACK,Rules::getTrompTaylorish(),0,false);
+  vector<GoPattern::Pattern> patterns = GoPattern::detectSemeai(board,blackTurn);
+  testAssert(patterns.size() == 1);
+  const GoPattern::Pattern& pattern = patterns[0];
+  testAssert(pattern.kind == GoPattern::Kind::SEMEAI);
+  testAssert(pattern.schemaVersion == 1);
+  testAssert(pattern.subject.type == GoPattern::SubjectType::REGION);
+  testAssert(pattern.subject.color == C_EMPTY);
+  testAssert(pattern.subject.id == "region:E:C2");
+  testAssert(pattern.subject.points.size() == 1);
+  testAssert(pattern.outcome == GoPattern::Outcome::UNSETTLED);
+  testAssert(pattern.confidence == GoPattern::Confidence::MEDIUM);
+
+  const GoPattern::SemeaiDetails& details =
+    get<GoPattern::SemeaiDetails>(pattern.details);
+  testAssert(details.currentPlayer == P_BLACK);
+  testAssert(details.currentPlayerSubjectId == "chain:B:B1");
+  testAssert(details.opponentSubjectId == "chain:W:B2");
+  testAssert(details.currentPlayerOutsideLibertyCount == 1);
+  testAssert(details.opponentOutsideLibertyCount == 2);
+  testAssert(details.sharedLibertyCount == 1);
+
+  json encoded = GoPattern::toJson(pattern,board);
+  testAssert(encoded["kind"] == "semeai");
+  testAssert(encoded["schemaVersion"] == 1);
+  testAssert(encoded["subject"]["type"] == "region");
+  testAssert(encoded["subject"]["color"] == "E");
+  testAssert(encoded["subject"]["id"] == "region:E:C2");
+  testAssert(encoded["subject"]["points"] == json::array({"C2"}));
+  testAssert(encoded["outcome"] == "unsettled");
+  testAssert(encoded["confidence"] == "medium");
+  testAssert(encoded["details"]["currentPlayer"] == "B");
+  testAssert(encoded["details"]["currentPlayerSubjectId"] == "chain:B:B1");
+  testAssert(encoded["details"]["opponentSubjectId"] == "chain:W:B2");
+  testAssert(encoded["details"]["currentPlayerOutsideLibertyCount"] == 1);
+  testAssert(encoded["details"]["opponentOutsideLibertyCount"] == 2);
+  testAssert(encoded["details"]["sharedLibertyCount"] == 1);
+  testAssert(encoded["details"]["semantics"] == "sharedLibertyRace");
+
+  BoardHistory whiteTurn(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+  vector<GoPattern::Pattern> whitePatterns = GoPattern::detectSemeai(board,whiteTurn);
+  testAssert(whitePatterns.size() == 1);
+  const GoPattern::SemeaiDetails& whiteDetails =
+    get<GoPattern::SemeaiDetails>(whitePatterns[0].details);
+  testAssert(whiteDetails.currentPlayer == P_WHITE);
+  testAssert(whiteDetails.currentPlayerSubjectId == "chain:W:B2");
+  testAssert(whiteDetails.opponentSubjectId == "chain:B:B1");
+  testAssert(whiteDetails.currentPlayerOutsideLibertyCount == 2);
+  testAssert(whiteDetails.opponentOutsideLibertyCount == 1);
+
+  GoPattern::DetectionResult publicResult = GoPattern::detect(board,blackTurn);
+  testAssert(findKind(publicResult.patterns,GoPattern::Kind::SEMEAI) != nullptr);
+
+  Board disconnected = Board::parseBoard(4,4,R"%%(
+....
+..o.
+.x..
+....
+)%%");
+  BoardHistory disconnectedHist(
+    disconnected,
+    P_BLACK,
+    Rules::getTrompTaylorish(),
+    0,
+    false
+  );
+  testAssert(GoPattern::detectSemeai(disconnected,disconnectedHist).empty());
+
+  Board thirdChain = Board::parseBoard(3,3,R"%%(
+x..
+.o.
+.xx
+)%%");
+  BoardHistory thirdChainHist(
+    thirdChain,
+    P_BLACK,
+    Rules::getTrompTaylorish(),
+    0,
+    false
+  );
+  testAssert(GoPattern::detectSemeai(thirdChain,thirdChainHist).empty());
+}
+
+// OracleSemeaiChain은 Board chain 자료구조를 사용하지 않는 독립 격자 연결요소다.
+struct OracleSemeaiChain {
+  Player color;
+  vector<int> points;
+  set<int> liberties;
+  string subjectId;
+};
+
+// OracleSemeaiPattern은 독립 구조 판정기의 공개 비교 필드다.
+struct OracleSemeaiPattern {
+  string subjectId;
+  vector<string> sharedPoints;
+  string currentPlayerSubjectId;
+  string opponentSubjectId;
+  int currentOutside;
+  int opponentOutside;
+};
+
+// oracleSemeaiNeighbors는 선형 격자 좌표의 판 안 직교 이웃을 반환한다.
+static vector<int> oracleSemeaiNeighbors(int point, int width, int height) {
+  const int x = point % width;
+  const int y = point / width;
+  vector<int> neighbors;
+  if(x > 0)
+    neighbors.push_back(point-1);
+  if(x+1 < width)
+    neighbors.push_back(point+1);
+  if(y > 0)
+    neighbors.push_back(point-width);
+  if(y+1 < height)
+    neighbors.push_back(point+width);
+  return neighbors;
+}
+
+// oracleSemeaiPointString은 독립 격자 좌표를 공개 GTP 좌표로 바꾼다.
+static string oracleSemeaiPointString(int point, const Board& board) {
+  const int x = point % board.x_size;
+  const int y = point / board.x_size;
+  return Location::toString(Location::getLoc(x,y,board.x_size),board);
+}
+
+// oracleSemeaiChains는 색 격자를 BFS해 chain·활로·결정적 ID를 독립 구성한다.
+static vector<OracleSemeaiChain> oracleSemeaiChains(
+  const Board& board,
+  vector<int>& labels
+) {
+  const int pointCount = board.x_size*board.y_size;
+  labels.assign(pointCount,-1);
+  vector<OracleSemeaiChain> chains;
+  for(int point = 0; point < pointCount; point++) {
+    const int x = point % board.x_size;
+    const int y = point / board.x_size;
+    const Player color = board.colors[Location::getLoc(x,y,board.x_size)];
+    if((color != P_BLACK && color != P_WHITE) || labels[point] >= 0)
+      continue;
+
+    const int label = static_cast<int>(chains.size());
+    OracleSemeaiChain chain;
+    chain.color = color;
+    vector<int> queue;
+    queue.push_back(point);
+    labels[point] = label;
+    for(size_t queueIndex = 0; queueIndex < queue.size(); queueIndex++) {
+      const int current = queue[queueIndex];
+      chain.points.push_back(current);
+      for(int adjacent: oracleSemeaiNeighbors(current,board.x_size,board.y_size)) {
+        const int adjacentX = adjacent % board.x_size;
+        const int adjacentY = adjacent / board.x_size;
+        const Player adjacentColor =
+          board.colors[Location::getLoc(adjacentX,adjacentY,board.x_size)];
+        if(adjacentColor == C_EMPTY)
+          chain.liberties.insert(adjacent);
+        else if(adjacentColor == color && labels[adjacent] < 0) {
+          labels[adjacent] = label;
+          queue.push_back(adjacent);
+        }
+      }
+    }
+    string anchor = oracleSemeaiPointString(chain.points[0],board);
+    for(size_t index = 1; index < chain.points.size(); index++)
+      anchor = min(anchor,oracleSemeaiPointString(chain.points[index],board));
+    chain.subjectId =
+      string("chain:") + (color == P_BLACK ? "B:" : "W:") + anchor;
+    chains.push_back(std::move(chain));
+  }
+  return chains;
+}
+
+// oracleSemeaiSharedConnected는 공유 활로가 하나의 직교 연결요소인지 검사한다.
+static bool oracleSemeaiSharedConnected(
+  const set<int>& shared,
+  int width,
+  int height
+) {
+  if(shared.empty())
+    return false;
+  set<int> reached;
+  vector<int> queue;
+  queue.push_back(*shared.begin());
+  reached.insert(*shared.begin());
+  for(size_t index = 0; index < queue.size(); index++) {
+    for(int adjacent: oracleSemeaiNeighbors(queue[index],width,height)) {
+      if(shared.find(adjacent) != shared.end() && reached.insert(adjacent).second)
+        queue.push_back(adjacent);
+    }
+  }
+  return reached.size() == shared.size();
+}
+
+// oracleSemeaiPairIsolated는 참가 돌·전체 활로 주변에 제3 chain이 없는지 격자 label로 검사한다.
+static bool oracleSemeaiPairIsolated(
+  const OracleSemeaiChain& left,
+  const OracleSemeaiChain& right,
+  const vector<int>& labels,
+  int leftLabel,
+  int rightLabel,
+  int width,
+  int height
+) {
+  vector<int> inspected = left.points;
+  inspected.insert(inspected.end(),right.points.begin(),right.points.end());
+  inspected.insert(inspected.end(),left.liberties.begin(),left.liberties.end());
+  inspected.insert(inspected.end(),right.liberties.begin(),right.liberties.end());
+  for(int point: inspected) {
+    for(int adjacent: oracleSemeaiNeighbors(point,width,height)) {
+      const int label = labels[adjacent];
+      if(label >= 0 && label != leftLabel && label != rightLabel)
+        return false;
+    }
+  }
+  return true;
+}
+
+// oracleSemeaiPatterns는 독립 격자 계산으로 v1 후보와 공개 필드를 만든다.
+static vector<OracleSemeaiPattern> oracleSemeaiPatterns(
+  const Board& board,
+  Player nextPlayer
+) {
+  vector<int> labels;
+  vector<OracleSemeaiChain> chains = oracleSemeaiChains(board,labels);
+  vector<OracleSemeaiPattern> patterns;
+  for(size_t leftIndex = 0; leftIndex < chains.size(); leftIndex++) {
+    for(size_t rightIndex = leftIndex+1; rightIndex < chains.size(); rightIndex++) {
+      const OracleSemeaiChain& left = chains[leftIndex];
+      const OracleSemeaiChain& right = chains[rightIndex];
+      if(left.color == right.color)
+        continue;
+      if(
+        left.liberties.size() < 2 || left.liberties.size() > 4 ||
+        right.liberties.size() < 2 || right.liberties.size() > 4
+      )
+        continue;
+
+      set<int> shared;
+      set_intersection(
+        left.liberties.begin(),
+        left.liberties.end(),
+        right.liberties.begin(),
+        right.liberties.end(),
+        inserter(shared,shared.end())
+      );
+      if(!oracleSemeaiSharedConnected(shared,board.x_size,board.y_size))
+        continue;
+      if(!oracleSemeaiPairIsolated(
+        left,
+        right,
+        labels,
+        static_cast<int>(leftIndex),
+        static_cast<int>(rightIndex),
+        board.x_size,
+        board.y_size
+      ))
+        continue;
+
+      const OracleSemeaiChain& current =
+        left.color == nextPlayer ? left : right;
+      const OracleSemeaiChain& opponent =
+        left.color == nextPlayer ? right : left;
+      vector<string> sharedPoints;
+      for(int point: shared)
+        sharedPoints.push_back(oracleSemeaiPointString(point,board));
+      sort(sharedPoints.begin(),sharedPoints.end());
+      patterns.push_back(OracleSemeaiPattern{
+        "region:E:" + sharedPoints[0],
+        std::move(sharedPoints),
+        current.subjectId,
+        opponent.subjectId,
+        static_cast<int>(current.liberties.size()-shared.size()),
+        static_cast<int>(opponent.liberties.size()-shared.size()),
+      });
+    }
+  }
+  return patterns;
+}
+
+// semeaiPatternKey는 제품·독립 판정기의 공개 필드를 같은 결정적 문자열로 바꾼다.
+static string semeaiPatternKey(
+  const string& subjectId,
+  const vector<string>& sharedPoints,
+  const string& currentSubjectId,
+  const string& opponentSubjectId,
+  int currentOutside,
+  int opponentOutside
+) {
+  string key = subjectId;
+  for(const string& point: sharedPoints)
+    key += "|" + point;
+  key += "|" + currentSubjectId;
+  key += "|" + opponentSubjectId;
+  key += "|" + to_string(currentOutside);
+  key += "|" + to_string(opponentOutside);
+  key += "|" + to_string(sharedPoints.size());
+  return key;
+}
+
+// runSemeaiIndependentPropertyTest는 2×2~3×3 정사각·비정사각 전체 상태를 독립 대조한다.
+static void runSemeaiIndependentPropertyTest() {
+  int comparedCandidates = 0;
+  int comparedStates = 0;
+  const vector<pair<int,int>> sizes = {{2,2},{2,3},{3,2},{3,3}};
+  for(const pair<int,int>& size: sizes) {
+    int stateCount = 1;
+    for(int point = 0; point < size.first*size.second; point++)
+      stateCount *= 3;
+    for(int state = 0; state < stateCount; state++) {
+      Board board(size.first,size.second);
+      int remaining = state;
+      for(int y = 0; y < board.y_size; y++) {
+        for(int x = 0; x < board.x_size; x++) {
+          const int value = remaining % 3;
+          remaining /= 3;
+          Loc loc = Location::getLoc(x,y,board.x_size);
+          board.colors[loc] =
+            value == 0 ? C_EMPTY : (value == 1 ? P_BLACK : P_WHITE);
+        }
+      }
+      board.regenChainsFromColors();
+
+      bool invalid = false;
+      for(int y = 0; y < board.y_size && !invalid; y++) {
+        for(int x = 0; x < board.x_size; x++) {
+          Loc loc = Location::getLoc(x,y,board.x_size);
+          if(
+            (board.colors[loc] == P_BLACK || board.colors[loc] == P_WHITE) &&
+            board.getNumLiberties(loc) == 0
+          ) {
+            invalid = true;
+            break;
+          }
+        }
+      }
+      if(invalid)
+        continue;
+
+      for(Player nextPlayer: {P_BLACK,P_WHITE}) {
+        vector<OracleSemeaiPattern> expected =
+          oracleSemeaiPatterns(board,nextPlayer);
+        BoardHistory hist(board,nextPlayer,Rules::getTrompTaylorish(),0,false);
+        vector<GoPattern::Pattern> actual = GoPattern::detectSemeai(board,hist);
+        set<string> expectedKeys;
+        for(const OracleSemeaiPattern& candidate: expected) {
+          expectedKeys.insert(semeaiPatternKey(
+            candidate.subjectId,
+            candidate.sharedPoints,
+            candidate.currentPlayerSubjectId,
+            candidate.opponentSubjectId,
+            candidate.currentOutside,
+            candidate.opponentOutside
+          ));
+        }
+        set<string> actualKeys;
+        for(const GoPattern::Pattern& candidate: actual) {
+          testAssert(candidate.kind == GoPattern::Kind::SEMEAI);
+          testAssert(candidate.subject.color == C_EMPTY);
+          testAssert(candidate.outcome == GoPattern::Outcome::UNSETTLED);
+          testAssert(candidate.confidence == GoPattern::Confidence::MEDIUM);
+          vector<string> sharedPoints;
+          for(Loc point: candidate.subject.points)
+            sharedPoints.push_back(Location::toString(point,board));
+          sort(sharedPoints.begin(),sharedPoints.end());
+          const GoPattern::SemeaiDetails& details =
+            get<GoPattern::SemeaiDetails>(candidate.details);
+          testAssert(details.currentPlayer == nextPlayer);
+          actualKeys.insert(semeaiPatternKey(
+            candidate.subject.id,
+            sharedPoints,
+            details.currentPlayerSubjectId,
+            details.opponentSubjectId,
+            details.currentPlayerOutsideLibertyCount,
+            details.opponentOutsideLibertyCount
+          ));
+        }
+        testAssert(actualKeys == expectedKeys);
+        if(nextPlayer == P_BLACK) {
+          comparedCandidates += static_cast<int>(expected.size());
+          comparedStates++;
+        }
+      }
+    }
+  }
+  testAssert(comparedCandidates >= 500);
+  cout << "Semeai structural validation: " << comparedStates
+       << " states, " << comparedCandidates << " candidates, 0 mismatches" << endl;
 }
 
 // runLadderPatternTest는 완결 승패, 기존 bool 호환, 패 의존, 예산 미완결을 분리해 검증한다.
@@ -1334,6 +1731,8 @@ ooooo
   runEyePointFactsTest();
   runNakadePatternTest();
   runNakadeCatalogExhaustiveTest();
+  runSemeaiPatternTest();
+  runSemeaiIndependentPropertyTest();
   runLadderPatternTest();
   runLadderIndependentPropertyTest();
   int squareStates = runSquareBoardPropertyTest();

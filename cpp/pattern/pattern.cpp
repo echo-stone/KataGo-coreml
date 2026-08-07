@@ -18,6 +18,8 @@ static string kindToString(Kind kind) {
     return "ladder";
   case Kind::NAKADE:
     return "nakade";
+  case Kind::SEMEAI:
+    return "semeai";
   default:
     ASSERT_UNREACHABLE;
   }
@@ -72,11 +74,15 @@ static string confidenceToString(Confidence confidence) {
   }
 }
 
-// playerToPatternColor는 KataGo Player를 Pattern 계약의 B/W 문자열로 바꾼다.
-// pla는 변환할 돌 색이며, 반환값은 B 또는 W다.
+// playerToPatternColor는 KataGo Player를 Pattern 계약의 B/W/E 문자열로 바꾼다.
+// pla는 변환할 돌 색이며, 빈 영역 주체에는 E를 반환한다.
 static string playerToPatternColor(Player pla) {
-  assert(pla == P_BLACK || pla == P_WHITE);
-  return pla == P_BLACK ? "B" : "W";
+  assert(pla == P_BLACK || pla == P_WHITE || pla == C_EMPTY);
+  if(pla == P_BLACK)
+    return "B";
+  if(pla == P_WHITE)
+    return "W";
+  return "E";
 }
 
 // sortedPointStrings는 내부 좌표를 중복 없는 GTP 문자열 사전순으로 정규화한다.
@@ -153,6 +159,19 @@ static json detailsToJson(const NakadeDetails& details, const Board& board) {
     {"shape", nakadeShapeToString(details.shape)},
     {"vitalPoint", Location::toString(details.vitalPoint,board)},
     {"semantics", "localEyeSpace"},
+  };
+}
+
+// detailsToJson은 Semeai v1의 현재 차례·참가 chain·활로 수와 좁은 의미를 직렬화한다.
+static json detailsToJson(const SemeaiDetails& details, const Board&) {
+  return json{
+    {"currentPlayer", playerToPatternColor(details.currentPlayer)},
+    {"currentPlayerSubjectId", details.currentPlayerSubjectId},
+    {"opponentSubjectId", details.opponentSubjectId},
+    {"currentPlayerOutsideLibertyCount", details.currentPlayerOutsideLibertyCount},
+    {"opponentOutsideLibertyCount", details.opponentOutsideLibertyCount},
+    {"sharedLibertyCount", details.sharedLibertyCount},
+    {"semantics", "sharedLibertyRace"},
   };
 }
 

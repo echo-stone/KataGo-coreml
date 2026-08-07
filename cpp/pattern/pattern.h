@@ -15,6 +15,7 @@ enum class Kind {
   BENSON_ALIVE,
   LADDER,
   NAKADE,
+  SEMEAI,
 };
 
 // SubjectType은 Pattern 공통 봉투가 지원하는 보드 대상 종류다.
@@ -87,8 +88,23 @@ struct NakadeDetails {
   Loc vitalPoint;
 };
 
+// SemeaiDetails는 현재 차례 기준 두 chain과 공유·외부 활로의 구조 사실을 보존한다.
+struct SemeaiDetails {
+  Player currentPlayer;
+  std::string currentPlayerSubjectId;
+  std::string opponentSubjectId;
+  int currentPlayerOutsideLibertyCount;
+  int opponentOutsideLibertyCount;
+  int sharedLibertyCount;
+};
+
 // PatternDetails는 구현·게이트가 확정된 Kind의 typed details만 포함한다.
-using PatternDetails = std::variant<BensonAliveDetails,LadderDetails,NakadeDetails>;
+using PatternDetails = std::variant<
+  BensonAliveDetails,
+  LadderDetails,
+  NakadeDetails,
+  SemeaiDetails
+>;
 
 // Pattern은 Kind와 독립적인 공통 봉투와 Kind별 typed details를 함께 보존한다.
 struct Pattern {

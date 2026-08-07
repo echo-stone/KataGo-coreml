@@ -2,6 +2,7 @@
 #include "benson.h"
 #include "ladder.h"
 #include "nakade.h"
+#include "semeai.h"
 
 #include <algorithm>
 #include <iterator>
@@ -60,6 +61,25 @@ DetectionResult detect(const Board& board, const BoardHistory& hist) {
     make_move_iterator(nakadePatterns.begin()),
     make_move_iterator(nakadePatterns.end())
   );
+  vector<Pattern> semeaiPatterns = detectSemeai(board,hist);
+  for(Pattern& semeai: semeaiPatterns) {
+    const SemeaiDetails& details = get<SemeaiDetails>(semeai.details);
+    bool conflictsWithBenson = false;
+    for(const Pattern& existing: result.patterns) {
+      if(
+        existing.kind == Kind::BENSON_ALIVE &&
+        (
+          existing.subject.id == details.currentPlayerSubjectId ||
+          existing.subject.id == details.opponentSubjectId
+        )
+      ) {
+        conflictsWithBenson = true;
+        break;
+      }
+    }
+    if(!conflictsWithBenson)
+      result.patterns.push_back(std::move(semeai));
+  }
   sort(
     result.patterns.begin(),
     result.patterns.end(),
