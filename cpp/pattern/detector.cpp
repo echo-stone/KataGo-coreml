@@ -1,8 +1,10 @@
 #include "detector.h"
 #include "benson.h"
 #include "ladder.h"
+#include "nakade.h"
 
 #include <algorithm>
+#include <iterator>
 
 using namespace std;
 
@@ -52,6 +54,12 @@ DetectionResult detect(const Board& board, const BoardHistory& hist) {
       " candidate chains"
     );
   }
+  vector<Pattern> nakadePatterns = detectNakade(board,hist);
+  result.patterns.insert(
+    result.patterns.end(),
+    make_move_iterator(nakadePatterns.begin()),
+    make_move_iterator(nakadePatterns.end())
+  );
   sort(
     result.patterns.begin(),
     result.patterns.end(),

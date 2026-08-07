@@ -14,11 +14,13 @@ namespace GoPattern {
 enum class Kind {
   BENSON_ALIVE,
   LADDER,
+  NAKADE,
 };
 
 // SubjectType은 Pattern 공통 봉투가 지원하는 보드 대상 종류다.
 enum class SubjectType {
   CHAIN,
+  REGION,
 };
 
 // Outcome은 현재 활성 Kind가 반환할 수 있는 판정 결과다.
@@ -27,6 +29,8 @@ enum class Outcome {
   ATTACKER_WINS,
   DEFENDER_ESCAPES,
   AMBIGUOUS,
+  ATTACKER_CAN_REDUCE_TO_ONE_EYE,
+  UNSETTLED,
 };
 
 // Confidence는 검출 근거의 강도를 나타내는 공통 등급이다.
@@ -64,8 +68,27 @@ struct LadderDetails {
   Loc ladderBreaker;
 };
 
+// NakadeShape는 v1에서 유일한 급소를 동결한 국소 눈 공간 형태다.
+enum class NakadeShape {
+  STRAIGHT_THREE,
+  BENT_THREE,
+  PYRAMID_FOUR,
+  STAR_FIVE,
+  BULKY_FIVE,
+  RABBITY_SIX,
+};
+
+// NakadeDetails는 chain 생사와 분리된 국소 눈 공간 축소 근거다.
+struct NakadeDetails {
+  Player attacker;
+  Player defender;
+  std::string defenderSubjectId;
+  NakadeShape shape;
+  Loc vitalPoint;
+};
+
 // PatternDetails는 구현·게이트가 확정된 Kind의 typed details만 포함한다.
-using PatternDetails = std::variant<BensonAliveDetails,LadderDetails>;
+using PatternDetails = std::variant<BensonAliveDetails,LadderDetails,NakadeDetails>;
 
 // Pattern은 Kind와 독립적인 공통 봉투와 Kind별 typed details를 함께 보존한다.
 struct Pattern {

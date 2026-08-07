@@ -167,6 +167,315 @@ static void runEyePointFactsTest() {
   }
 }
 
+// makeNakadeFixtureBoard는 한 흑 chain 안에 지정한 빈 눈 공간만 남긴 표적 판을 만든다.
+static Board makeNakadeFixtureBoard(
+  int xSize,
+  int ySize,
+  const vector<pair<int,int>>& emptyPoints
+) {
+  Board board(xSize,ySize);
+  for(int y = 0; y < ySize; y++) {
+    for(int x = 0; x < xSize; x++) {
+      Loc loc = Location::getLoc(x,y,xSize);
+      board.colors[loc] = P_BLACK;
+    }
+  }
+  for(const pair<int,int>& point: emptyPoints) {
+    Loc loc = Location::getLoc(point.first,point.second,xSize);
+    board.colors[loc] = C_EMPTY;
+  }
+  board.regenChainsFromColors();
+  return board;
+}
+
+// translatedNakadePoints는 catalog 기준 좌표를 판 위의 지정 위치로 평행이동한다.
+static vector<pair<int,int>> translatedNakadePoints(
+  const vector<pair<int,int>>& points,
+  int offsetX,
+  int offsetY
+) {
+  vector<pair<int,int>> translated;
+  translated.reserve(points.size());
+  for(const pair<int,int>& point: points)
+    translated.push_back(make_pair(point.first+offsetX,point.second+offsetY));
+  return translated;
+}
+
+// normalizeNakadeTestShape는 테스트 도형을 평행이동·정렬해 같은 고정 방향의 키로 만든다.
+static vector<pair<int,int>> normalizeNakadeTestShape(
+  const vector<pair<int,int>>& points
+) {
+  int minX = points[0].first;
+  int minY = points[0].second;
+  for(const pair<int,int>& point: points) {
+    minX = min(minX,point.first);
+    minY = min(minY,point.second);
+  }
+  vector<pair<int,int>> normalized;
+  normalized.reserve(points.size());
+  for(const pair<int,int>& point: points)
+    normalized.push_back(make_pair(point.first-minX,point.second-minY));
+  sort(normalized.begin(),normalized.end());
+  return normalized;
+}
+
+// transformNakadeTestShape는 테스트 입력과 급소에 정사각 격자의 한 대칭을 적용한다.
+static vector<pair<int,int>> transformNakadeTestShape(
+  const vector<pair<int,int>>& points,
+  int symmetry
+) {
+  vector<pair<int,int>> transformed;
+  transformed.reserve(points.size());
+  for(const pair<int,int>& point: points) {
+    int x = point.first;
+    int y = point.second;
+    switch(symmetry) {
+    case 0: transformed.push_back(make_pair(x,y)); break;
+    case 1: transformed.push_back(make_pair(x,-y)); break;
+    case 2: transformed.push_back(make_pair(-x,y)); break;
+    case 3: transformed.push_back(make_pair(-x,-y)); break;
+    case 4: transformed.push_back(make_pair(y,x)); break;
+    case 5: transformed.push_back(make_pair(y,-x)); break;
+    case 6: transformed.push_back(make_pair(-y,x)); break;
+    case 7: transformed.push_back(make_pair(-y,-x)); break;
+    default: testAssert(false);
+    }
+  }
+  return normalizeNakadeTestShape(transformed);
+}
+
+// canonicalNakadeTestShape는 자유 polyomino의 8대칭 중 사전순 최소 표현을 구한다.
+static vector<pair<int,int>> canonicalNakadeTestShape(
+  const vector<pair<int,int>>& points
+) {
+  vector<pair<int,int>> canonical = transformNakadeTestShape(points,0);
+  for(int symmetry = 1; symmetry < 8; symmetry++)
+    canonical = min(canonical,transformNakadeTestShape(points,symmetry));
+  return canonical;
+}
+
+// enumerateFreeNakadeTestShapes는 한 점에서 인접점을 늘려 크기 3~6의 자유 polyomino를 전수 생성한다.
+static vector<vector<pair<int,int>>> enumerateFreeNakadeTestShapes() {
+  set<vector<pair<int,int>>> current;
+  current.insert({{0,0}});
+  vector<vector<pair<int,int>>> all;
+  const int dx[4] = {1,-1,0,0};
+  const int dy[4] = {0,0,1,-1};
+  for(int size = 2; size <= 6; size++) {
+    set<vector<pair<int,int>>> next;
+    for(const vector<pair<int,int>>& shape: current) {
+      for(const pair<int,int>& point: shape) {
+        for(int direction = 0; direction < 4; direction++) {
+          pair<int,int> added = make_pair(
+            point.first+dx[direction],
+            point.second+dy[direction]
+          );
+          if(find(shape.begin(),shape.end(),added) != shape.end())
+            continue;
+          vector<pair<int,int>> grown = shape;
+          grown.push_back(added);
+          next.insert(canonicalNakadeTestShape(grown));
+        }
+      }
+    }
+    current = std::move(next);
+    if(size >= 3)
+      all.insert(all.end(),current.begin(),current.end());
+  }
+  return all;
+}
+
+// runNakadeCatalogExhaustiveTest는 크기 3~6 자유 polyomino 전체에서 v1 여섯 형태만 검출되는지 대조한다.
+static void runNakadeCatalogExhaustiveTest() {
+  const set<vector<pair<int,int>>> supported = {
+    canonicalNakadeTestShape({{0,0},{1,0},{2,0}}),
+    canonicalNakadeTestShape({{0,0},{0,1},{1,0}}),
+    canonicalNakadeTestShape({{0,0},{1,0},{1,1},{2,0}}),
+    canonicalNakadeTestShape({{0,1},{1,0},{1,1},{1,2},{2,1}}),
+    canonicalNakadeTestShape({{0,0},{0,1},{0,2},{1,0},{1,1}}),
+    canonicalNakadeTestShape({{0,1},{1,0},{1,1},{1,2},{2,1},{2,2}}),
+  };
+  const vector<vector<pair<int,int>>> shapes = enumerateFreeNakadeTestShapes();
+  testAssert(shapes.size() == 54);
+  testAssert(supported.size() == 6);
+
+  int emitted = 0;
+  for(const vector<pair<int,int>>& shape: shapes) {
+    vector<pair<int,int>> emptyPoints = translatedNakadePoints(shape,3,3);
+    Board board = makeNakadeFixtureBoard(12,12,emptyPoints);
+    BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+    GoPattern::DetectionResult result = GoPattern::detect(board,hist);
+    const bool actual = findKind(result.patterns,GoPattern::Kind::NAKADE) != nullptr;
+    const bool expected = supported.find(shape) != supported.end();
+    testAssert(actual == expected);
+    if(actual)
+      emitted++;
+  }
+  testAssert(emitted == 6);
+  cout << "Nakade catalog validation: " << shapes.size()
+       << " free polyominoes, " << emitted << " supported" << endl;
+}
+
+// runNakadePatternTest는 v1의 여섯 유일 급소 형태와 공개 localEyeSpace 계약을 검증한다.
+static void runNakadePatternTest() {
+  struct Fixture {
+    GoPattern::NakadeShape shape;
+    string shapeName;
+    vector<pair<int,int>> points;
+    pair<int,int> vitalPoint;
+  };
+  const vector<Fixture> fixtures = {
+    {
+      GoPattern::NakadeShape::STRAIGHT_THREE,
+      "straightThree",
+      {{0,0},{1,0},{2,0}},
+      {1,0},
+    },
+    {
+      GoPattern::NakadeShape::BENT_THREE,
+      "bentThree",
+      {{0,0},{0,1},{1,0}},
+      {0,0},
+    },
+    {
+      GoPattern::NakadeShape::PYRAMID_FOUR,
+      "pyramidFour",
+      {{0,0},{1,0},{1,1},{2,0}},
+      {1,0},
+    },
+    {
+      GoPattern::NakadeShape::STAR_FIVE,
+      "starFive",
+      {{0,1},{1,0},{1,1},{1,2},{2,1}},
+      {1,1},
+    },
+    {
+      GoPattern::NakadeShape::BULKY_FIVE,
+      "bulkyFive",
+      {{0,0},{0,1},{0,2},{1,0},{1,1}},
+      {0,1},
+    },
+    {
+      GoPattern::NakadeShape::RABBITY_SIX,
+      "rabbitySix",
+      {{0,1},{1,0},{1,1},{1,2},{2,1},{2,2}},
+      {1,1},
+    },
+  };
+
+  for(const Fixture& fixture: fixtures) {
+    vector<pair<int,int>> emptyPoints = translatedNakadePoints(fixture.points,3,2);
+    Board board = makeNakadeFixtureBoard(9,7,emptyPoints);
+    BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+    GoPattern::DetectionResult result = GoPattern::detect(board,hist);
+    const GoPattern::Pattern* pattern = findKind(result.patterns,GoPattern::Kind::NAKADE);
+    testAssert(pattern != nullptr);
+    testAssert(pattern->schemaVersion == 1);
+    testAssert(pattern->subject.type == GoPattern::SubjectType::REGION);
+    testAssert(pattern->subject.color == P_BLACK);
+    testAssert(pattern->subject.points.size() == fixture.points.size());
+    testAssert(pattern->outcome == GoPattern::Outcome::ATTACKER_CAN_REDUCE_TO_ONE_EYE);
+    testAssert(pattern->confidence == GoPattern::Confidence::HIGH);
+
+    const GoPattern::NakadeDetails& details =
+      get<GoPattern::NakadeDetails>(pattern->details);
+    Loc expectedVital = Location::getLoc(
+      fixture.vitalPoint.first+3,
+      fixture.vitalPoint.second+2,
+      board.x_size
+    );
+    testAssert(details.attacker == P_WHITE);
+    testAssert(details.defender == P_BLACK);
+    testAssert(details.defenderSubjectId == "chain:B:A1");
+    testAssert(details.shape == fixture.shape);
+    testAssert(details.vitalPoint == expectedVital);
+
+    json encoded = GoPattern::toJson(*pattern,board);
+    testAssert(encoded["kind"] == "nakade");
+    testAssert(encoded["schemaVersion"] == 1);
+    testAssert(encoded["subject"]["type"] == "region");
+    testAssert(encoded["outcome"] == "attackerCanReduceToOneEye");
+    testAssert(encoded["confidence"] == "high");
+    testAssert(encoded["details"]["attacker"] == "W");
+    testAssert(encoded["details"]["defender"] == "B");
+    testAssert(encoded["details"]["defenderSubjectId"] == "chain:B:A1");
+    testAssert(encoded["details"]["shape"] == fixture.shapeName);
+    testAssert(
+      encoded["details"]["vitalPoint"] ==
+      Location::toString(expectedVital,board)
+    );
+    testAssert(encoded["details"]["semantics"] == "localEyeSpace");
+  }
+
+  {
+    vector<pair<int,int>> points = translatedNakadePoints(fixtures[0].points,3,2);
+    Board board = makeNakadeFixtureBoard(9,7,points);
+    BoardHistory defenderTurn(board,P_BLACK,Rules::getTrompTaylorish(),0,false);
+    GoPattern::DetectionResult defenderTurnResult =
+      GoPattern::detect(board,defenderTurn);
+    const GoPattern::Pattern* pattern = findKind(
+      defenderTurnResult.patterns,
+      GoPattern::Kind::NAKADE
+    );
+    testAssert(pattern != nullptr);
+    testAssert(pattern->outcome == GoPattern::Outcome::UNSETTLED);
+    testAssert(pattern->confidence == GoPattern::Confidence::MEDIUM);
+
+    BoardHistory koBoundary(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+    Loc vital = Location::getLoc(4,2,board.x_size);
+    koBoundary.superKoBanned[vital] = true;
+    GoPattern::DetectionResult koBoundaryResult =
+      GoPattern::detect(board,koBoundary);
+    pattern = findKind(
+      koBoundaryResult.patterns,
+      GoPattern::Kind::NAKADE
+    );
+    testAssert(pattern != nullptr);
+    testAssert(pattern->outcome == GoPattern::Outcome::UNSETTLED);
+    testAssert(pattern->confidence == GoPattern::Confidence::MEDIUM);
+  }
+
+  {
+    vector<pair<int,int>> sidePoints = translatedNakadePoints(fixtures[2].points,0,2);
+    Board sideBoard = makeNakadeFixtureBoard(7,7,sidePoints);
+    BoardHistory hist(sideBoard,P_WHITE,Rules::getTrompTaylorish(),0,false);
+    GoPattern::DetectionResult sideResult = GoPattern::detect(sideBoard,hist);
+    testAssert(
+      findKind(sideResult.patterns,GoPattern::Kind::NAKADE) !=
+      nullptr
+    );
+
+    Board cornerBoard = makeNakadeFixtureBoard(7,7,fixtures[1].points);
+    BoardHistory cornerHist(cornerBoard,P_WHITE,Rules::getTrompTaylorish(),0,false);
+    GoPattern::DetectionResult cornerResult = GoPattern::detect(cornerBoard,cornerHist);
+    testAssert(
+      findKind(cornerResult.patterns,GoPattern::Kind::NAKADE) == nullptr
+    );
+  }
+
+  {
+    vector<pair<int,int>> squareFour = {{3,2},{3,3},{4,2},{4,3}};
+    Board board = makeNakadeFixtureBoard(9,7,squareFour);
+    BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+    GoPattern::DetectionResult squareResult = GoPattern::detect(board,hist);
+    testAssert(
+      findKind(squareResult.patterns,GoPattern::Kind::NAKADE) == nullptr
+    );
+
+    vector<pair<int,int>> straightThree = {{3,2},{4,2},{5,2}};
+    Board mixedBoard = makeNakadeFixtureBoard(9,7,straightThree);
+    mixedBoard.colors[Location::getLoc(3,1,mixedBoard.x_size)] = P_WHITE;
+    mixedBoard.regenChainsFromColors();
+    BoardHistory mixedHist(mixedBoard,P_WHITE,Rules::getTrompTaylorish(),0,false);
+    testAssert(
+      findKind(
+        GoPattern::detect(mixedBoard,mixedHist).patterns,
+        GoPattern::Kind::NAKADE
+      ) == nullptr
+    );
+  }
+}
+
 // runLadderPatternTest는 완결 승패, 기존 bool 호환, 패 의존, 예산 미완결을 분리해 검증한다.
 // 반환값은 없으며 공개 Ladder v1 봉투와 내부 tri-state를 함께 검사한다.
 static void runLadderPatternTest() {
@@ -1014,6 +1323,8 @@ ooooo
 
   runSmallBoardExhaustiveBensonTest();
   runEyePointFactsTest();
+  runNakadePatternTest();
+  runNakadeCatalogExhaustiveTest();
   runLadderPatternTest();
   runLadderIndependentPropertyTest();
   int squareStates = runSquareBoardPropertyTest();

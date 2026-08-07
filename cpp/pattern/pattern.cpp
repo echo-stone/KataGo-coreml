@@ -16,6 +16,8 @@ static string kindToString(Kind kind) {
     return "bensonAlive";
   case Kind::LADDER:
     return "ladder";
+  case Kind::NAKADE:
+    return "nakade";
   default:
     ASSERT_UNREACHABLE;
   }
@@ -27,6 +29,8 @@ static string subjectTypeToString(SubjectType type) {
   switch(type) {
   case SubjectType::CHAIN:
     return "chain";
+  case SubjectType::REGION:
+    return "region";
   default:
     ASSERT_UNREACHABLE;
   }
@@ -44,6 +48,10 @@ static string outcomeToString(Outcome outcome) {
     return "defenderEscapes";
   case Outcome::AMBIGUOUS:
     return "ambiguous";
+  case Outcome::ATTACKER_CAN_REDUCE_TO_ONE_EYE:
+    return "attackerCanReduceToOneEye";
+  case Outcome::UNSETTLED:
+    return "unsettled";
   default:
     ASSERT_UNREACHABLE;
   }
@@ -111,6 +119,40 @@ static json detailsToJson(const LadderDetails& details, const Board& board) {
     {"defender", playerToPatternColor(details.defender)},
     {"defenderFirst", details.defenderFirst},
     {"ladderBreaker", std::move(ladderBreaker)},
+  };
+}
+
+// nakadeShapeToString은 동결된 Nakade v1 catalog 이름을 공개 lower camel case로 바꾼다.
+// shape는 유일 급소 형태이며 반환값은 details.shape 값이다.
+static string nakadeShapeToString(NakadeShape shape) {
+  switch(shape) {
+  case NakadeShape::STRAIGHT_THREE:
+    return "straightThree";
+  case NakadeShape::BENT_THREE:
+    return "bentThree";
+  case NakadeShape::PYRAMID_FOUR:
+    return "pyramidFour";
+  case NakadeShape::STAR_FIVE:
+    return "starFive";
+  case NakadeShape::BULKY_FIVE:
+    return "bulkyFive";
+  case NakadeShape::RABBITY_SIX:
+    return "rabbitySix";
+  default:
+    ASSERT_UNREACHABLE;
+  }
+}
+
+// detailsToJson은 Nakade v1의 국소 눈 공간 의미와 유일 급소를 공개 JSON으로 직렬화한다.
+// details는 형태 catalog 근거이며 board는 급소 좌표 변환에 사용한다.
+static json detailsToJson(const NakadeDetails& details, const Board& board) {
+  return json{
+    {"attacker", playerToPatternColor(details.attacker)},
+    {"defender", playerToPatternColor(details.defender)},
+    {"defenderSubjectId", details.defenderSubjectId},
+    {"shape", nakadeShapeToString(details.shape)},
+    {"vitalPoint", Location::toString(details.vitalPoint,board)},
+    {"semantics", "localEyeSpace"},
   };
 }
 
