@@ -4,8 +4,7 @@
 
 이 저장소는 `lightvector/KataGo`의 공식 릴리스를 정규 업스트림으로
 사용하면서 KataServer에 필요한 독자 분석 기능을 유지한다.
-`ChinChangYang/KataGo`는 iOS, Xcode, Metal/CoreML 실험 변경을 확인하는
-보조 업스트림으로만 사용한다.
+별도의 CoreML 보조 업스트림은 두지 않는다.
 
 ## 저장소 역할
 
@@ -16,10 +15,6 @@ lightvector/KataGo
           ▼
 echo-stone/KataGo-coreml
   └─ KataServer용 분석 기능을 유지하는 제품 포크
-          ▲
-          │ 검토 후 필요한 변경만 선별 적용
-ChinChangYang/KataGo
-  └─ iOS·Xcode·Metal/CoreML 실험 기능 참고
 ```
 
 권장 원격 저장소 이름은 다음과 같다.
@@ -28,7 +23,6 @@ ChinChangYang/KataGo
 | --- | --- | --- |
 | `origin` | `echo-stone/KataGo-coreml` | 제품 포크 |
 | `upstream` | `lightvector/KataGo` | 정규 업스트림 |
-| `coreml` | `ChinChangYang/KataGo` | 실험 기능 참고 |
 
 ## 전환 기준
 
