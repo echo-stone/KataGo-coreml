@@ -566,6 +566,7 @@ void NNEvaluator::serve(
 ) {
   int64_t numBatchesHandledThisThread = 0;
   int64_t numRowsHandledThisThread = 0;
+  int64_t numOwnerMapRowsHandledThisThread = 0;
 
   ComputeHandle* gpuHandle = NULL;
   if(loadedModel != NULL) {
@@ -609,6 +610,11 @@ void NNEvaluator::serve(
 
     int numRows = (int)resultBufs.size();
     testAssert(numRows > 0);
+    for(int row = 0; row<numRows; row++) {
+      testAssert(resultBufs[row] != NULL);
+      if(resultBufs[row]->includeOwnerMap)
+        numOwnerMapRowsHandledThisThread += 1;
+    }
 
     bool doRandomize = currentDoRandomize.load(std::memory_order_acquire);
     int defaultSymmetry = currentDefaultSymmetry.load(std::memory_order_acquire);
@@ -746,7 +752,8 @@ void NNEvaluator::serve(
     logger->write(
       "GPU " + Global::intToString(gpuIdxForThisThread) + " finishing, processed " +
       Global::int64ToString(numRowsHandledThisThread) + " rows " +
-      Global::int64ToString(numBatchesHandledThisThread) + " batches"
+      Global::int64ToString(numBatchesHandledThisThread) + " batches, owner map rows " +
+      Global::int64ToString(numOwnerMapRowsHandledThisThread)
     );
   }
 }

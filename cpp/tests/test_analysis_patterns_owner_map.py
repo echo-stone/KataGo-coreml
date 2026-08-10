@@ -3,6 +3,7 @@
 import argparse
 import copy
 import json
+import re
 import subprocess
 import sys
 
@@ -28,6 +29,9 @@ INITIAL_STONES = [
         "D3", "E1", "E3", "F1", "F3", "G1", "G2", "G3",
     )
 ]
+FINISHING_STATS_RE = re.compile(
+    r"^(?:: )?GPU -?\d+ finishing, processed (\d+) rows (\d+) batches, owner map rows (\d+)$"
+)
 
 
 def fail(message, process=None):
@@ -81,6 +85,37 @@ def visit_signature(response):
     return root_visits, move_visits
 
 
+def assert_search_shape(response):
+    """고정 방문 수와 moveInfos·PV 방문 수의 production 응답 계약을 검사한다."""
+    if response.get("rootInfo", {}).get("visits") != 12:
+        fail(f"{response.get('id')}: root visits가 12가 아님")
+    move_infos = response.get("moveInfos")
+    if not isinstance(move_infos, list) or not move_infos:
+        fail(f"{response.get('id')}: moveInfos가 비어 있음")
+    for move in move_infos:
+        pv_visits = move.get("pvVisits")
+        if not isinstance(pv_visits, list) or not pv_visits:
+            fail(f"{response.get('id')}/{move.get('move')}: pvVisits가 비어 있음")
+
+
+def parse_backend_stats(request_id, stderr):
+    """backend 종료 로그를 엄격히 파싱해 처리 행과 owner-map 행 합계를 반환한다."""
+    finishing_lines = [
+        line for line in stderr.splitlines() if " finishing, processed " in line
+    ]
+    if not finishing_lines:
+        fail(f"{request_id}: backend 종료 통계가 없음")
+    processed_rows = 0
+    owner_map_rows = 0
+    for line in finishing_lines:
+        match = FINISHING_STATS_RE.fullmatch(line)
+        if match is None:
+            fail(f"{request_id}: backend 종료 통계 형식 위반: {line}")
+        processed_rows += int(match.group(1))
+        owner_map_rows += int(match.group(3))
+    return processed_rows, owner_map_rows
+
+
 def compare_patterns_pair(responses, off_id, on_id):
     """패턴 토글 전후의 분석 값과 모든 방문 수가 같은지 비교한다."""
     off = responses[off_id]
@@ -120,7 +155,7 @@ def assert_move_array(response, field):
 
 
 def run_request(args, request, override):
-    """한 요청을 독립 analysis 프로세스에서 실행해 응답과 warning을 반환한다."""
+    """한 요청을 독립 analysis 프로세스에서 실행해 응답·warning·backend 통계를 반환한다."""
     command = [
         args.katago,
         "analysis",
@@ -165,7 +200,8 @@ def run_request(args, request, override):
             fail(f"{request['id']}: stdout {line_number} 알 수 없는 analysis 메시지")
     if response is None:
         fail(f"{request['id']}: 분석 응답 없음", process)
-    return response, warnings
+    processed_rows, owner_map_rows = parse_backend_stats(request["id"], process.stderr)
+    return response, warnings, processed_rows, owner_map_rows
 
 
 def run_test(args):
@@ -193,15 +229,23 @@ def run_test(args):
     )
     responses = {}
     warnings = {}
+    processed_rows = {}
+    owner_map_rows = {}
     for request in requests:
-        response, request_warnings = run_request(args, request, override)
+        response, request_warnings, request_rows, request_owner_map_rows = run_request(
+            args, request, override
+        )
         responses[request["id"]] = response
+        processed_rows[request["id"]] = request_rows
+        owner_map_rows[request["id"]] = request_owner_map_rows
         if request_warnings:
             warnings[request["id"]] = request_warnings
 
     expected_ids = {request["id"] for request in requests}
     if set(responses) != expected_ids:
         fail(f"분석 응답 id 불일치: {sorted(set(responses) ^ expected_ids)}")
+    for response in responses.values():
+        assert_search_shape(response)
 
     compare_patterns_pair(responses, "patterns-off", "patterns-on")
     if not responses["patterns-on"]["patterns"]:
@@ -219,6 +263,14 @@ def run_test(args):
     if visit_signature(responses["patterns-off"]) != visit_signature(suppressed):
         fail("patterns-suppressed: 지원 룰 기준 루트/후보 visits와 달라짐")
 
+    root_only_ids = ("patterns-off", "patterns-on", "patterns-suppressed")
+    root_only_counts = {owner_map_rows[request_id] for request_id in root_only_ids}
+    if root_only_counts != {1}:
+        fail(f"패턴 토글·억제의 root-only owner map rows가 1로 같지 않음: {owner_map_rows}")
+    for request_id in root_only_ids:
+        if processed_rows[request_id] <= owner_map_rows[request_id]:
+            fail(f"{request_id}: root-only보다 많은 검색 행이 관측되지 않음")
+
     base = responses["patterns-off"]
     if "ownership" in base or "ownershipStdev" in base:
         fail("patterns-off: 요청하지 않은 루트 ownership 필드가 존재함")
@@ -234,6 +286,10 @@ def run_test(args):
     ]
     for off_id, on_id in comparison_pairs:
         compare_patterns_pair(responses, off_id, on_id)
+        if owner_map_rows[off_id] != owner_map_rows[on_id]:
+            fail(f"{off_id}/{on_id}: owner map rows가 다름")
+        if owner_map_rows[off_id] <= 1:
+            fail(f"{off_id}/{on_id}: ownership 요청이 root-only보다 owner map rows를 늘리지 않음")
 
     for request_id in ("ownership-patterns-off", "ownership-patterns-on"):
         assert_root_array(responses[request_id], "ownership")
