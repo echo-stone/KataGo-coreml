@@ -269,6 +269,45 @@ static void runEyeHistoryBoundaryTest() {
   testAssert(GoPattern::detectEyes(pastNormalBoard,pastNormal).empty());
 }
 
+// runEyeSnapbackFixtureTest는 즉시 포획 뒤 상대가 한 돌만 되잡는 고정 snapback 전이를 검증한다.
+// 반환값은 없으며 포획 chain 전체 좌표와 비반복 후속 국면을 함께 고정한다.
+static void runEyeSnapbackFixtureTest() {
+  Board board = Board::parseBoard(4,3,R"%%(
+....
+oxx.
+.oox
+)%%");
+  const Loc capture = Location::ofString("A1",board);
+  const Loc recapture = Location::ofString("B1",board);
+  const Loc remainingEmpty = Location::ofString("C1",board);
+  BoardHistory hist(board,P_BLACK,Rules::getSimpleTerritory(),0,false);
+  const Hash128 originalHash = board.pos_hash;
+
+  vector<GoPattern::Pattern> patterns = GoPattern::detectEyes(board,hist);
+  const GoPattern::Pattern* pattern = findEyeAt(patterns,capture);
+  testAssert(pattern != nullptr);
+  const GoPattern::EyeDetails& details = get<GoPattern::EyeDetails>(pattern->details);
+  testAssert(details.attacker == P_BLACK);
+  testAssert(details.capturedChains.size() == 1);
+  testAssert(details.capturedChains[0].id == "chain:W:B1");
+  testAssert(details.capturedChains[0].points.size() == 2);
+  testAssert(details.capturedChains[0].points[0] == recapture);
+  testAssert(details.capturedChains[0].points[1] == remainingEmpty);
+
+  testAssert(hist.isLegal(board,capture,P_BLACK));
+  testAssert(!hist.isPassForKo(board,capture,P_BLACK));
+  hist.makeBoardMoveAssumeLegal(board,capture,P_BLACK,NULL);
+  testAssert(board.colors[recapture] == C_EMPTY);
+  testAssert(board.colors[remainingEmpty] == C_EMPTY);
+  testAssert(hist.isLegal(board,recapture,P_WHITE));
+  testAssert(!hist.isPassForKo(board,recapture,P_WHITE));
+  hist.makeBoardMoveAssumeLegal(board,recapture,P_WHITE,NULL);
+  testAssert(board.colors[capture] == C_EMPTY);
+  testAssert(board.colors[recapture] == P_WHITE);
+  testAssert(board.colors[remainingEmpty] == C_EMPTY);
+  testAssert(board.pos_hash != originalHash);
+}
+
 // runEyePatternTest는 Eye v1 typed 계약, 실제 포획, 정렬, 색 반전, 음성 경계를 검증한다.
 // 반환값은 없으며 공개 JSON과 원본 불변성을 함께 고정한다.
 static void runEyePatternTest() {
@@ -2280,6 +2319,95 @@ static void runBensonPerformanceTest() {
   testAssert(p95 <= 20.0);
 }
 
+// makeDenseEyePositiveBoard는 19×19에 간격을 둔 즉시 포획 눈 9개를 배치한다.
+// 반환값은 각 5×5 tile의 흰 외곽·검은 내부 ring·빈 중심이 보존된 합법 보드다.
+static Board makeDenseEyePositiveBoard() {
+  Board board(19,19);
+  for(int baseY: {0,6,12}) {
+    for(int baseX: {0,6,12}) {
+      for(int localY = 0; localY < 5; localY++) {
+        for(int localX = 0; localX < 5; localX++) {
+          Loc loc = Location::getLoc(baseX+localX,baseY+localY,board.x_size);
+          const bool boundary =
+            localX == 0 || localX == 4 || localY == 0 || localY == 4;
+          if(boundary)
+            board.colors[loc] = P_WHITE;
+          else if(localX == 2 && localY == 2)
+            board.colors[loc] = C_EMPTY;
+          else
+            board.colors[loc] = P_BLACK;
+        }
+      }
+    }
+  }
+  board.regenChainsFromColors();
+  for(int y = 0; y < board.y_size; y++) {
+    for(int x = 0; x < board.x_size; x++) {
+      Loc loc = Location::getLoc(x,y,board.x_size);
+      if(board.colors[loc] == P_BLACK || board.colors[loc] == P_WHITE)
+        testAssert(board.getNumLiberties(loc) > 0);
+    }
+  }
+  return board;
+}
+
+// runEyePositivePerformanceTest는 Eye 양성 9개가 있는 19×19 full detect의 p95 예산을 검증한다.
+// 반환값은 없으며 실제 BoardHistory replay 증명과 200회 중 95백분위 20ms 상한을 함께 검사한다.
+static void runEyePositivePerformanceTest() {
+  Board board = makeDenseEyePositiveBoard();
+  BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+  const Hash128 originalHash = board.pos_hash;
+  const size_t originalHistorySize = hist.moveHistory.size();
+
+  GoPattern::DetectionResult initial = GoPattern::detect(board,hist);
+  int eyeCount = 0;
+  int replayedEyeCount = 0;
+  for(const GoPattern::Pattern& pattern: initial.patterns) {
+    if(pattern.kind != GoPattern::Kind::EYE)
+      continue;
+    eyeCount += 1;
+    const GoPattern::EyeDetails& details = get<GoPattern::EyeDetails>(pattern.details);
+    testAssert(pattern.subject.points.size() == 1);
+    const Loc move = pattern.subject.points[0];
+    testAssert(details.attacker == P_WHITE);
+    testAssert(hist.isLegal(board,move,details.attacker));
+    testAssert(!hist.isPassForKo(board,move,details.attacker));
+    Board replayBoard(board);
+    BoardHistory replayHist(hist);
+    replayHist.makeBoardMoveAssumeLegal(replayBoard,move,details.attacker,NULL);
+    for(const GoPattern::EyeCapturedChain& captured: details.capturedChains) {
+      for(Loc point: captured.points)
+        testAssert(replayBoard.colors[point] == C_EMPTY);
+    }
+    replayedEyeCount += 1;
+  }
+  testAssert(eyeCount >= 9);
+  testAssert(replayedEyeCount == eyeCount);
+  testAssert(board.pos_hash == originalHash);
+  testAssert(hist.moveHistory.size() == originalHistorySize);
+
+  vector<double> milliseconds;
+  milliseconds.reserve(200);
+  for(int iteration = 0; iteration < 200; iteration++) {
+    auto start = chrono::steady_clock::now();
+    GoPattern::DetectionResult result = GoPattern::detect(board,hist);
+    auto end = chrono::steady_clock::now();
+    testAssert(!result.truncated);
+    int detectedEyes = 0;
+    for(const GoPattern::Pattern& pattern: result.patterns) {
+      if(pattern.kind == GoPattern::Kind::EYE)
+        detectedEyes += 1;
+    }
+    testAssert(detectedEyes >= 9);
+    milliseconds.push_back(chrono::duration<double,std::milli>(end-start).count());
+  }
+  sort(milliseconds.begin(),milliseconds.end());
+  const double p95 = milliseconds[189];
+  cout << "Eye-positive 19x19 full Pattern postprocess p95: "
+       << p95 << " ms (" << eyeCount << " eyes replayed)" << endl;
+  testAssert(p95 <= 20.0);
+}
+
 void Tests::runPatternTests() {
   cout << "Running pattern tests" << endl;
 
@@ -2356,6 +2484,7 @@ ooooo
   runEyePointFactsTest();
   runEyePatternTest();
   runEyeHistoryBoundaryTest();
+  runEyeSnapbackFixtureTest();
   runEyeIndependentExhaustiveTest();
   runNakadePatternTest();
   runNakadeCatalogExhaustiveTest();
@@ -2376,4 +2505,5 @@ ooooo
     << sekiFixtures << " seki-boundary fixtures"
     << endl;
   runBensonPerformanceTest();
+  runEyePositivePerformanceTest();
 }
