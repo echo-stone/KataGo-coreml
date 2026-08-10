@@ -40,24 +40,6 @@ struct SearchNodeTable;
 struct SearchNodeChildrenReference;
 struct ConstSearchNodeChildrenReference;
 
-// TreeOwnershipData는 JSON과 독립된 한 search node의 ownership 평균·표준편차다.
-struct TreeOwnershipData {
-  int xSize;
-  int ySize;
-  Player perspective;
-  std::vector<double> mean;
-  std::vector<double> pointStdDev;
-};
-
-// RootChildTreeOwnershipData는 한 루트 착점의 root/child ownership과 방문 근거다.
-struct RootChildTreeOwnershipData {
-  Loc move;
-  int64_t edgeVisits;
-  int64_t childVisits;
-  TreeOwnershipData root;
-  TreeOwnershipData child;
-};
-
 //Per-thread state
 struct SearchThread {
   int threadIdx;
@@ -436,14 +418,6 @@ struct Search {
     const Player perspective,
     const SearchNode* node,
     int symmetry
-  ) const;
-
-  // getRootChildTreeOwnership은 한 착점의 root/child ownership을 typed 값으로 함께 조회한다.
-  // move는 원 보드 착점, perspective는 B/W 관점, result는 출력 버퍼이며 찾지 못하면 false다.
-  bool getRootChildTreeOwnership(
-    Loc move,
-    Player perspective,
-    RootChildTreeOwnershipData& result
   ) const;
 
 

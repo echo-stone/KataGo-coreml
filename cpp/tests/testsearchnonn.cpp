@@ -184,54 +184,11 @@ void Tests::runNNLessSearchTests() {
       params.includeMovesMinVisits = 3;
       Search* search = new Search(params, nnEval, &logger, "includeMovesMinVisits");
       search->setPosition(nextPla,board,hist);
-      search->setAlwaysIncludeOwnerMap(true);
       search->setIncludeMoves(includeMovesBlack,includeMovesWhite);
       search->runWholeSearch(nextPla);
 
       for(Loc loc: includeMovesBlack)
         testAssert(getRootEdgeVisits(search,loc) >= 3);
-      RootChildTreeOwnershipData ownership;
-      testAssert(search->getRootChildTreeOwnership(includeMovesBlack[0],P_BLACK,ownership));
-      testAssert(ownership.move == includeMovesBlack[0]);
-      testAssert(ownership.edgeVisits == getRootEdgeVisits(search,includeMovesBlack[0]));
-      testAssert(ownership.edgeVisits >= 3);
-      testAssert(ownership.root.perspective == P_BLACK);
-      testAssert(ownership.child.perspective == P_BLACK);
-      testAssert(ownership.root.mean.size() == 81);
-      testAssert(ownership.root.pointStdDev.size() == 81);
-      testAssert(ownership.child.mean.size() == 81);
-      testAssert(ownership.child.pointStdDev.size() == 81);
-      RootChildTreeOwnershipData invalidPerspective;
-      testAssert(!search->getRootChildTreeOwnership(
-        includeMovesBlack[0],
-        C_EMPTY,
-        invalidPerspective
-      ));
-
-      delete search;
-    }
-
-    {
-      Board rectangularBoard(7,5);
-      BoardHistory rectangularHist(rectangularBoard,nextPla,rules,0,false);
-      const Loc recordedMove = Location::ofString("G5",rectangularBoard);
-      SearchParams params;
-      params.maxVisits = 2;
-      params.maxPlayouts = 2;
-      params.includeMovesMinVisits = 3;
-      Search* search = new Search(params, nnEval, &logger, "includeMovesRectangularOwnership");
-      search->setPosition(nextPla,rectangularBoard,rectangularHist);
-      search->setAlwaysIncludeOwnerMap(true);
-      search->setIncludeMoves({recordedMove},{});
-      search->runWholeSearch(nextPla);
-
-      RootChildTreeOwnershipData ownership;
-      testAssert(search->getRootChildTreeOwnership(recordedMove,P_BLACK,ownership));
-      testAssert(ownership.edgeVisits == getRootEdgeVisits(search,recordedMove));
-      testAssert(ownership.edgeVisits >= 3);
-      testAssert(ownership.root.xSize == 7 && ownership.root.ySize == 5);
-      testAssert(ownership.root.mean.size() == 35);
-      testAssert(ownership.child.mean.size() == 35);
 
       delete search;
     }
@@ -1541,25 +1498,6 @@ ooooo.oooooooo
     search->setPosition(nextPla,board,hist);
     search->runWholeSearch(nextPla);
     search->printTree(cout, search->rootNode, options, P_WHITE);
-    vector<AnalysisData> symmetryData;
-    search->getAnalysisData(symmetryData,0,false,1,true);
-    const AnalysisData* duplicate = nullptr;
-    for(const AnalysisData& data: symmetryData) {
-      if(data.isSymmetryOf != Board::NULL_LOC) {
-        duplicate = &data;
-        break;
-      }
-    }
-    testAssert(duplicate != nullptr);
-    RootChildTreeOwnershipData typedOwnership;
-    testAssert(search->getRootChildTreeOwnership(duplicate->move,P_BLACK,typedOwnership));
-    const auto expectedChildOwnership = search->getAverageAndStandardDeviationTreeOwnership(
-      P_BLACK,
-      duplicate->node,
-      duplicate->symmetry
-    );
-    testAssert(typedOwnership.child.mean == expectedChildOwnership.first);
-    testAssert(typedOwnership.child.pointStdDev == expectedChildOwnership.second);
     nlohmann::json json;
     Player perspective = P_WHITE;
     int analysisPVLen = 2;

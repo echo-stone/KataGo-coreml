@@ -28,11 +28,7 @@ static int confidenceRank(Confidence confidence) {
 
 }
 
-DetectionResult detect(
-  const Board& board,
-  const BoardHistory& hist,
-  const vector<Pattern>& movePatterns
-) {
+DetectionResult detect(const Board& board, const BoardHistory& hist) {
   DetectionResult result;
   result.patterns = detectBensonAlive(board,hist);
   LadderDetectionResult ladders = detectLadders(board,hist);
@@ -84,7 +80,6 @@ DetectionResult detect(
     if(!conflictsWithBenson)
       result.patterns.push_back(std::move(semeai));
   }
-  result.patterns.insert(result.patterns.end(),movePatterns.begin(),movePatterns.end());
   sort(
     result.patterns.begin(),
     result.patterns.end(),
