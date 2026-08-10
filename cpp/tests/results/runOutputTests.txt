@@ -17839,6 +17839,14 @@ encorephase 0 finished 1 numTurnsThisPhase 10 numApproxValidTurnsThisPhase 5
 History that net sees null null null null null
 
 Running neuralnetless search tests
+: Initializing neural net buffer to be size 5 * 5 allowing smaller boards
+: GPU 0 finishing, processed 0 rows 0 batches
+: Initializing neural net buffer to be size 5 * 5 allowing smaller boards
+: GPU 0 finishing, processed 0 rows 0 batches
+: Initializing neural net buffer to be size 5 * 5 allowing smaller boards
+: GPU 0 finishing, processed 0 rows 0 batches
+includePatterns owner-map cost contract: passed
+includePatterns analysis visits: 12
 ===================================================================
 Basic search with debugSkipNeuralNet and chosen move randomization
 ===================================================================

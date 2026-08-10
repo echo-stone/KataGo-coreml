@@ -9,6 +9,7 @@
 #include "../program/playutils.h"
 #include "../program/play.h"
 #include "../pattern/detector.h"
+#include "../command/analysis.h"
 #include "../command/commandline.h"
 #include "../core/test.h"
 #include "../main.h"
@@ -19,6 +20,24 @@
 
 using namespace std;
 using json = nlohmann::json;
+
+bool Analysis::shouldAlwaysIncludeOwnerMap(
+  bool includeOwnership,
+  bool includeOwnershipStdev,
+  bool includeMovesOwnership,
+  bool includeMovesOwnershipStdev,
+  bool includePatterns,
+  bool patternsSuppressedByRulesSubstitution
+) {
+  // 활성 패턴 검출기는 Board/History 사실만 소비한다. 두 패턴 인자는 계약을 명시하고 회귀 테스트하기 위해 받는다.
+  (void)includePatterns;
+  (void)patternsSuppressedByRulesSubstitution;
+  return
+    includeOwnership ||
+    includeOwnershipStdev ||
+    includeMovesOwnership ||
+    includeMovesOwnershipStdev;
+}
 
 // 목적: 승자와 백 기준 점수 차이를 GTP final_score 형식으로 변환한다.
 // 매개변수: winner는 승자 또는 무승부를 뜻하는 C_EMPTY이고, finalWhiteMinusBlackScore는 백 점수에서 흑 점수를 뺀 값이다.
@@ -529,13 +548,14 @@ int MainCmds::analysis(const vector<string>& args) {
           testAssert(request->kind == AnalyzeRequestKind::ANALYSIS);
 
           bot->setPosition(request->nextPla,request->board,request->hist);
-          bot->setAlwaysIncludeOwnerMap(
-            request->includeOwnership ||
-            request->includeOwnershipStdev ||
-            request->includeMovesOwnership ||
-            request->includeMovesOwnershipStdev ||
-            (request->includePatterns && !request->patternsSuppressedByRulesSubstitution)
-          );
+          bot->setAlwaysIncludeOwnerMap(Analysis::shouldAlwaysIncludeOwnerMap(
+            request->includeOwnership,
+            request->includeOwnershipStdev,
+            request->includeMovesOwnership,
+            request->includeMovesOwnershipStdev,
+            request->includePatterns,
+            request->patternsSuppressedByRulesSubstitution
+          ));
           bot->setParams(request->params);
           bot->setAvoidMoveUntilByLoc(request->avoidMoveUntilByLocBlack,request->avoidMoveUntilByLocWhite);
           if(request->includeAllMoves)
