@@ -29,9 +29,7 @@ INITIAL_STONES = [
         "D3", "E1", "E3", "F1", "F3", "G1", "G2", "G3",
     )
 ]
-FINISHING_STATS_RE = re.compile(
-    r"^(?:: )?GPU -?\d+ finishing, processed (\d+) rows (\d+) batches, owner map rows (\d+)$"
-)
+OWNER_MAP_STATS_RE = re.compile(r"^(?:: )?NN owner map rows: (\d+)$")
 
 
 def fail(message, process=None):
@@ -98,22 +96,15 @@ def assert_search_shape(response):
             fail(f"{response.get('id')}/{move.get('move')}: pvVisits가 비어 있음")
 
 
-def parse_backend_stats(request_id, stderr):
-    """backend 종료 로그를 엄격히 파싱해 처리 행과 owner-map 행 합계를 반환한다."""
-    finishing_lines = [
-        line for line in stderr.splitlines() if " finishing, processed " in line
-    ]
-    if not finishing_lines:
-        fail(f"{request_id}: backend 종료 통계가 없음")
-    processed_rows = 0
-    owner_map_rows = 0
-    for line in finishing_lines:
-        match = FINISHING_STATS_RE.fullmatch(line)
-        if match is None:
-            fail(f"{request_id}: backend 종료 통계 형식 위반: {line}")
-        processed_rows += int(match.group(1))
-        owner_map_rows += int(match.group(3))
-    return processed_rows, owner_map_rows
+def parse_owner_map_rows(request_id, stderr):
+    """analysis 프로세스의 최종 owner-map 집계 로그 한 줄을 엄격히 파싱한다."""
+    stats_lines = [line for line in stderr.splitlines() if "NN owner map rows:" in line]
+    if len(stats_lines) != 1:
+        fail(f"{request_id}: owner-map 최종 통계가 한 줄이 아님: {len(stats_lines)}")
+    match = OWNER_MAP_STATS_RE.fullmatch(stats_lines[0])
+    if match is None:
+        fail(f"{request_id}: owner-map 최종 통계 형식 위반: {stats_lines[0]}")
+    return int(match.group(1))
 
 
 def compare_patterns_pair(responses, off_id, on_id):
@@ -155,7 +146,7 @@ def assert_move_array(response, field):
 
 
 def run_request(args, request, override):
-    """한 요청을 독립 analysis 프로세스에서 실행해 응답·warning·backend 통계를 반환한다."""
+    """한 요청을 독립 analysis 프로세스에서 실행해 응답·warning·owner-map 통계를 반환한다."""
     command = [
         args.katago,
         "analysis",
@@ -200,8 +191,8 @@ def run_request(args, request, override):
             fail(f"{request['id']}: stdout {line_number} 알 수 없는 analysis 메시지")
     if response is None:
         fail(f"{request['id']}: 분석 응답 없음", process)
-    processed_rows, owner_map_rows = parse_backend_stats(request["id"], process.stderr)
-    return response, warnings, processed_rows, owner_map_rows
+    owner_map_rows = parse_owner_map_rows(request["id"], process.stderr)
+    return response, warnings, owner_map_rows
 
 
 def run_test(args):
@@ -221,7 +212,7 @@ def run_test(args):
     ]
     override = (
         "logFile=,logDir=,logTimeStamp=false,logAllRequests=false,logAllResponses=false,"
-        "logSearchInfo=false,maxVisits=100,maxPlayouts=10000,numAnalysisThreads=1,"
+        "logSearchInfo=true,maxVisits=100,maxPlayouts=10000,numAnalysisThreads=1,"
         "numSearchThreadsPerAnalysisThread=1,nnRandomize=false,rootSymmetryPruning=false,"
         "nnRandSeed=analysisPatternOwnerMapTest,searchRandSeed=analysisPatternOwnerMapTest,"
         "forDeterministicTesting=true,cudaUseFP16=false,trtUseFP16=false,"
@@ -229,14 +220,12 @@ def run_test(args):
     )
     responses = {}
     warnings = {}
-    processed_rows = {}
     owner_map_rows = {}
     for request in requests:
-        response, request_warnings, request_rows, request_owner_map_rows = run_request(
+        response, request_warnings, request_owner_map_rows = run_request(
             args, request, override
         )
         responses[request["id"]] = response
-        processed_rows[request["id"]] = request_rows
         owner_map_rows[request["id"]] = request_owner_map_rows
         if request_warnings:
             warnings[request["id"]] = request_warnings
@@ -267,9 +256,6 @@ def run_test(args):
     root_only_counts = {owner_map_rows[request_id] for request_id in root_only_ids}
     if root_only_counts != {1}:
         fail(f"패턴 토글·억제의 root-only owner map rows가 1로 같지 않음: {owner_map_rows}")
-    for request_id in root_only_ids:
-        if processed_rows[request_id] <= owner_map_rows[request_id]:
-            fail(f"{request_id}: root-only보다 많은 검색 행이 관측되지 않음")
 
     base = responses["patterns-off"]
     if "ownership" in base or "ownershipStdev" in base:

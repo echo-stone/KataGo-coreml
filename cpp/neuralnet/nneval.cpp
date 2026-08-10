@@ -96,6 +96,7 @@ NNEvaluator::NNEvaluator(
    m_numRowsProcessed(0),
    m_numBatchesProcessed(0),
    m_numCacheHits(0),
+   m_numOwnerMapRowsRequested(0),
    bufferMutex(),
    isKilled(false),
    numServerThreadsStartingUp(0),
@@ -339,11 +340,15 @@ double NNEvaluator::averageProcessedBatchSize() const {
 uint64_t NNEvaluator::numCacheHits() const {
   return m_numCacheHits.load(std::memory_order_relaxed);
 }
+uint64_t NNEvaluator::numOwnerMapRowsRequested() const {
+  return m_numOwnerMapRowsRequested.load(std::memory_order_relaxed);
+}
 
 void NNEvaluator::clearStats() {
   m_numRowsProcessed.store(0);
   m_numBatchesProcessed.store(0);
   m_numCacheHits.store(0);
+  m_numOwnerMapRowsRequested.store(0);
 }
 
 void NNEvaluator::clearCache() {
@@ -566,7 +571,6 @@ void NNEvaluator::serve(
 ) {
   int64_t numBatchesHandledThisThread = 0;
   int64_t numRowsHandledThisThread = 0;
-  int64_t numOwnerMapRowsHandledThisThread = 0;
 
   ComputeHandle* gpuHandle = NULL;
   if(loadedModel != NULL) {
@@ -610,11 +614,6 @@ void NNEvaluator::serve(
 
     int numRows = (int)resultBufs.size();
     testAssert(numRows > 0);
-    for(int row = 0; row<numRows; row++) {
-      testAssert(resultBufs[row] != NULL);
-      if(resultBufs[row]->includeOwnerMap)
-        numOwnerMapRowsHandledThisThread += 1;
-    }
 
     bool doRandomize = currentDoRandomize.load(std::memory_order_acquire);
     int defaultSymmetry = currentDefaultSymmetry.load(std::memory_order_acquire);
@@ -624,6 +623,8 @@ void NNEvaluator::serve(
         testAssert(resultBufs[row] != NULL);
         NNResultBuf* resultBuf = resultBufs[row];
         resultBufs[row] = NULL;
+        if(resultBuf->includeOwnerMap)
+          m_numOwnerMapRowsRequested.fetch_add(1, std::memory_order_relaxed);
 
         int boardXSize = resultBuf->boardXSizeForServer;
         int boardYSize = resultBuf->boardYSizeForServer;
@@ -689,9 +690,12 @@ void NNEvaluator::serve(
     }
     else {
       outputBuf.clear();
+      uint64_t numOwnerMapRowsRequestedThisBatch = 0;
       for(int row = 0; row<numRows; row++) {
         NNOutput* emptyOutput = new NNOutput();
         testAssert(resultBufs[row] != NULL);
+        if(resultBufs[row]->includeOwnerMap)
+          numOwnerMapRowsRequestedThisBatch += 1;
         emptyOutput->nnXLen = nnXLen;
         emptyOutput->nnYLen = nnYLen;
         if(resultBufs[row]->includeOwnerMap)
@@ -700,6 +704,7 @@ void NNEvaluator::serve(
           emptyOutput->whiteOwnerMap = NULL;
         outputBuf.push_back(emptyOutput);
       }
+      m_numOwnerMapRowsRequested.fetch_add(numOwnerMapRowsRequestedThisBatch, std::memory_order_relaxed);
 
       for(int row = 0; row<numRows; row++) {
         if(resultBufs[row]->symmetry == NNInputs::SYMMETRY_NOTSPECIFIED) {
@@ -752,8 +757,7 @@ void NNEvaluator::serve(
     logger->write(
       "GPU " + Global::intToString(gpuIdxForThisThread) + " finishing, processed " +
       Global::int64ToString(numRowsHandledThisThread) + " rows " +
-      Global::int64ToString(numBatchesHandledThisThread) + " batches, owner map rows " +
-      Global::int64ToString(numOwnerMapRowsHandledThisThread)
+      Global::int64ToString(numBatchesHandledThisThread) + " batches"
     );
   }
 }
