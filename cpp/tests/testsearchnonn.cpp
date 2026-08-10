@@ -12,114 +12,11 @@
 #include "../search/searchnode.h"
 #include "../program/playutils.h"
 #include "../program/setup.h"
-#include "../pattern/detector.h"
-#include "../command/analysis.h"
 #include "../tests/testsearchcommon.h"
 
 using namespace std;
 using namespace TestCommon;
 using namespace TestSearchCommon;
-
-// includePatternsOwnerMapCase는 패턴 옵션별 검색 결과와 owner-map 비용 판정을 함께 수집한다.
-// modelFile과 logger는 debugSkipNeuralNet 검색 구성에 쓰고, 두 패턴 플래그는 분석 요청 계약을 나타낸다.
-// 반환값의 첫 요소는 패턴 필드를 제외한 분석 JSON이고 둘째 요소는 루트 방문 수다.
-static pair<nlohmann::json,int64_t> includePatternsOwnerMapCase(
-  const string& modelFile,
-  Logger& logger,
-  bool includePatterns,
-  bool patternsSuppressedByRulesSubstitution
-) {
-  NNEvaluator* nnEval = startNNEval(modelFile,logger,"patternsOwnerMap",5,5,0,true,false,false,true,false);
-  SearchParams params;
-  params.maxVisits = 12;
-  params.chosenMoveTemperature = 0;
-  Search* search = new Search(params,nnEval,&logger,"patternsOwnerMapSearch");
-
-  Board board(5,5);
-  Player nextPla = P_BLACK;
-  BoardHistory hist(board,nextPla,Rules::getTrompTaylorish(),0,false);
-  const bool alwaysIncludeOwnerMap = Analysis::shouldAlwaysIncludeOwnerMap(
-    false,
-    false,
-    false,
-    false,
-    includePatterns,
-    patternsSuppressedByRulesSubstitution
-  );
-  testAssert(!alwaysIncludeOwnerMap);
-
-  search->setPosition(nextPla,board,hist);
-  search->setAlwaysIncludeOwnerMap(alwaysIncludeOwnerMap);
-  search->runWholeSearch(nextPla);
-
-  nlohmann::json response;
-  bool success = search->getAnalysisJson(
-    P_WHITE,
-    2,
-    true,
-    false,
-    false,
-    false,
-    false,
-    false,
-    false,
-    false,
-    response
-  );
-  testAssert(success);
-  testAssert(response.find("ownership") == response.end());
-  testAssert(response.find("ownershipStdev") == response.end());
-
-  if(includePatterns) {
-    response["patterns"] = nlohmann::json::array();
-    if(!patternsSuppressedByRulesSubstitution) {
-      GoPattern::DetectionResult result = GoPattern::detect(board,hist);
-      for(const GoPattern::Pattern& pattern: result.patterns)
-        response["patterns"].push_back(GoPattern::toJson(pattern,board));
-    }
-    testAssert(response["patterns"].empty());
-  }
-  else
-    testAssert(response.find("patterns") == response.end());
-
-  const int64_t visits = search->getRootVisits();
-  testAssert(visits == 12);
-  response.erase("patterns");
-
-  delete search;
-  delete nnEval;
-  return std::make_pair(response,visits);
-}
-
-// runAnalysisOwnerMapCostContractTest는 패턴 출력이 검색 트리 ownership 비용과 분석 결과를 바꾸지 않는지 검증한다.
-// modelFile과 logger는 신경망 없는 결정적 검색에 사용하며 반환값은 없다.
-static void runAnalysisOwnerMapCostContractTest(const string& modelFile, Logger& logger) {
-  const pair<nlohmann::json,int64_t> patternsOff = includePatternsOwnerMapCase(modelFile,logger,false,false);
-  const pair<nlohmann::json,int64_t> patternsOn = includePatternsOwnerMapCase(modelFile,logger,true,false);
-  const pair<nlohmann::json,int64_t> patternsSuppressed = includePatternsOwnerMapCase(modelFile,logger,true,true);
-
-  testAssert(patternsOff.first == patternsOn.first);
-  testAssert(patternsOff.first == patternsSuppressed.first);
-  testAssert(patternsOff.second == patternsOn.second);
-  testAssert(patternsOff.second == patternsSuppressed.second);
-
-  for(int ownershipFlag = 0; ownershipFlag < 4; ownershipFlag++) {
-    bool flags[4] = {false,false,false,false};
-    flags[ownershipFlag] = true;
-    testAssert(Analysis::shouldAlwaysIncludeOwnerMap(
-      flags[0],flags[1],flags[2],flags[3],false,false
-    ));
-    testAssert(Analysis::shouldAlwaysIncludeOwnerMap(
-      flags[0],flags[1],flags[2],flags[3],true,false
-    ));
-    testAssert(Analysis::shouldAlwaysIncludeOwnerMap(
-      flags[0],flags[1],flags[2],flags[3],true,true
-    ));
-  }
-
-  cout << "includePatterns owner-map cost contract: passed" << endl;
-  cout << "includePatterns analysis visits: " << patternsOff.second << endl;
-}
 
 
 void Tests::runNNLessSearchTests() {
@@ -134,8 +31,6 @@ void Tests::runNNLessSearchTests() {
   const bool logTime = false;
   Logger logger(nullptr, logToStdout, logToStderr, logTime);
   logger.addOStream(cout);
-
-  runAnalysisOwnerMapCostContractTest(modelFile,logger);
 
   {
     cout << "===================================================================" << endl;

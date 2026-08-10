@@ -55,6 +55,11 @@ do
     ./katago analysis -config configs/analysis_example.cfg -model tests/models/g170-b6c96-s175395328-d26788732.bin.gz -override-config "logFile=tests/results/analysis/$BASENAME.log, logDir=, logTimeStamp=false, logAllRequests=true, logAllResponses=true, logSearchInfo=true, maxVisits=100, maxPlayouts=10000, numAnalysisThreads=1, numSearchThreadsPerAnalysisThread=1, nnRandomize=false, rootSymmetryPruning=false, nnRandSeed=analysisTest, forDeterministicTesting=true, cudaUseFP16 = false, trtUseFP16 = false, openclUseFP16 = false, cudaUseNHWC = false" < $CMDFILE 1> tests/results/analysis/$BASENAME.stdout 2> tests/results/analysis/$BASENAME.stderr
 done
 
+python3 tests/test_analysis_patterns_owner_map.py \
+    ./katago \
+    configs/analysis_example.cfg \
+    tests/models/g170-b6c96-s175395328-d26788732.bin.gz
+
 cat tests/analysis/basic.txt | ./katago analysis -config configs/analysis_example.cfg -model tests/models/g170-b6c96-s175395328-d26788732.bin.gz -override-config "logFile=tests/results/analysis/basic_sidetomove.txt.log, logDir=, logTimeStamp=false, logAllRequests=true, logAllResponses=true, logSearchInfo=true, maxVisits=100, maxPlayouts=10000, numAnalysisThreads=1, numSearchThreadsPerAnalysisThread=1, nnRandomize=false, rootSymmetryPruning=false, nnRandSeed=analysisTest, forDeterministicTesting=true, cudaUseFP16 = false, trtUseFP16 = false, openclUseFP16 = false, cudaUseNHWC = false, reportAnalysisWinratesAs=SIDETOMOVE" 1> tests/results/analysis/basic_sidetomove.stdout 2> tests/results/analysis/basic_sidetomove.stderr
 
 cat tests/analysis/symmetry.txt | ./katago analysis -config configs/analysis_example.cfg -model tests/models/g170-b6c96-s175395328-d26788732.bin.gz -override-config "logFile=tests/results/analysis/symmetry_with_pruning.txt.log, logDir=, logTimeStamp=false, logAllRequests=true, logAllResponses=true, logSearchInfo=true, maxVisits=100, maxPlayouts=10000, numAnalysisThreads=1, numSearchThreadsPerAnalysisThread=1, nnRandomize=false, rootSymmetryPruning=true, nnRandSeed=analysisTest, forDeterministicTesting=true, cudaUseFP16 = false, trtUseFP16 = false, openclUseFP16 = false, cudaUseNHWC = false" 1> tests/results/analysis/symmetry_with_pruning.stdout 2> tests/results/analysis/symmetry_with_pruning.stderr
@@ -190,7 +195,6 @@ rm -f tests/results/sampletest2-hint/*.txt
          -for-testing
 
 echo "Done"
-
 
 
 
