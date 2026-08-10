@@ -2408,6 +2408,492 @@ static void runEyePositivePerformanceTest() {
   testAssert(p95 <= 20.0);
 }
 
+// RareHistoryEvidence는 한 희귀 history 범주의 결정적 snapshot 원문을 누적한다.
+struct RareHistoryEvidence {
+  string category;
+  int snapshotCount;
+  string transcript;
+};
+
+// invertRareBoard는 좌표를 유지하면서 모든 돌 색만 반전한다.
+// board는 무활로 chain 없는 합법 시작 보드이며, 반환값은 색 반전된 보드다.
+static Board invertRareBoard(const Board& board) {
+  Board inverted(board.x_size,board.y_size);
+  for(int y = 0; y < board.y_size; y++) {
+    for(int x = 0; x < board.x_size; x++) {
+      Loc loc = Location::getLoc(x,y,board.x_size);
+      if(board.colors[loc] == P_BLACK)
+        inverted.colors[loc] = P_WHITE;
+      else if(board.colors[loc] == P_WHITE)
+        inverted.colors[loc] = P_BLACK;
+    }
+  }
+  inverted.regenChainsFromColors();
+  return inverted;
+}
+
+// rareBlockedPoints는 지정 history boolean 좌표 배열을 GTP 사전순 문자열로 고정한다.
+// flags는 Board 좌표별 상태, board는 좌표계이며, 반환값은 쉼표로 연결된 좌표다.
+static string rareBlockedPoints(const bool* flags, const Board& board) {
+  vector<string> points;
+  for(int y = 0; y < board.y_size; y++) {
+    for(int x = 0; x < board.x_size; x++) {
+      Loc loc = Location::getLoc(x,y,board.x_size);
+      if(flags[loc])
+        points.push_back(Location::toString(loc,board));
+    }
+  }
+  sort(points.begin(),points.end());
+  return joinEyeStrings(points,",");
+}
+
+// validateRarePatternResult는 희귀 history snapshot의 공개 Pattern 공통 불변식을 검사한다.
+// board와 hist는 실제 snapshot, result는 full detect 결과이며, 반환값은 정렬된 JSON 배열이다.
+static json validateRarePatternResult(
+  const Board& board,
+  const BoardHistory& hist,
+  const GoPattern::DetectionResult& result
+) {
+  testAssert(!result.truncated);
+  testAssert(result.warnings.empty());
+  json patterns = json::array();
+  for(const GoPattern::Pattern& pattern: result.patterns) {
+    testAssert(pattern.schemaVersion > 0);
+    testAssert(pattern.subject.color == P_BLACK || pattern.subject.color == P_WHITE);
+    testAssert(!pattern.subject.id.empty());
+    testAssert(!pattern.subject.points.empty());
+    if(pattern.confidence == GoPattern::Confidence::PROVEN) {
+      testAssert(
+        pattern.kind == GoPattern::Kind::BENSON_ALIVE ||
+        pattern.kind == GoPattern::Kind::EYE
+      );
+    }
+    if(pattern.kind == GoPattern::Kind::EYE) {
+      testAssert(!hist.isGameFinished);
+      testAssert(!hist.isPastNormalPhaseEnd);
+      testAssert(pattern.subject.points.size() == 1);
+      const GoPattern::EyeDetails& details = get<GoPattern::EyeDetails>(pattern.details);
+      testAssert(details.attacker == hist.presumedNextMovePla);
+      testAssert(hist.isLegal(board,pattern.subject.points[0],details.attacker));
+      testAssert(!hist.isPassForKo(board,pattern.subject.points[0],details.attacker));
+    }
+    if(pattern.kind == GoPattern::Kind::LADDER) {
+      const GoPattern::LadderDetails& details = get<GoPattern::LadderDetails>(pattern.details);
+      testAssert(details.defender == pattern.subject.color);
+      testAssert(details.attacker == getOpp(details.defender));
+      testAssert(details.defenderFirst == (hist.presumedNextMovePla == details.defender));
+      if(pattern.confidence == GoPattern::Confidence::HIGH)
+        testAssert(pattern.outcome != GoPattern::Outcome::AMBIGUOUS);
+      else {
+        testAssert(pattern.confidence == GoPattern::Confidence::MEDIUM);
+        testAssert(pattern.outcome == GoPattern::Outcome::AMBIGUOUS);
+      }
+    }
+    if(pattern.kind == GoPattern::Kind::NAKADE) {
+      const GoPattern::NakadeDetails& details = get<GoPattern::NakadeDetails>(pattern.details);
+      testAssert(details.defender == pattern.subject.color);
+      testAssert(details.attacker == getOpp(details.defender));
+      if(pattern.confidence == GoPattern::Confidence::HIGH) {
+        testAssert(pattern.outcome == GoPattern::Outcome::ATTACKER_CAN_REDUCE_TO_ONE_EYE);
+        testAssert(hist.presumedNextMovePla == details.attacker);
+        testAssert(hist.isLegal(board,details.vitalPoint,details.attacker));
+      }
+      else {
+        testAssert(pattern.confidence == GoPattern::Confidence::MEDIUM);
+        testAssert(pattern.outcome == GoPattern::Outcome::UNSETTLED);
+      }
+    }
+    patterns.push_back(GoPattern::toJson(pattern,board));
+  }
+  if(hist.isGameFinished || hist.isPastNormalPhaseEnd)
+    testAssert(findKind(result.patterns,GoPattern::Kind::EYE) == nullptr);
+  return patterns;
+}
+
+// recordRareSnapshot은 full detect를 실행하고 history·결과를 fingerprint 원문에 추가한다.
+// evidence는 누적 대상, label은 단계명, board와 hist는 실제 snapshot이며, 반환값은 없다.
+static void recordRareSnapshot(
+  RareHistoryEvidence& evidence,
+  const string& label,
+  const Board& board,
+  const BoardHistory& hist
+) {
+  GoPattern::DetectionResult result = GoPattern::detect(board,hist);
+  json patterns = validateRarePatternResult(board,hist,result);
+  ostringstream line;
+  line
+    << evidence.snapshotCount << "|" << label
+    << "|rules=" << hist.rules.toJsonString()
+    << "|board=" << board.pos_hash
+    << "|next=" << (hist.presumedNextMovePla == P_BLACK ? "B" : "W")
+    << "|encore=" << hist.encorePhase
+    << "|turns=" << hist.moveHistory.size()
+    << "|consecutivePasses=" << hist.consecutiveEndingPasses
+    << "|button=" << hist.hasButton
+    << "|finished=" << hist.isGameFinished
+    << "|pastNormal=" << hist.isPastNormalPhaseEnd
+    << "|noResult=" << hist.isNoResult
+    << "|koHistory=" << hist.koHashHistory.size()
+    << "|superko=" << rareBlockedPoints(hist.superKoBanned,board)
+    << "|koRecap=" << rareBlockedPoints(hist.koRecapBlocked,board)
+    << "|patterns=" << patterns.dump()
+    << "\n";
+  evidence.transcript += line.str();
+  evidence.snapshotCount += 1;
+}
+
+// playRareMove는 희귀 history fixture의 한 수를 실제 합법성 검사 후 적용한다.
+// board와 hist는 변경 대상, move와 pla는 착수이며, 반환값은 없다.
+static void playRareMove(Board& board, BoardHistory& hist, Loc move, Player pla) {
+  testAssert(hist.presumedNextMovePla == pla);
+  testAssert(hist.isLegal(board,move,pla));
+  hist.makeBoardMoveAssumeLegal(board,move,pla,NULL);
+}
+
+// runSpightRareScenario는 기존 sending-two-returning-one 수순의 Spight pass 경계를 재생한다.
+// evidence는 누적 대상, invertColors는 색 반전 여부이며, 반환값은 없다.
+static void runSpightRareScenario(RareHistoryEvidence& evidence, bool invertColors) {
+  Board baseBoard = Board::parseBoard(6,5,R"%%(
+.o.xxo
+oxxxo.
+o.x.oo
+xx.oo.
+oooo.o
+)%%");
+  testAssert(baseBoard.setStone(Location::getLoc(2,3,baseBoard.x_size),P_BLACK));
+  Board board = invertColors ? invertRareBoard(baseBoard) : baseBoard;
+  Player black = invertColors ? P_WHITE : P_BLACK;
+  Player white = invertColors ? P_BLACK : P_WHITE;
+  Rules rules = Rules::getSimpleTerritory();
+  rules.koRule = Rules::KO_SPIGHT;
+  rules.komi = 0.5f;
+  BoardHistory hist(board,black,rules,0,false);
+  string prefix = invertColors ? "inverted-" : "base-";
+  recordRareSnapshot(evidence,prefix+"initial",board,hist);
+
+  const vector<pair<Loc,Player>> moves = {
+    {Location::getLoc(5,1,board.x_size),black},
+    {Board::PASS_LOC,white},
+    {Location::getLoc(3,2,board.x_size),black},
+    {Location::getLoc(2,0,board.x_size),white},
+    {Location::getLoc(0,0,board.x_size),black},
+    {Location::getLoc(5,0,board.x_size),white},
+    {Board::PASS_LOC,black},
+    {Location::getLoc(1,0,board.x_size),white},
+    {Board::PASS_LOC,black},
+    {Location::getLoc(2,0,board.x_size),white},
+    {Location::getLoc(0,0,board.x_size),black},
+    {Board::PASS_LOC,white},
+    {Board::PASS_LOC,black},
+    {Board::PASS_LOC,white},
+    {Board::PASS_LOC,black},
+    {Board::PASS_LOC,white},
+    {Board::PASS_LOC,black},
+  };
+  for(size_t index = 0; index < moves.size(); index++) {
+    playRareMove(board,hist,moves[index].first,moves[index].second);
+    recordRareSnapshot(
+      evidence,
+      prefix+"move-"+Global::uint64ToString(index+1),
+      board,
+      hist
+    );
+    if(index == 4 || index == 10)
+      testAssert(hist.superKoBanned[Location::getLoc(1,0,board.x_size)]);
+    if(index == 12) {
+      testAssert(hist.encorePhase == 1);
+      testAssert(rareBlockedPoints(hist.superKoBanned,board).empty());
+    }
+  }
+  testAssert(hist.encorePhase == 2);
+  testAssert(hist.isGameFinished);
+  testAssert(findKind(GoPattern::detect(board,hist).patterns,GoPattern::Kind::EYE) == nullptr);
+}
+
+// runSpightKoRecapScenario는 Spight territory encore의 pass-for-ko와 Eye 억제를 검증한다.
+// evidence는 누적 대상이며, 반환값은 없다.
+static void runSpightKoRecapScenario(RareHistoryEvidence& evidence) {
+  Board board = makeKoEyeBoard();
+  Rules rules = Rules::getSimpleTerritory();
+  rules.koRule = Rules::KO_SPIGHT;
+  BoardHistory hist(board,P_WHITE,rules,0,false);
+  const Loc koCapture = Location::getLoc(1,2,board.x_size);
+  const Loc koRecapture = Location::getLoc(2,2,board.x_size);
+  recordRareSnapshot(evidence,"ko-recap-initial",board,hist);
+  for(int passIndex = 0; hist.encorePhase == 0; passIndex++) {
+    testAssert(passIndex < 4);
+    Player pla = hist.presumedNextMovePla;
+    playRareMove(board,hist,Board::PASS_LOC,pla);
+    recordRareSnapshot(
+      evidence,
+      "ko-recap-main-pass-"+Global::intToString(passIndex+1),
+      board,
+      hist
+    );
+  }
+  if(hist.presumedNextMovePla != P_WHITE) {
+    playRareMove(board,hist,Board::PASS_LOC,hist.presumedNextMovePla);
+    recordRareSnapshot(evidence,"ko-recap-encore-align",board,hist);
+  }
+  playRareMove(board,hist,koCapture,P_WHITE);
+  recordRareSnapshot(evidence,"ko-recap-capture",board,hist);
+  testAssert(hist.isPassForKo(board,koRecapture,P_BLACK));
+  testAssert(findKind(GoPattern::detect(board,hist).patterns,GoPattern::Kind::EYE) == nullptr);
+  playRareMove(board,hist,koRecapture,P_BLACK);
+  recordRareSnapshot(evidence,"ko-recap-pass-for-ko",board,hist);
+}
+
+// makeRareEyeBoard는 종국 억제를 관찰할 즉시 포획 Eye 양성 보드를 만든다.
+// invertColors는 색 반전 여부이며, 반환값은 합법 7×7 보드다.
+static Board makeRareEyeBoard(bool invertColors) {
+  Board board = Board::parseBoard(7,7,R"%%(
+.......
+.ooooo.
+.oxxxo.
+.ox.xo.
+.oxxxo.
+.ooooo.
+.......
+)%%");
+  return invertColors ? invertRareBoard(board) : board;
+}
+
+// runButtonRareScenario는 button 유무에 따른 첫 pass와 실제 종국을 비교한다.
+// evidence는 누적 대상이며 invertColors, hasButton, komi가 fixture 변형을 지정한다.
+static void runButtonRareScenario(
+  RareHistoryEvidence& evidence,
+  bool invertColors,
+  bool hasButton,
+  float komi
+) {
+  Board board = makeRareEyeBoard(invertColors);
+  Player initialPla = invertColors ? P_BLACK : P_WHITE;
+  Rules rules = Rules::getTrompTaylorish();
+  rules.koRule = Rules::KO_SIMPLE;
+  rules.hasButton = hasButton;
+  rules.komi = komi;
+  BoardHistory hist(board,initialPla,rules,0,false);
+  string prefix = string(invertColors ? "inverted-" : "base-") +
+    (hasButton ? "button-" : "no-button-") + Global::floatToString(komi) + "-";
+  GoPattern::DetectionResult initial = GoPattern::detect(board,hist);
+  testAssert(findKind(initial.patterns,GoPattern::Kind::EYE) != nullptr);
+  recordRareSnapshot(evidence,prefix+"initial",board,hist);
+
+  Player firstPla = hist.presumedNextMovePla;
+  playRareMove(board,hist,Board::PASS_LOC,firstPla);
+  recordRareSnapshot(evidence,prefix+"first-pass",board,hist);
+  testAssert(!hist.hasButton);
+  testAssert(!hist.isGameFinished);
+  if(hasButton) {
+    testAssert(hist.consecutiveEndingPasses == 0);
+    playRareMove(board,hist,Board::PASS_LOC,hist.presumedNextMovePla);
+    recordRareSnapshot(evidence,prefix+"second-pass",board,hist);
+    testAssert(!hist.isGameFinished);
+  }
+  playRareMove(board,hist,Board::PASS_LOC,hist.presumedNextMovePla);
+  recordRareSnapshot(evidence,prefix+"game-ending-pass",board,hist);
+  testAssert(hist.isGameFinished);
+  testAssert(findKind(GoPattern::detect(board,hist).patterns,GoPattern::Kind::EYE) == nullptr);
+}
+
+// runPassRareScenario는 territory의 일반 pass가 currentPlayer와 phase를 바꾸는 과정을 기록한다.
+// evidence는 누적 대상이며 invertColors와 komi가 fixture 변형을 지정한다.
+static void runPassRareScenario(
+  RareHistoryEvidence& evidence,
+  bool invertColors,
+  float komi
+) {
+  Board board = makeRareEyeBoard(invertColors);
+  Player initialPla = invertColors ? P_BLACK : P_WHITE;
+  Rules rules = Rules::getSimpleTerritory();
+  rules.koRule = Rules::KO_POSITIONAL;
+  rules.komi = komi;
+  BoardHistory hist(board,initialPla,rules,0,false);
+  string prefix = string(invertColors ? "inverted-" : "base-") +
+    Global::floatToString(komi) + "-";
+  recordRareSnapshot(evidence,prefix+"initial",board,hist);
+  for(int passIndex = 0; passIndex < 6; passIndex++) {
+    Player before = hist.presumedNextMovePla;
+    Board snapshotBoard(board);
+    BoardHistory snapshotHist(hist);
+    playRareMove(board,hist,Board::PASS_LOC,before);
+    testAssert(hist.presumedNextMovePla == getOpp(before));
+    recordRareSnapshot(
+      evidence,
+      prefix+"pass-"+Global::intToString(passIndex+1),
+      board,
+      hist
+    );
+    GoPattern::DetectionResult replay = GoPattern::detect(snapshotBoard,snapshotHist);
+    validateRarePatternResult(snapshotBoard,snapshotHist,replay);
+    if(passIndex == 1)
+      testAssert(hist.encorePhase == 1);
+    if(passIndex == 3)
+      testAssert(hist.encorePhase == 2);
+  }
+  testAssert(hist.isGameFinished);
+  testAssert(hist.encorePhase == 2);
+}
+
+// runNoResultSequence는 지정 순환 수순을 재생하고 실제 no-result 종국을 검증한다.
+// evidence는 누적 대상, label은 원형명, board와 moves는 시작 상태와 합법 수순이다.
+static void runNoResultSequence(
+  RareHistoryEvidence& evidence,
+  const string& label,
+  Board board,
+  const Rules& rules,
+  Player initialPla,
+  const vector<pair<Loc,Player>>& moves
+) {
+  BoardHistory hist(board,initialPla,rules,0,false);
+  recordRareSnapshot(evidence,label+"-initial",board,hist);
+  for(size_t index = 0; index < moves.size(); index++) {
+    playRareMove(board,hist,moves[index].first,moves[index].second);
+    recordRareSnapshot(
+      evidence,
+      label+"-move-"+Global::uint64ToString(index+1),
+      board,
+      hist
+    );
+  }
+  testAssert(hist.isNoResult);
+  testAssert(hist.isGameFinished);
+  testAssert(findKind(GoPattern::detect(board,hist).patterns,GoPattern::Kind::EYE) == nullptr);
+}
+
+// runNoResultRareScenarios는 기존 eternal-life와 triple-ko no-result 수순을 색 반전까지 재생한다.
+// evidence는 누적 대상이며, 반환값은 없다.
+static void runNoResultRareScenarios(RareHistoryEvidence& evidence) {
+  for(bool invertColors: {false,true}) {
+    Board eternalBase = Board::parseBoard(8,5,R"%%(
+........
+oooooo..
+xxxxxo..
+xoooxxoo
+.o.x.ox.
+)%%");
+    Board eternal = invertColors ? invertRareBoard(eternalBase) : eternalBase;
+    Player black = invertColors ? P_WHITE : P_BLACK;
+    Player white = invertColors ? P_BLACK : P_WHITE;
+    Rules rules = Rules::getTrompTaylorish();
+    rules.koRule = Rules::KO_SIMPLE;
+    rules.multiStoneSuicideLegal = false;
+    rules.komi = 0.5f;
+    vector<pair<Loc,Player>> eternalMoves = {
+      {Location::getLoc(2,4,eternal.x_size),black},
+      {Location::getLoc(4,4,eternal.x_size),white},
+      {Location::getLoc(3,4,eternal.x_size),black},
+      {Location::getLoc(5,4,eternal.x_size),white},
+      {Location::getLoc(2,4,eternal.x_size),black},
+      {Location::getLoc(4,4,eternal.x_size),white},
+      {Location::getLoc(3,4,eternal.x_size),black},
+      {Location::getLoc(5,4,eternal.x_size),white},
+    };
+    runNoResultSequence(
+      evidence,
+      invertColors ? "eternal-inverted" : "eternal-base",
+      eternal,
+      rules,
+      black,
+      eternalMoves
+    );
+
+    Board tripleBase = Board::parseBoard(7,6,R"%%(
+ooooooo
+oxo.o.o
+x.xoxox
+xxxxxxx
+ooooooo
+.......
+)%%");
+    Board triple = invertColors ? invertRareBoard(tripleBase) : tripleBase;
+    vector<pair<Loc,Player>> tripleMoves = {
+      {Location::getLoc(3,1,triple.x_size),black},
+      {Location::getLoc(1,2,triple.x_size),white},
+      {Location::getLoc(5,1,triple.x_size),black},
+      {Location::getLoc(3,2,triple.x_size),white},
+      {Location::getLoc(1,1,triple.x_size),black},
+      {Location::getLoc(5,2,triple.x_size),white},
+      {Location::getLoc(3,1,triple.x_size),black},
+      {Location::getLoc(1,2,triple.x_size),white},
+      {Location::getLoc(5,1,triple.x_size),black},
+      {Location::getLoc(3,2,triple.x_size),white},
+      {Location::getLoc(1,1,triple.x_size),black},
+      {Location::getLoc(5,2,triple.x_size),white},
+    };
+    runNoResultSequence(
+      evidence,
+      invertColors ? "triple-inverted" : "triple-base",
+      triple,
+      rules,
+      black,
+      tripleMoves
+    );
+  }
+}
+
+// finishRareEvidence는 최소 snapshot 수와 고정 digest를 확인하고 증거 행을 출력한다.
+// evidence는 누적 결과, expectedDigest는 동결 SHA-256이며, 반환값은 없다.
+static void finishRareEvidence(
+  const RareHistoryEvidence& evidence,
+  int expectedSnapshotCount,
+  const string& expectedDigest
+) {
+  testAssert(expectedSnapshotCount >= 30);
+  testAssert(evidence.snapshotCount == expectedSnapshotCount);
+  const string digest = sha256String(evidence.transcript);
+  testAssert(digest == expectedDigest);
+  cout << "Pattern rare history " << evidence.category
+       << ": " << evidence.snapshotCount
+       << " snapshots, fingerprint " << digest << endl;
+}
+
+// runPatternRareHistoryBoundaryTest는 네 희귀 history 범주를 full Pattern 실제 경로로 검증한다.
+// 반환값은 없으며 각 범주 snapshot 수와 fingerprint를 결정적으로 고정한다.
+static void runPatternRareHistoryBoundaryTest() {
+  RareHistoryEvidence spight{"spight",0,""};
+  runSpightRareScenario(spight,false);
+  runSpightRareScenario(spight,true);
+  runSpightKoRecapScenario(spight);
+  finishRareEvidence(
+    spight,
+    43,
+    "391ef14c471eb63828178c737b9a8bfc786b0d068547c949cc05b97d02abd0b1"
+  );
+
+  RareHistoryEvidence button{"button",0,""};
+  for(bool invertColors: {false,true}) {
+    for(bool hasButton: {false,true}) {
+      for(float komi: {0.5f,6.5f,7.5f})
+        runButtonRareScenario(button,invertColors,hasButton,komi);
+    }
+  }
+  finishRareEvidence(
+    button,
+    42,
+    "fafe855a06c99832263bd69692f8a537739469ac40d8df4a3495654fdf715e76"
+  );
+
+  RareHistoryEvidence pass{"pass",0,""};
+  for(bool invertColors: {false,true}) {
+    for(float komi: {0.5f,6.5f,7.5f})
+      runPassRareScenario(pass,invertColors,komi);
+  }
+  finishRareEvidence(
+    pass,
+    42,
+    "3bfb46b6ca53cdb8a52a39d025ed2bc28fc47b1af5a7eb25a9baa3168d20ae2e"
+  );
+
+  RareHistoryEvidence noResult{"no-result",0,""};
+  runNoResultRareScenarios(noResult);
+  finishRareEvidence(
+    noResult,
+    44,
+    "4c5a548756084815500f170fc4185634c61f6e95c88f51ecb2b76ae65c318a8a"
+  );
+}
+
 void Tests::runPatternTests() {
   cout << "Running pattern tests" << endl;
 
@@ -2506,4 +2992,5 @@ ooooo
     << endl;
   runBensonPerformanceTest();
   runEyePositivePerformanceTest();
+  runPatternRareHistoryBoundaryTest();
 }
