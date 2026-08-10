@@ -77,6 +77,7 @@ struct AnalyzeRequest {
   bool includePVVisits;
   bool includeNoResultValue;
   bool includePatterns;
+  bool patternsSuppressedByRulesSubstitution;
 
   bool reportDuringSearch;
   double reportDuringSearchEvery;
@@ -381,20 +382,22 @@ int MainCmds::analysis(const vector<string>& args) {
 
     if(success && request->includePatterns && !isDuringSearch) {
       ret["patterns"] = json::array();
-      try {
-        GoPattern::DetectionResult result = GoPattern::detect(request->board,request->hist);
-        for(const GoPattern::Pattern& pattern: result.patterns)
-          ret["patterns"].push_back(GoPattern::toJson(pattern,request->board));
-        for(const string& warning: result.warnings)
-          reportWarningForId(request->id,"patterns",warning);
-        if(result.truncated)
-          reportWarningForId(request->id,"patterns","Pattern output exceeded 256 entries and was truncated");
-      }
-      catch(const std::exception& e) {
-        reportWarningForId(request->id,"patterns","Pattern detection failed: " + string(e.what()));
-      }
-      catch(...) {
-        reportWarningForId(request->id,"patterns","Pattern detection failed with an unknown error");
+      if(!request->patternsSuppressedByRulesSubstitution) {
+        try {
+          GoPattern::DetectionResult result = GoPattern::detect(request->board,request->hist);
+          for(const GoPattern::Pattern& pattern: result.patterns)
+            ret["patterns"].push_back(GoPattern::toJson(pattern,request->board));
+          for(const string& warning: result.warnings)
+            reportWarningForId(request->id,"patterns",warning);
+          if(result.truncated)
+            reportWarningForId(request->id,"patterns","Pattern output exceeded 256 entries and was truncated");
+        }
+        catch(const std::exception& e) {
+          reportWarningForId(request->id,"patterns","Pattern detection failed: " + string(e.what()));
+        }
+        catch(...) {
+          reportWarningForId(request->id,"patterns","Pattern detection failed with an unknown error");
+        }
       }
     }
 
@@ -531,7 +534,7 @@ int MainCmds::analysis(const vector<string>& args) {
             request->includeOwnershipStdev ||
             request->includeMovesOwnership ||
             request->includeMovesOwnershipStdev ||
-            request->includePatterns
+            (request->includePatterns && !request->patternsSuppressedByRulesSubstitution)
           );
           bot->setParams(request->params);
           bot->setAvoidMoveUntilByLoc(request->avoidMoveUntilByLocBlack,request->avoidMoveUntilByLocWhite);
@@ -810,6 +813,7 @@ int MainCmds::analysis(const vector<string>& args) {
       rbase.includePVVisits = false;
       rbase.includeNoResultValue = false;
       rbase.includePatterns = false;
+      rbase.patternsSuppressedByRulesSubstitution = false;
       rbase.reportDuringSearch = false;
       rbase.reportDuringSearchEvery = 1e30;
       rbase.firstReportDuringSearchAfter = 1e30;
@@ -1426,6 +1430,16 @@ int MainCmds::analysis(const vector<string>& args) {
         ostringstream out;
         out << "Rules " << rules << " not supported by neural net, using " << supportedRules << " instead";
         reportWarningForId(rbase.id, "rules", out.str());
+        if(rbase.includePatterns) {
+          reportWarningForId(
+            rbase.id,
+            "patterns",
+            "RULES_SUBSTITUTED requestedRules=" + rules.toJsonStringNoKomi() +
+            " rulesUsed=" + supportedRules.toJsonStringNoKomi() +
+            " patternsSuppressed=true"
+          );
+          rbase.patternsSuppressedByRulesSubstitution = true;
+        }
         rules = supportedRules;
       }
 
@@ -1474,6 +1488,8 @@ int MainCmds::analysis(const vector<string>& args) {
           newRequest->includePVVisits = rbase.includePVVisits;
           newRequest->includeNoResultValue = rbase.includeNoResultValue;
           newRequest->includePatterns = rbase.includePatterns;
+          newRequest->patternsSuppressedByRulesSubstitution =
+            rbase.patternsSuppressedByRulesSubstitution;
           newRequest->reportDuringSearch = rbase.reportDuringSearch;
           newRequest->reportDuringSearchEvery = rbase.reportDuringSearchEvery;
           newRequest->firstReportDuringSearchAfter = rbase.firstReportDuringSearchAfter;
