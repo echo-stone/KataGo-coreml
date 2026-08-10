@@ -2408,10 +2408,13 @@ static void runEyePositivePerformanceTest() {
   testAssert(p95 <= 20.0);
 }
 
-// RareHistoryEvidence는 한 희귀 history 범주의 결정적 snapshot 원문을 누적한다.
+// RareHistoryEvidence는 한 희귀 history 범주의 계보·전이 snapshot 원문을 누적한다.
 struct RareHistoryEvidence {
   string category;
   int snapshotCount;
+  int lineageCount;
+  int buttonEnabledLineageCount;
+  int terminalNoResultSnapshotCount;
   string transcript;
 };
 
@@ -2553,6 +2556,7 @@ static void playRareMove(Board& board, BoardHistory& hist, Loc move, Player pla)
 // runSpightRareScenario는 기존 sending-two-returning-one 수순의 Spight pass 경계를 재생한다.
 // evidence는 누적 대상, invertColors는 색 반전 여부이며, 반환값은 없다.
 static void runSpightRareScenario(RareHistoryEvidence& evidence, bool invertColors) {
+  evidence.lineageCount += 1;
   Board baseBoard = Board::parseBoard(6,5,R"%%(
 .o.xxo
 oxxxo.
@@ -2613,6 +2617,7 @@ oooo.o
 // runSpightKoRecapScenario는 Spight territory encore의 pass-for-ko와 Eye 억제를 검증한다.
 // evidence는 누적 대상이며, 반환값은 없다.
 static void runSpightKoRecapScenario(RareHistoryEvidence& evidence) {
+  evidence.lineageCount += 1;
   Board board = makeKoEyeBoard();
   Rules rules = Rules::getSimpleTerritory();
   rules.koRule = Rules::KO_SPIGHT;
@@ -2666,6 +2671,9 @@ static void runButtonRareScenario(
   bool hasButton,
   float komi
 ) {
+  evidence.lineageCount += 1;
+  if(hasButton)
+    evidence.buttonEnabledLineageCount += 1;
   Board board = makeRareEyeBoard(invertColors);
   Player initialPla = invertColors ? P_BLACK : P_WHITE;
   Rules rules = Rules::getTrompTaylorish();
@@ -2703,6 +2711,7 @@ static void runPassRareScenario(
   bool invertColors,
   float komi
 ) {
+  evidence.lineageCount += 1;
   Board board = makeRareEyeBoard(invertColors);
   Player initialPla = invertColors ? P_BLACK : P_WHITE;
   Rules rules = Rules::getSimpleTerritory();
@@ -2759,6 +2768,8 @@ static void runNoResultSequence(
   testAssert(hist.isNoResult);
   testAssert(hist.isGameFinished);
   testAssert(findKind(GoPattern::detect(board,hist).patterns,GoPattern::Kind::EYE) == nullptr);
+  evidence.lineageCount += 1;
+  evidence.terminalNoResultSnapshotCount += 1;
 }
 
 // runNoResultRareScenarios는 기존 eternal-life와 triple-ko no-result 수순을 색 반전까지 재생한다.
@@ -2832,36 +2843,49 @@ ooooooo
   }
 }
 
-// finishRareEvidence는 최소 snapshot 수와 고정 digest를 확인하고 증거 행을 출력한다.
-// evidence는 누적 결과, expectedDigest는 동결 SHA-256이며, 반환값은 없다.
+// finishRareEvidence는 exact 계보·snapshot 수와 transition digest를 확인해 출력한다.
+// evidence는 누적 결과이고 expected 값들은 동결 회귀값이며, 반환값은 없다.
 static void finishRareEvidence(
   const RareHistoryEvidence& evidence,
   int expectedSnapshotCount,
+  int expectedLineageCount,
+  int expectedButtonEnabledLineageCount,
+  int expectedTerminalNoResultSnapshotCount,
   const string& expectedDigest
 ) {
-  testAssert(expectedSnapshotCount >= 30);
   testAssert(evidence.snapshotCount == expectedSnapshotCount);
+  testAssert(evidence.lineageCount == expectedLineageCount);
+  testAssert(evidence.buttonEnabledLineageCount == expectedButtonEnabledLineageCount);
+  testAssert(evidence.terminalNoResultSnapshotCount == expectedTerminalNoResultSnapshotCount);
   const string digest = sha256String(evidence.transcript);
   testAssert(digest == expectedDigest);
-  cout << "Pattern rare history " << evidence.category
+  cout << "Pattern rare history transition regression " << evidence.category
        << ": " << evidence.snapshotCount
-       << " snapshots, fingerprint " << digest << endl;
+       << " snapshots, " << evidence.lineageCount << " independent lineages";
+  if(evidence.category == "button")
+    cout << ", " << evidence.buttonEnabledLineageCount << " button-enabled lineages";
+  if(evidence.category == "no-result")
+    cout << ", " << evidence.terminalNoResultSnapshotCount << " terminal no-result snapshots";
+  cout << ", fingerprint " << digest << endl;
 }
 
 // runPatternRareHistoryBoundaryTest는 네 희귀 history 범주를 full Pattern 실제 경로로 검증한다.
-// 반환값은 없으며 각 범주 snapshot 수와 fingerprint를 결정적으로 고정한다.
+// 반환값은 없으며 각 범주 계보·snapshot 수와 transition regression fingerprint를 고정한다.
 static void runPatternRareHistoryBoundaryTest() {
-  RareHistoryEvidence spight{"spight",0,""};
+  RareHistoryEvidence spight{"spight",0,0,0,0,""};
   runSpightRareScenario(spight,false);
   runSpightRareScenario(spight,true);
   runSpightKoRecapScenario(spight);
   finishRareEvidence(
     spight,
     43,
+    3,
+    0,
+    0,
     "391ef14c471eb63828178c737b9a8bfc786b0d068547c949cc05b97d02abd0b1"
   );
 
-  RareHistoryEvidence button{"button",0,""};
+  RareHistoryEvidence button{"button",0,0,0,0,""};
   for(bool invertColors: {false,true}) {
     for(bool hasButton: {false,true}) {
       for(float komi: {0.5f,6.5f,7.5f})
@@ -2871,10 +2895,13 @@ static void runPatternRareHistoryBoundaryTest() {
   finishRareEvidence(
     button,
     42,
+    12,
+    6,
+    0,
     "fafe855a06c99832263bd69692f8a537739469ac40d8df4a3495654fdf715e76"
   );
 
-  RareHistoryEvidence pass{"pass",0,""};
+  RareHistoryEvidence pass{"pass",0,0,0,0,""};
   for(bool invertColors: {false,true}) {
     for(float komi: {0.5f,6.5f,7.5f})
       runPassRareScenario(pass,invertColors,komi);
@@ -2882,14 +2909,20 @@ static void runPatternRareHistoryBoundaryTest() {
   finishRareEvidence(
     pass,
     42,
+    6,
+    0,
+    0,
     "3bfb46b6ca53cdb8a52a39d025ed2bc28fc47b1af5a7eb25a9baa3168d20ae2e"
   );
 
-  RareHistoryEvidence noResult{"no-result",0,""};
+  RareHistoryEvidence noResult{"no-result",0,0,0,0,""};
   runNoResultRareScenarios(noResult);
   finishRareEvidence(
     noResult,
     44,
+    4,
+    0,
+    4,
     "4c5a548756084815500f170fc4185634c61f6e95c88f51ecb2b76ae65c318a8a"
   );
 }
