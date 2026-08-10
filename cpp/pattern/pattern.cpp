@@ -20,8 +20,6 @@ static string kindToString(Kind kind) {
     return "nakade";
   case Kind::SEMEAI:
     return "semeai";
-  case Kind::OWNERSHIP_DELTA:
-    return "ownershipDelta";
   default:
     ASSERT_UNREACHABLE;
   }
@@ -56,8 +54,6 @@ static string outcomeToString(Outcome outcome) {
     return "attackerCanReduceToOneEye";
   case Outcome::UNSETTLED:
     return "unsettled";
-  case Outcome::CHANGED:
-    return "changed";
   default:
     ASSERT_UNREACHABLE;
   }
@@ -176,20 +172,6 @@ static json detailsToJson(const SemeaiDetails& details, const Board&) {
     {"opponentOutsideLibertyCount", details.opponentOutsideLibertyCount},
     {"sharedLibertyCount", details.sharedLibertyCount},
     {"semantics", "sharedLibertyRace"},
-  };
-}
-
-// detailsToJson은 OwnershipDelta v1의 기록 수·평균 변화·결합 불확실성을 직렬화한다.
-static json detailsToJson(const OwnershipDeltaDetails& details, const Board& board) {
-  return json{
-    {"move", Location::toString(details.move,board)},
-    {"affectedPointCount", details.affectedPointCount},
-    {"meanRootOwnership", details.meanRootOwnership},
-    {"meanChildOwnership", details.meanChildOwnership},
-    {"meanDelta", details.meanDelta},
-    {"uncertainty", details.uncertainty},
-    {"perspective", "B"},
-    {"semantics", "rootChildPredictedOwnershipChange"},
   };
 }
 
