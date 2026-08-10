@@ -210,6 +210,8 @@ class NNEvaluator {
   uint64_t numBatchesProcessed() const;
   double averageProcessedBatchSize() const;
   uint64_t numCacheHits() const;
+  // NN evaluation rows that requested ownership output, including debugSkipNeuralNet rows.
+  uint64_t numOwnerMapRowsRequested() const;
 
   void clearStats();
 
@@ -249,6 +251,7 @@ class NNEvaluator {
   std::atomic<uint64_t> m_numRowsProcessed;
   std::atomic<uint64_t> m_numBatchesProcessed;
   std::atomic<uint64_t> m_numCacheHits;
+  std::atomic<uint64_t> m_numOwnerMapRowsRequested;
 
   mutable std::mutex bufferMutex;
 
