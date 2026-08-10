@@ -9,6 +9,7 @@
 #include "../program/playutils.h"
 #include "../program/play.h"
 #include "../pattern/detector.h"
+#include "../pattern/ownershipdelta.h"
 #include "../command/commandline.h"
 #include "../core/test.h"
 #include "../main.h"
@@ -16,6 +17,7 @@
 #include "../external/nlohmann_json/json.hpp"
 
 #include <algorithm>
+#include <optional>
 
 using namespace std;
 using json = nlohmann::json;
@@ -89,6 +91,9 @@ struct AnalyzeRequest {
   vector<Loc> includeMovesWhite;
   std::map<int, vector<IncludeMoveEntry>> includeMovesPerTurn;
   bool includeAllMoves;
+  std::optional<GoPattern::OwnershipDeltaThresholds> ownershipDeltaThresholds;
+  GoPattern::OwnershipDeltaEligibility ownershipDeltaEligibility;
+  Loc recordedNextMove;
 
   //Starts with STATUS_IN_QUEUE.
   //Thread that grabs it from queue it changes it to STATUS_POPPED
@@ -100,6 +105,25 @@ struct AnalyzeRequest {
   static constexpr int STATUS_TERMINATED = -3;
   std::atomic<int> status;
 };
+
+// getOwnershipDeltaProductThresholds는 development 동결 전 제품 출력을 비활성으로 유지한다.
+// 매개변수는 없으며, threshold가 동결되기 전에는 빈 optional을 반환한다.
+static optional<GoPattern::OwnershipDeltaThresholds> getOwnershipDeltaProductThresholds() {
+  return nullopt;
+}
+
+// makeOwnershipDeltaField는 search typed ownership을 검출기 고정 흑 관점 입력으로 변환한다.
+// source는 search 값 타입이며, 반환값은 모든 원 보드 교차점이 유효한 ownership field다.
+static GoPattern::OwnershipField makeOwnershipDeltaField(const TreeOwnershipData& source) {
+  return GoPattern::OwnershipField{
+    source.xSize,
+    source.ySize,
+    source.perspective,
+    source.mean,
+    source.pointStdDev,
+    vector<bool>(source.mean.size(),true),
+  };
+}
 
 
 int MainCmds::analysis(const vector<string>& args) {
@@ -382,7 +406,42 @@ int MainCmds::analysis(const vector<string>& args) {
     if(success && request->includePatterns && !isDuringSearch) {
       ret["patterns"] = json::array();
       try {
-        GoPattern::DetectionResult result = GoPattern::detect(request->board,request->hist);
+        vector<GoPattern::Pattern> movePatterns;
+        if(
+          request->ownershipDeltaThresholds.has_value() &&
+          request->ownershipDeltaEligibility == GoPattern::OwnershipDeltaEligibility::ELIGIBLE
+        ) {
+          RootChildTreeOwnershipData ownership;
+          const bool found = search->getRootChildTreeOwnership(
+            request->recordedNextMove,
+            P_BLACK,
+            ownership
+          );
+          if(!found || ownership.edgeVisits < GoPattern::OWNERSHIP_DELTA_MIN_EDGE_VISITS) {
+            reportWarningForId(
+              request->id,
+              "patterns",
+              "OwnershipDelta suppressed because recorded child ownership or 30 edge visits were unavailable"
+            );
+          }
+          else {
+            GoPattern::OwnershipDeltaInput input{
+              makeOwnershipDeltaField(ownership.root),
+              makeOwnershipDeltaField(ownership.child),
+              request->recordedNextMove,
+            };
+            movePatterns = GoPattern::detectOwnershipDelta(
+              request->board,
+              input,
+              request->ownershipDeltaThresholds.value()
+            );
+          }
+        }
+        GoPattern::DetectionResult result = GoPattern::detect(
+          request->board,
+          request->hist,
+          movePatterns
+        );
         for(const GoPattern::Pattern& pattern: result.patterns)
           ret["patterns"].push_back(GoPattern::toJson(pattern,request->board));
         for(const string& warning: result.warnings)
@@ -820,6 +879,7 @@ int MainCmds::analysis(const vector<string>& args) {
       rbase.includeMovesWhite.clear();
       rbase.includeMovesPerTurn.clear();
       rbase.includeAllMoves = false;
+      rbase.ownershipDeltaThresholds = getOwnershipDeltaProductThresholds();
 
       auto parseInteger = [&rbase,&reportErrorForId](const json& dict, const char* field, int64_t& buf, int64_t min, int64_t max, const char* errorMessage) {
         try {
@@ -1483,6 +1543,7 @@ int MainCmds::analysis(const vector<string>& args) {
           newRequest->includeMovesBlack.clear();
           newRequest->includeMovesWhite.clear();
           newRequest->includeAllMoves = rbase.includeAllMoves;
+          newRequest->ownershipDeltaThresholds = rbase.ownershipDeltaThresholds;
           auto includeMovesIt = rbase.includeMovesPerTurn.find(turnNumber);
           if(includeMovesIt != rbase.includeMovesPerTurn.end()) {
             for(const IncludeMoveEntry& entry: includeMovesIt->second) {
@@ -1499,6 +1560,44 @@ int MainCmds::analysis(const vector<string>& args) {
               }
               vector<Loc>& includeMoves = nextPla == P_BLACK ? newRequest->includeMovesBlack : newRequest->includeMovesWhite;
               appendUniqueLocs(includeMoves, entry.moves);
+            }
+          }
+          newRequest->ownershipDeltaEligibility =
+            GoPattern::OwnershipDeltaEligibility::PATTERNS_DISABLED;
+          newRequest->recordedNextMove = Board::NULL_LOC;
+          if(newRequest->ownershipDeltaThresholds.has_value()) {
+            const bool hasRecordedMove = turnNumber < moveHistory.size();
+            const Move recordedMove = hasRecordedMove
+              ? moveHistory[turnNumber]
+              : Move(Board::NULL_LOC,C_EMPTY);
+            vector<Loc>& includeMoves = nextPla == P_BLACK
+              ? newRequest->includeMovesBlack
+              : newRequest->includeMovesWhite;
+            GoPattern::OwnershipDeltaRequestPlan ownershipDeltaPlan =
+              GoPattern::planRecordedMoveOwnershipDelta(
+                newRequest->includePatterns,
+                true,
+                newRequest->hist.isGameFinished,
+                newRequest->includeAllMoves,
+                nextPla,
+                hasRecordedMove,
+                hasRecordedMove && recordedMove.loc != Board::PASS_LOC,
+                recordedMove,
+                includeMoves,
+                newRequest->params.includeMovesMinVisits
+              );
+            newRequest->ownershipDeltaEligibility = ownershipDeltaPlan.eligibility;
+            newRequest->recordedNextMove = hasRecordedMove ? recordedMove.loc : Board::NULL_LOC;
+            if(ownershipDeltaPlan.eligibility == GoPattern::OwnershipDeltaEligibility::ELIGIBLE) {
+              includeMoves = std::move(ownershipDeltaPlan.includeMoves);
+              newRequest->params.includeMovesMinVisits = ownershipDeltaPlan.includeMovesMinVisits;
+            }
+            if(!ownershipDeltaPlan.warning.empty()) {
+              reportWarningForId(
+                rbase.id,
+                "includeMoves",
+                ownershipDeltaPlan.warning
+              );
             }
           }
           newRequest->status.store(AnalyzeRequest::STATUS_IN_QUEUE,std::memory_order_release);

@@ -16,6 +16,7 @@ enum class Kind {
   LADDER,
   NAKADE,
   SEMEAI,
+  OWNERSHIP_DELTA,
 };
 
 // SubjectType은 Pattern 공통 봉투가 지원하는 보드 대상 종류다.
@@ -32,6 +33,7 @@ enum class Outcome {
   AMBIGUOUS,
   ATTACKER_CAN_REDUCE_TO_ONE_EYE,
   UNSETTLED,
+  CHANGED,
 };
 
 // Confidence는 검출 근거의 강도를 나타내는 공통 등급이다.
@@ -98,12 +100,23 @@ struct SemeaiDetails {
   int sharedLibertyCount;
 };
 
+// OwnershipDeltaDetails는 기록 수 전후 예측 ownership 변화의 공개 v1 근거다.
+struct OwnershipDeltaDetails {
+  Loc move;
+  int affectedPointCount;
+  double meanRootOwnership;
+  double meanChildOwnership;
+  double meanDelta;
+  double uncertainty;
+};
+
 // PatternDetails는 구현·게이트가 확정된 Kind의 typed details만 포함한다.
 using PatternDetails = std::variant<
   BensonAliveDetails,
   LadderDetails,
   NakadeDetails,
-  SemeaiDetails
+  SemeaiDetails,
+  OwnershipDeltaDetails
 >;
 
 // Pattern은 Kind와 독립적인 공통 봉투와 Kind별 typed details를 함께 보존한다.
