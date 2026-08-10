@@ -533,8 +533,7 @@ int MainCmds::analysis(const vector<string>& args) {
             request->includeOwnership ||
             request->includeOwnershipStdev ||
             request->includeMovesOwnership ||
-            request->includeMovesOwnershipStdev ||
-            (request->includePatterns && !request->patternsSuppressedByRulesSubstitution)
+            request->includeMovesOwnershipStdev
           );
           bot->setParams(request->params);
           bot->setAvoidMoveUntilByLoc(request->avoidMoveUntilByLocBlack,request->avoidMoveUntilByLocWhite);
@@ -1603,6 +1602,8 @@ int MainCmds::analysis(const vector<string>& args) {
   logger.write("NN rows: " + Global::int64ToString(nnEval->numRowsProcessed()));
   logger.write("NN batches: " + Global::int64ToString(nnEval->numBatchesProcessed()));
   logger.write("NN avg batch size: " + Global::doubleToString(nnEval->averageProcessedBatchSize()));
+  if(logSearchInfo)
+    logger.write("NN owner map rows: " + Global::uint64ToString(nnEval->numOwnerMapRowsRequested()));
   if(humanEval != NULL) {
     logger.write(humanEval->getModelFileName());
     logger.write("NN rows: " + Global::int64ToString(humanEval->numRowsProcessed()));

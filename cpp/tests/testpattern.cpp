@@ -1,19 +1,26 @@
 #include "../tests/tests.h"
 #include "../pattern/detector.h"
+#include "../pattern/benson.h"
 #include "../pattern/eye.h"
 #include "../pattern/eyefacts.h"
+#include "../pattern/ladder.h"
+#include "../pattern/nakade.h"
 #include "../pattern/semeai.h"
 #include "../core/rand.h"
 #include "../core/sha2.h"
+#include "patternoracle/bensonoracle.h"
 
 #include <algorithm>
 #include <chrono>
 #include <iterator>
+#include <map>
 #include <set>
 #include <sstream>
 
 using namespace std;
 using json = nlohmann::json;
+
+static string sha256String(const string& input);
 
 // findKind는 검출 결과에서 지정 Kind의 첫 패턴을 찾는다.
 // patterns는 검색할 목록이고 kind는 대상 Kind enum이며, 반환값은 없으면 nullptr이다.
@@ -25,83 +32,235 @@ static const GoPattern::Pattern* findKind(const vector<GoPattern::Pattern>& patt
   return nullptr;
 }
 
-// chainHasPattern은 지정 chain을 subject로 하는 BensonAlive 결과가 있는지 검사한다.
-// patterns는 검출 결과, board는 좌표계, loc은 대상 chain의 한 돌이며, 반환값은 패턴 존재 여부다.
-static bool chainHasPattern(const vector<GoPattern::Pattern>& patterns, const Board& board, Loc loc) {
-  const Player color = board.colors[loc];
-  for(const GoPattern::Pattern& pattern: patterns) {
-    if(pattern.kind != GoPattern::Kind::BENSON_ALIVE || pattern.subject.color != color)
-      continue;
-    for(Loc point: pattern.subject.points) {
-      if(board.chain_head[point] == board.chain_head[loc])
-        return true;
-    }
+// joinBensonStrings는 Benson 검증 문자열 목록을 지정 구분자로 연결한다.
+static string joinBensonStrings(const vector<string>& values, const string& delimiter) {
+  ostringstream out;
+  for(size_t index = 0; index < values.size(); index++) {
+    if(index > 0)
+      out << delimiter;
+    out << values[index];
   }
-  return false;
+  return out.str();
 }
 
-// checkBensonAgainstKataGoArea는 독립 certificate 결과를 KataGo pass-alive 돌 판정과 전수 대조한다.
-// board는 비교할 합법 상태이고 suicideLegal은 pass-alive 자살 규칙이며, 반환값은 없다.
-static void checkBensonAgainstKataGoArea(const Board& board, bool suicideLegal) {
+// rawBensonGrid는 Board의 색만 행 우선 0/1/2 격자로 복사한다.
+static vector<int> rawBensonGrid(const Board& board) {
+  vector<int> colors;
+  colors.reserve(board.x_size*board.y_size);
+  for(int y = 0; y < board.y_size; y++) {
+    for(int x = 0; x < board.x_size; x++) {
+      const Color color = board.colors[Location::getLoc(x,y,board.x_size)];
+      colors.push_back(color == P_BLACK ? 1 : (color == P_WHITE ? 2 : 0));
+    }
+  }
+  return colors;
+}
+
+// productBensonChainKey는 제품 subject chain을 raw oracle chain key로 정규화한다.
+static string productBensonChainKey(const GoPattern::Pattern& pattern, const Board& board) {
+  vector<int> points;
+  for(Loc point: pattern.subject.points) {
+    const int x = Location::getX(point,board.x_size);
+    const int y = Location::getY(point,board.x_size);
+    points.push_back(y*board.x_size+x);
+  }
+  sort(points.begin(),points.end());
+  ostringstream out;
+  out << (pattern.subject.color == P_BLACK ? 1 : 2) << ":";
+  for(size_t index = 0; index < points.size(); index++) {
+    if(index > 0)
+      out << ",";
+    out << points[index];
+  }
+  return out.str();
+}
+
+// productBensonPatternKey는 제품 BensonAlive v2를 raw oracle과 같은 공개 결정 문자열로 바꾼다.
+static string productBensonPatternKey(const GoPattern::Pattern& pattern, const Board& board) {
+  testAssert(pattern.kind == GoPattern::Kind::BENSON_ALIVE);
+  testAssert(pattern.schemaVersion == 2);
+  testAssert(pattern.subject.type == GoPattern::SubjectType::CHAIN);
+  testAssert(pattern.outcome == GoPattern::Outcome::ALIVE);
+  testAssert(pattern.confidence == GoPattern::Confidence::PROVEN);
+  const string color = pattern.subject.color == P_BLACK ? "B" : "W";
+  vector<string> chainPoints;
+  for(Loc point: pattern.subject.points)
+    chainPoints.push_back(Location::toString(point,board));
+  sort(chainPoints.begin(),chainPoints.end());
+  chainPoints.erase(unique(chainPoints.begin(),chainPoints.end()),chainPoints.end());
+  const GoPattern::BensonAliveDetails& details =
+    get<GoPattern::BensonAliveDetails>(pattern.details);
+  testAssert(details.eyeCount == static_cast<int>(details.vitalRegions.size()));
+  vector<string> regionKeys;
+  for(const GoPattern::BensonVitalRegion& region: details.vitalRegions) {
+    vector<string> points;
+    for(Loc point: region.points)
+      points.push_back(Location::toString(point,board));
+    sort(points.begin(),points.end());
+    points.erase(unique(points.begin(),points.end()),points.end());
+    testAssert(!points.empty());
+    regionKeys.push_back(region.id + "=" + joinBensonStrings(points,","));
+  }
+  sort(regionKeys.begin(),regionKeys.end());
+  ostringstream out;
+  out
+    << "bensonAlive|2|chain|" << color
+    << "|" << pattern.subject.id
+    << "|" << joinBensonStrings(chainPoints,",")
+    << "|alive|proven|" << details.eyeCount
+    << "|" << joinBensonStrings(regionKeys,";");
+  return out.str();
+}
+
+// checkBensonAgainstRawOracle은 제품 BensonAlive를 독립 raw-grid 고정점과 chain 단위로 대조한다.
+static void checkBensonAgainstRawOracle(const Board& board, bool suicideLegal) {
+  const TestPatternOracle::BensonResult oracle = TestPatternOracle::evaluateBenson(
+    rawBensonGrid(board),board.x_size,board.y_size,suicideLegal
+  );
   Rules rules = Rules::getTrompTaylorish();
   rules.multiStoneSuicideLegal = suicideLegal;
   BoardHistory hist(board,P_BLACK,rules,0,false);
-  GoPattern::DetectionResult result = GoPattern::detect(board,hist);
+  const vector<GoPattern::Pattern> patterns = GoPattern::detectBensonAlive(board,hist);
+  map<string,const GoPattern::Pattern*> actualByChain;
+  for(const GoPattern::Pattern& pattern: patterns) {
+    const string key = productBensonChainKey(pattern,board);
+    testAssert(actualByChain.find(key) == actualByChain.end());
+    actualByChain[key] = &pattern;
+  }
 
-  Color area[Board::MAX_ARR_SIZE];
-  board.calculateArea(area,false,false,false,hist.suicideLegalForPassAlive());
-  for(int y = 0; y < board.y_size; y++) {
-    for(int x = 0; x < board.x_size; x++) {
-      Loc loc = Location::getLoc(x,y,board.x_size);
-      if(board.colors[loc] != P_BLACK && board.colors[loc] != P_WHITE)
-        continue;
-      const bool expected = area[loc] == board.colors[loc];
-      testAssert(chainHasPattern(result.patterns,board,loc) == expected);
+  int expectedAlive = 0;
+  for(const TestPatternOracle::BensonChain& chain: oracle.chains) {
+    const string key = TestPatternOracle::chainKey(chain);
+    const auto actual = actualByChain.find(key);
+    testAssert((actual != actualByChain.end()) == chain.alive);
+    if(chain.alive) {
+      expectedAlive += 1;
+      testAssert(
+        productBensonPatternKey(*actual->second,board) ==
+        TestPatternOracle::canonicalPatternKey(chain,board.x_size,board.y_size)
+      );
     }
   }
+  testAssert(static_cast<int>(patterns.size()) == expectedAlive);
 }
 
-// runSmallBoardExhaustiveBensonTest는 2×2와 3×3의 모든 무활로 chain 없는 상태를 대조한다.
-// 각 상태는 자살 금지·허용 pass-alive 규칙으로 각각 검사하며, 반환값은 없다.
+// runSmallBoardExhaustiveBensonTest는 2×2~3×3 정사각·비정사각 상태를 chain 단위로 대조한다.
+// 반환값은 없으며 상태 fingerprint와 oracle/product digest를 결정적으로 출력한다.
 static void runSmallBoardExhaustiveBensonTest() {
-  for(int boardSize = 2; boardSize <= 3; boardSize++) {
+  const vector<pair<int,int>> sizes = {{2,2},{2,3},{3,2},{3,3}};
+  ostringstream stateStream;
+  ostringstream oracleStream;
+  ostringstream productStream;
+  stateStream << "seed=ternary-little-endian-v1\n";
+  oracleStream << "seed=ternary-little-endian-v1\n";
+  productStream << "seed=ternary-little-endian-v1\n";
+  int validatedStates = 0;
+  int validatedPropertyCases = 0;
+  int propertyMismatches = 0;
+  int aliveCases = 0;
+  int notAliveCases = 0;
+
+  for(const pair<int,int>& size: sizes) {
+    const int width = size.first;
+    const int height = size.second;
     int stateCount = 1;
-    for(int i = 0; i < boardSize * boardSize; i++)
+    for(int i = 0; i < width*height; i++)
       stateCount *= 3;
 
     for(int state = 0; state < stateCount; state++) {
-      Board board(boardSize,boardSize);
+      vector<int> colors(width*height,0);
       int remaining = state;
-      for(int y = 0; y < boardSize; y++) {
-        for(int x = 0; x < boardSize; x++) {
-          Loc loc = Location::getLoc(x,y,board.x_size);
-          const int value = remaining % 3;
-          remaining /= 3;
-          board.colors[loc] = value == 0 ? C_EMPTY : (value == 1 ? P_BLACK : P_WHITE);
-        }
+      for(int point = 0; point < width*height; point++) {
+        colors[point] = remaining % 3;
+        remaining /= 3;
+      }
+      if(TestPatternOracle::hasZeroLibertyChain(colors,width,height))
+        continue;
+
+      validatedStates += 1;
+      stateStream << width << "x" << height << "|" << state << "|";
+      for(int color: colors)
+        stateStream << color;
+      stateStream << "\n";
+
+      Board board(width,height);
+      for(int point = 0; point < width*height; point++) {
+        const int x = point % width;
+        const int y = point / width;
+        board.colors[Location::getLoc(x,y,width)] = colors[point] == 0 ? C_EMPTY :
+          (colors[point] == 1 ? P_BLACK : P_WHITE);
       }
       board.regenChainsFromColors();
 
-      bool hasZeroLibertyChain = false;
-      for(int y = 0; y < boardSize && !hasZeroLibertyChain; y++) {
-        for(int x = 0; x < boardSize; x++) {
-          Loc loc = Location::getLoc(x,y,board.x_size);
-          if(
-            (board.colors[loc] == P_BLACK || board.colors[loc] == P_WHITE) &&
-            board.getNumLiberties(loc) == 0
-          ) {
-            hasZeroLibertyChain = true;
-            break;
-          }
-        }
-      }
-      if(hasZeroLibertyChain)
-        continue;
+      for(int suicideMode = 0; suicideMode < 2; suicideMode++) {
+        const TestPatternOracle::BensonResult oracle = TestPatternOracle::evaluateBenson(
+          colors,width,height,suicideMode == 1
+        );
+        Rules rules = Rules::getTrompTaylorish();
+        rules.multiStoneSuicideLegal = suicideMode == 1;
+        BoardHistory hist(board,P_BLACK,rules,0,false);
+        const vector<GoPattern::Pattern> patterns = GoPattern::detectBensonAlive(board,hist);
+        map<string,bool> productAlive;
+        for(const GoPattern::Pattern& pattern: patterns)
+          productAlive[productBensonChainKey(pattern,board)] = true;
 
-      checkBensonAgainstKataGoArea(board,false);
-      checkBensonAgainstKataGoArea(board,true);
+        int matchedProductPatterns = 0;
+        for(const TestPatternOracle::BensonChain& chain: oracle.chains) {
+          const string chainKey = TestPatternOracle::chainKey(chain);
+          const bool actualAlive = productAlive.find(chainKey) != productAlive.end();
+          ostringstream chainPoints;
+          for(size_t pointIndex = 0; pointIndex < chain.points.size(); pointIndex++) {
+            if(pointIndex > 0)
+              chainPoints << ",";
+            chainPoints << chain.points[pointIndex];
+          }
+          const string prefix = Global::strprintf(
+            "%dx%d|state=%d|suicide=%d|color=%d|chain=%s|",
+            width,height,state,suicideMode,chain.color,chainPoints.str().c_str()
+          );
+          oracleStream << prefix << (chain.alive ? 1 : 0) << "\n";
+          productStream << prefix << (actualAlive ? 1 : 0) << "\n";
+          validatedPropertyCases += 1;
+          if(chain.alive)
+            aliveCases += 1;
+          else
+            notAliveCases += 1;
+          if(actualAlive)
+            matchedProductPatterns += 1;
+          if(actualAlive != chain.alive)
+            propertyMismatches += 1;
+        }
+        propertyMismatches +=
+          static_cast<int>(patterns.size()) - matchedProductPatterns;
+      }
     }
   }
+
+  const string stateFingerprint = sha256String(stateStream.str());
+  const string oracleDigest = sha256String(oracleStream.str());
+  const string productDigest = sha256String(productStream.str());
+  cout << "BENSON_RAW_ORACLE " << json{
+    {"aliveCases", aliveCases},
+    {"notAliveCases", notAliveCases},
+    {"oracleDigest", oracleDigest},
+    {"productDigest", productDigest},
+    {"propertyMismatches", propertyMismatches},
+    {"stateFingerprint", stateFingerprint},
+    {"validatedPropertyCases", validatedPropertyCases},
+    {"validatedStates", validatedStates},
+  }.dump() << endl;
+  testAssert(validatedStates == 13710);
+  testAssert(validatedPropertyCases == 82700);
+  testAssert(aliveCases == 4056);
+  testAssert(notAliveCases == 78644);
+  testAssert(propertyMismatches == 0);
+  testAssert(
+    stateFingerprint == "31a09396d3f0a9280dfd97e8c1b72c4c5a7fc3c8c26a5918c5654c02d71944b2"
+  );
+  testAssert(
+    oracleDigest == "6533f9e89e7c9aa1da68e4c7467421630d375d1521f42916de8d009104a74e1a"
+  );
+  testAssert(productDigest == oracleDigest);
 }
 
 // runEyePointFactsTest는 단일점 눈의 공개 출력 없이 내부 Board 사실만 추출하는지 검증한다.
@@ -1852,7 +2011,8 @@ static LadderOracleStatus solveLadderOracle(
   Player defender,
   bool defenderTurn,
   int remainingDepth,
-  vector<Hash128>& path
+  vector<Hash128>& path,
+  bool* sawTacticalCapture = nullptr
 ) {
   if(board.colors[anchor] != defender)
     return LadderOracleStatus::CAPTURED;
@@ -1872,9 +2032,14 @@ static LadderOracleStatus solveLadderOracle(
     return LadderOracleStatus::UNKNOWN;
   path.push_back(situation);
 
+  const vector<Loc> libertyMoves = oracleChainLiberties(board,anchor);
   vector<Loc> moves = defenderTurn ?
-    oracleDefenderMoves(board,anchor,defender) :
-    oracleChainLiberties(board,anchor);
+    oracleDefenderMoves(board,anchor,defender) : libertyMoves;
+  if(
+    defenderTurn && sawTacticalCapture != nullptr &&
+    moves.size() != libertyMoves.size()
+  )
+    *sawTacticalCapture = true;
   bool foundLegalMove = false;
   bool foundUnknown = false;
   for(Loc move: moves) {
@@ -1892,7 +2057,8 @@ static LadderOracleStatus solveLadderOracle(
       defender,
       !defenderTurn,
       remainingDepth - 1,
-      path
+      path,
+      sawTacticalCapture
     );
     if(defenderTurn && childStatus == LadderOracleStatus::ESCAPED) {
       path.pop_back();
@@ -2084,7 +2250,7 @@ static int runSquareBoardPropertyTest() {
         Board board;
         int targetMoves = static_cast<int>(rand.nextUInt(static_cast<uint32_t>(area * 2 + 1)));
         randomLegalPosition(board,boardSize,boardSize,suicideMode == 1,targetMoves,rand);
-        checkBensonAgainstKataGoArea(board,suicideMode == 1);
+        checkBensonAgainstRawOracle(board,suicideMode == 1);
         checkedStates += 1;
       }
     }
@@ -2111,7 +2277,7 @@ static pair<int,int> runNonSquarePropertyTest() {
     rules.multiStoneSuicideLegal = suicideLegal;
     Player nextPla = P_BLACK;
     BoardHistory hist(board,nextPla,rules,0,false);
-    checkBensonAgainstKataGoArea(board,suicideLegal);
+    checkBensonAgainstRawOracle(board,suicideLegal);
     checkedStates += 1;
 
     const int targetMoves = xSize * ySize;
@@ -2120,11 +2286,11 @@ static pair<int,int> runNonSquarePropertyTest() {
       if(!playRandomLegalMove(board,hist,nextPla,rand))
         break;
       if((moveIndex + 1) % sampleInterval == 0) {
-        checkBensonAgainstKataGoArea(board,suicideLegal);
+        checkBensonAgainstRawOracle(board,suicideLegal);
         checkedStates += 1;
       }
     }
-    checkBensonAgainstKataGoArea(board,suicideLegal);
+    checkBensonAgainstRawOracle(board,suicideLegal);
     checkedStates += 1;
     checkedGames += 1;
   }
@@ -2181,19 +2347,24 @@ static Board transformedBoard(const Board& source, int symmetry, bool swapColors
   return transformed;
 }
 
-// areaDiffersBySuicide는 pass-alive 결과가 multi-stone suicide 모드에 실제로 민감한지 검사한다.
+// areaDiffersBySuicide는 raw Benson 결과가 multi-stone suicide 모드에 민감한지 검사한다.
 // board는 대상 상태이며, 반환값은 한 점이라도 두 모드의 결과가 다르면 true다.
 static bool areaDiffersBySuicide(const Board& board) {
-  Color suicideIllegal[Board::MAX_ARR_SIZE];
-  Color suicideLegal[Board::MAX_ARR_SIZE];
-  board.calculateArea(suicideIllegal,false,false,false,false);
-  board.calculateArea(suicideLegal,false,false,false,true);
-  for(int y = 0; y < board.y_size; y++) {
-    for(int x = 0; x < board.x_size; x++) {
-      Loc loc = Location::getLoc(x,y,board.x_size);
-      if(suicideIllegal[loc] != suicideLegal[loc])
-        return true;
-    }
+  const vector<int> colors = rawBensonGrid(board);
+  const TestPatternOracle::BensonResult illegal = TestPatternOracle::evaluateBenson(
+    colors,board.x_size,board.y_size,false
+  );
+  const TestPatternOracle::BensonResult legal = TestPatternOracle::evaluateBenson(
+    colors,board.x_size,board.y_size,true
+  );
+  testAssert(illegal.chains.size() == legal.chains.size());
+  for(size_t index = 0; index < illegal.chains.size(); index++) {
+    testAssert(
+      TestPatternOracle::chainKey(illegal.chains[index]) ==
+      TestPatternOracle::chainKey(legal.chains[index])
+    );
+    if(illegal.chains[index].alive != legal.chains[index].alive)
+      return true;
   }
   return false;
 }
@@ -2242,8 +2413,8 @@ oox.
 
   testAssert(fixtures.size() >= 30);
   for(int i = 0; i < 30; i++) {
-    checkBensonAgainstKataGoArea(fixtures[i],false);
-    checkBensonAgainstKataGoArea(fixtures[i],true);
+    checkBensonAgainstRawOracle(fixtures[i],false);
+    checkBensonAgainstRawOracle(fixtures[i],true);
   }
   return 30;
 }
@@ -2276,8 +2447,8 @@ o.xoo.x
   for(size_t progression = 0; progression <= fillMoves.size(); progression++) {
     for(int symmetry = 0; symmetry < 8; symmetry++) {
       Board transformed = transformedBoard(board,symmetry,false);
-      checkBensonAgainstKataGoArea(transformed,false);
-      checkBensonAgainstKataGoArea(transformed,true);
+      checkBensonAgainstRawOracle(transformed,false);
+      checkBensonAgainstRawOracle(transformed,true);
       checkedFixtures += 1;
     }
     if(progression < fillMoves.size()) {
@@ -2927,6 +3098,685 @@ static void runPatternRareHistoryBoundaryTest() {
   );
 }
 
+// PatternGoldenCase는 독립 기대 정규형과 제품 정규형의 고정 증거 한 건이다.
+struct PatternGoldenCase {
+  string caseId;
+  string kind;
+  string stratum;
+  string positionHash;
+  string expectedCanonical;
+  string productCanonical;
+};
+
+// canonicalGoldenKeys는 패턴 정규형 목록을 사전순으로 고정한다.
+static string canonicalGoldenKeys(vector<string> keys) {
+  sort(keys.begin(),keys.end());
+  return "[" + joinBensonStrings(keys,"#") + "]";
+}
+
+// goldenPositionHash는 원 판·차례·자살 모드만으로 PII 없는 위치 hash를 만든다.
+static string goldenPositionHash(
+  const Board& board,
+  Player nextPlayer,
+  bool suicideLegal
+) {
+  ostringstream out;
+  out << board.x_size << "x" << board.y_size << "|";
+  for(int color: rawBensonGrid(board))
+    out << color;
+  out << "|next=" << (nextPlayer == P_BLACK ? "B" : "W")
+      << "|suicide=" << (suicideLegal ? 1 : 0)
+      << "|ko=" << board.ko_loc;
+  return sha256String(out.str());
+}
+
+// goldenCaseId는 Kind·stratum 안에서 1부터 시작하는 고정 ID를 만든다.
+static string goldenCaseId(
+  const string& kind,
+  const string& stratum,
+  int index
+) {
+  return Global::strprintf(
+    "golden-v1-%s-%s-%03d",
+    kind.c_str(),stratum.c_str(),index
+  );
+}
+
+// boardFromRawGrid는 0/1/2 격자를 제품 Board로 복사하고 chain을 재생성한다.
+static Board boardFromRawGrid(const vector<int>& colors, int width, int height) {
+  Board board(width,height);
+  for(int point = 0; point < width*height; point++) {
+    const int x = point % width;
+    const int y = point / width;
+    board.colors[Location::getLoc(x,y,width)] = colors[point] == 0 ? C_EMPTY :
+      (colors[point] == 1 ? P_BLACK : P_WHITE);
+  }
+  board.regenChainsFromColors();
+  return board;
+}
+
+// addGoldenCase는 입력과 두 독립 정규형을 golden catalog에 추가한다.
+static void addGoldenCase(
+  vector<PatternGoldenCase>& cases,
+  const string& kind,
+  const string& stratum,
+  int index,
+  const Board& board,
+  Player nextPlayer,
+  bool suicideLegal,
+  const string& expectedCanonical,
+  const string& productCanonical
+) {
+  cases.push_back(PatternGoldenCase{
+    goldenCaseId(kind,stratum,index),
+    kind,
+    stratum,
+    goldenPositionHash(board,nextPlayer,suicideLegal),
+    expectedCanonical,
+    productCanonical,
+  });
+}
+
+// oracleBensonKeys는 raw-grid BensonAlive v2 정규형 전체를 반환한다.
+static vector<string> oracleBensonKeys(
+  const Board& board,
+  bool suicideLegal
+) {
+  const TestPatternOracle::BensonResult result = TestPatternOracle::evaluateBenson(
+    rawBensonGrid(board),board.x_size,board.y_size,suicideLegal
+  );
+  vector<string> keys;
+  for(const TestPatternOracle::BensonChain& chain: result.chains) {
+    if(chain.alive) {
+      keys.push_back(TestPatternOracle::canonicalPatternKey(
+        chain,board.x_size,board.y_size
+      ));
+    }
+  }
+  return keys;
+}
+
+// productBensonKeys는 제품 BensonAlive v2 전체를 oracle 정규형으로 변환한다.
+static vector<string> productBensonKeys(
+  const Board& board,
+  Player nextPlayer,
+  bool suicideLegal
+) {
+  Rules rules = Rules::getTrompTaylorish();
+  rules.multiStoneSuicideLegal = suicideLegal;
+  BoardHistory hist(board,nextPlayer,rules,0,false);
+  vector<string> keys;
+  for(const GoPattern::Pattern& pattern: GoPattern::detectBensonAlive(board,hist))
+    keys.push_back(productBensonPatternKey(pattern,board));
+  return keys;
+}
+
+// appendBensonGoldenCases는 두 독립 눈 영역/단일 영역을 15건씩 만든다.
+static void appendBensonGoldenCases(vector<PatternGoldenCase>& cases) {
+  for(int index = 0; index < 15; index++) {
+    const int width = 5+index;
+    const int color = index % 2 == 0 ? 1 : 2;
+    const bool suicideLegal = index % 2 == 1;
+    for(int positiveMode = 0; positiveMode < 2; positiveMode++) {
+      vector<int> colors(width*3,0);
+      for(int x = 0; x < width; x++) {
+        colors[x] = color;
+        colors[2*width+x] = color;
+      }
+      colors[width] = color;
+      colors[2*width-1] = color;
+      if(positiveMode == 1)
+        colors[width+2] = color;
+      Board board = boardFromRawGrid(colors,width,3);
+      const Player nextPlayer = color == 1 ? P_WHITE : P_BLACK;
+      const string expected = canonicalGoldenKeys(
+        oracleBensonKeys(board,suicideLegal)
+      );
+      const string product = canonicalGoldenKeys(
+        productBensonKeys(board,nextPlayer,suicideLegal)
+      );
+      if(positiveMode == 1) {
+        testAssert(expected != "[]");
+        addGoldenCase(
+          cases,"bensonAlive","positive",index+1,board,nextPlayer,
+          suicideLegal,expected,product
+        );
+      }
+      else {
+        testAssert(expected == "[]");
+        addGoldenCase(
+          cases,"bensonAlive","negativeBoundary",index+1,board,nextPlayer,
+          suicideLegal,expected,product
+        );
+      }
+    }
+  }
+}
+
+// appendEyeGoldenCases는 raw-grid 즉시 포획 Eye의 첫 양성·음성 15건을 고정한다.
+static void appendEyeGoldenCases(vector<PatternGoldenCase>& cases) {
+  int positives = 0;
+  int negatives = 0;
+  const vector<pair<int,int>> sizes = {{2,2},{2,3},{3,2},{3,3}};
+  for(const pair<int,int>& size: sizes) {
+    int stateCount = 1;
+    for(int point = 0; point < size.first*size.second; point++)
+      stateCount *= 3;
+    for(int state = 0; state < stateCount; state++) {
+      vector<int> colors(size.first*size.second,0);
+      int remaining = state;
+      for(int point = 0; point < static_cast<int>(colors.size()); point++) {
+        colors[point] = remaining % 3;
+        remaining /= 3;
+      }
+      bool zeroLiberty = false;
+      for(const RawEyeChain& chain: rawEyeChains(colors,size.first,size.second)) {
+        if(chain.liberties.empty()) {
+          zeroLiberty = true;
+          break;
+        }
+      }
+      if(zeroLiberty)
+        continue;
+      for(int attacker: {1,2}) {
+        vector<string> expectedKeys;
+        for(int point = 0; point < static_cast<int>(colors.size()); point++) {
+          RawEyePattern candidate;
+          if(rawEyePattern(
+            colors,size.first,size.second,point,attacker,candidate
+          )) {
+            expectedKeys.push_back(rawEyePatternKey(
+              candidate,size.first,size.second
+            ));
+          }
+        }
+        const bool positive = !expectedKeys.empty();
+        if((positive && positives >= 15) || (!positive && negatives >= 15))
+          continue;
+        Board board = boardFromRawGrid(colors,size.first,size.second);
+        const Player nextPlayer = attacker == 1 ? P_BLACK : P_WHITE;
+        BoardHistory hist(board,nextPlayer,Rules::getSimpleTerritory(),0,false);
+        vector<string> productKeys;
+        for(const GoPattern::Pattern& pattern: GoPattern::detectEyes(board,hist))
+          productKeys.push_back(productEyePatternKey(pattern,board));
+        if(positive) {
+          positives += 1;
+          addGoldenCase(
+            cases,"eye","positive",positives,board,nextPlayer,false,
+            canonicalGoldenKeys(expectedKeys),canonicalGoldenKeys(productKeys)
+          );
+        }
+        else {
+          negatives += 1;
+          addGoldenCase(
+            cases,"eye","negativeBoundary",negatives,board,nextPlayer,false,
+            canonicalGoldenKeys(expectedKeys),canonicalGoldenKeys(productKeys)
+          );
+        }
+      }
+      if(positives == 15 && negatives == 15)
+        return;
+    }
+  }
+  testAssert(positives == 15 && negatives == 15);
+}
+
+// canonicalSemeaiOracleKeys는 독립 격자 Semeai 결과를 공개 정규형으로 만든다.
+static vector<string> canonicalSemeaiOracleKeys(
+  const Board& board,
+  Player nextPlayer
+) {
+  vector<string> keys;
+  for(const OracleSemeaiPattern& pattern: oracleSemeaiPatterns(board,nextPlayer)) {
+    keys.push_back("semeai|1|" + semeaiPatternKey(
+      pattern.subjectId,
+      pattern.sharedPoints,
+      pattern.currentPlayerSubjectId,
+      pattern.opponentSubjectId,
+      pattern.currentOutside,
+      pattern.opponentOutside
+    ) + "|unsettled|medium|sharedLibertyRace");
+  }
+  return keys;
+}
+
+// canonicalSemeaiProductKeys는 제품 Semeai 결과를 같은 공개 정규형으로 만든다.
+static vector<string> canonicalSemeaiProductKeys(
+  const Board& board,
+  Player nextPlayer
+) {
+  BoardHistory hist(board,nextPlayer,Rules::getTrompTaylorish(),0,false);
+  vector<string> keys;
+  for(const GoPattern::Pattern& pattern: GoPattern::detectSemeai(board,hist)) {
+    vector<string> sharedPoints;
+    for(Loc point: pattern.subject.points)
+      sharedPoints.push_back(Location::toString(point,board));
+    sort(sharedPoints.begin(),sharedPoints.end());
+    const GoPattern::SemeaiDetails& details =
+      get<GoPattern::SemeaiDetails>(pattern.details);
+    keys.push_back("semeai|1|" + semeaiPatternKey(
+      pattern.subject.id,
+      sharedPoints,
+      details.currentPlayerSubjectId,
+      details.opponentSubjectId,
+      details.currentPlayerOutsideLibertyCount,
+      details.opponentOutsideLibertyCount
+    ) + "|unsettled|medium|sharedLibertyRace");
+  }
+  return keys;
+}
+
+// appendSemeaiGoldenCases는 독립 2×2~3×3 격자에서 양성·음성 첫 15건을 고정한다.
+static void appendSemeaiGoldenCases(vector<PatternGoldenCase>& cases) {
+  int positives = 0;
+  int negatives = 0;
+  const vector<pair<int,int>> sizes = {{2,2},{2,3},{3,2},{3,3}};
+  for(const pair<int,int>& size: sizes) {
+    int stateCount = 1;
+    for(int point = 0; point < size.first*size.second; point++)
+      stateCount *= 3;
+    for(int state = 0; state < stateCount; state++) {
+      vector<int> colors(size.first*size.second,0);
+      int remaining = state;
+      for(int point = 0; point < static_cast<int>(colors.size()); point++) {
+        colors[point] = remaining % 3;
+        remaining /= 3;
+      }
+      if(TestPatternOracle::hasZeroLibertyChain(colors,size.first,size.second))
+        continue;
+      Board board = boardFromRawGrid(colors,size.first,size.second);
+      for(Player nextPlayer: {P_BLACK,P_WHITE}) {
+        const vector<string> expectedKeys =
+          canonicalSemeaiOracleKeys(board,nextPlayer);
+        const bool positive = !expectedKeys.empty();
+        if((positive && positives >= 15) || (!positive && negatives >= 15))
+          continue;
+        const vector<string> productKeys =
+          canonicalSemeaiProductKeys(board,nextPlayer);
+        if(positive) {
+          positives += 1;
+          addGoldenCase(
+            cases,"semeai","positive",positives,board,nextPlayer,false,
+            canonicalGoldenKeys(expectedKeys),canonicalGoldenKeys(productKeys)
+          );
+        }
+        else {
+          negatives += 1;
+          addGoldenCase(
+            cases,"semeai","negativeBoundary",negatives,board,nextPlayer,false,
+            canonicalGoldenKeys(expectedKeys),canonicalGoldenKeys(productKeys)
+          );
+        }
+      }
+      if(positives == 15 && negatives == 15)
+        return;
+    }
+  }
+  testAssert(positives == 15 && negatives == 15);
+}
+
+// GoldenNakadeSpec은 제품 catalog와 무관하게 동결한 유일 급소 도형 명세다.
+struct GoldenNakadeSpec {
+  string shape;
+  vector<pair<int,int>> points;
+  pair<int,int> vitalPoint;
+};
+
+// goldenNakadeSpecs는 v1 여섯 도형과 급소를 독립 상수로 반환한다.
+static vector<GoldenNakadeSpec> goldenNakadeSpecs() {
+  return {
+    {"straightThree",{{0,0},{1,0},{2,0}},{1,0}},
+    {"bentThree",{{0,0},{0,1},{1,0}},{0,0}},
+    {"pyramidFour",{{0,0},{1,0},{1,1},{2,0}},{1,0}},
+    {"starFive",{{0,1},{1,0},{1,1},{1,2},{2,1}},{1,1}},
+    {"bulkyFive",{{0,0},{0,1},{0,2},{1,0},{1,1}},{0,1}},
+    {"rabbitySix",{{0,1},{1,0},{1,1},{1,2},{2,1},{2,2}},{1,1}},
+  };
+}
+
+// goldenNakadeExpectedKey는 독립 shape spec에서 Nakade v1 공개 정규형을 만든다.
+static string goldenNakadeExpectedKey(
+  const GoldenNakadeSpec& spec,
+  const vector<pair<int,int>>& emptyPoints,
+  const pair<int,int>& vitalPoint,
+  const Board& board
+) {
+  vector<string> points;
+  for(const pair<int,int>& point: emptyPoints) {
+    points.push_back(Location::toString(
+      Location::getLoc(point.first,point.second,board.x_size),board
+    ));
+  }
+  sort(points.begin(),points.end());
+  const string vital = Location::toString(
+    Location::getLoc(vitalPoint.first,vitalPoint.second,board.x_size),board
+  );
+  ostringstream out;
+  out
+    << "nakade|1|region|B|region:B:" << points[0]
+    << "|" << joinBensonStrings(points,",")
+    << "|attackerCanReduceToOneEye|high|W|B|chain:B:A1|"
+    << spec.shape << "|" << vital << "|localEyeSpace";
+  return out.str();
+}
+
+// productNakadePatternKey는 제품 Nakade typed 결과를 독립 spec 정규형으로 바꾼다.
+static string productNakadePatternKey(const GoPattern::Pattern& pattern, const Board& board) {
+  testAssert(pattern.kind == GoPattern::Kind::NAKADE);
+  testAssert(pattern.schemaVersion == 1);
+  testAssert(pattern.subject.type == GoPattern::SubjectType::REGION);
+  const GoPattern::NakadeDetails& details = get<GoPattern::NakadeDetails>(pattern.details);
+  string shape;
+  switch(details.shape) {
+  case GoPattern::NakadeShape::STRAIGHT_THREE: shape = "straightThree"; break;
+  case GoPattern::NakadeShape::BENT_THREE: shape = "bentThree"; break;
+  case GoPattern::NakadeShape::PYRAMID_FOUR: shape = "pyramidFour"; break;
+  case GoPattern::NakadeShape::STAR_FIVE: shape = "starFive"; break;
+  case GoPattern::NakadeShape::BULKY_FIVE: shape = "bulkyFive"; break;
+  case GoPattern::NakadeShape::RABBITY_SIX: shape = "rabbitySix"; break;
+  default: testAssert(false); shape = "";
+  }
+  vector<string> points;
+  for(Loc point: pattern.subject.points)
+    points.push_back(Location::toString(point,board));
+  sort(points.begin(),points.end());
+  const string defender = details.defender == P_BLACK ? "B" : "W";
+  const string attacker = details.attacker == P_BLACK ? "B" : "W";
+  const string outcome = pattern.outcome == GoPattern::Outcome::ATTACKER_CAN_REDUCE_TO_ONE_EYE ?
+    "attackerCanReduceToOneEye" : "unsettled";
+  const string confidence = pattern.confidence == GoPattern::Confidence::HIGH ?
+    "high" : "medium";
+  ostringstream out;
+  out
+    << "nakade|1|region|" << defender << "|" << pattern.subject.id
+    << "|" << joinBensonStrings(points,",")
+    << "|" << outcome << "|" << confidence
+    << "|" << attacker << "|" << defender
+    << "|" << details.defenderSubjectId << "|" << shape
+    << "|" << Location::toString(details.vitalPoint,board)
+    << "|localEyeSpace";
+  return out.str();
+}
+
+// canonicalNakadeProductKeys는 제품 Nakade 목록의 공개 정규형을 반환한다.
+static vector<string> canonicalNakadeProductKeys(
+  const Board& board,
+  Player nextPlayer
+) {
+  BoardHistory hist(board,nextPlayer,Rules::getTrompTaylorish(),0,false);
+  vector<string> keys;
+  for(const GoPattern::Pattern& pattern: GoPattern::detectNakade(board,hist))
+    keys.push_back(productNakadePatternKey(pattern,board));
+  return keys;
+}
+
+// appendNakadeGoldenCases는 shape spec 양성 15건과 비catalog polyomino 음성 15건을 만든다.
+static void appendNakadeGoldenCases(vector<PatternGoldenCase>& cases) {
+  const vector<GoldenNakadeSpec> specs = goldenNakadeSpecs();
+  for(int index = 0; index < 15; index++) {
+    const GoldenNakadeSpec& spec = specs[index % specs.size()];
+    const int width = 9+(index % 5);
+    const int height = 7+(index / 5);
+    const int offsetX = 2+(index % 2);
+    const int offsetY = 2;
+    const vector<pair<int,int>> points = translatedNakadePoints(
+      spec.points,offsetX,offsetY
+    );
+    const pair<int,int> vital = {
+      spec.vitalPoint.first+offsetX,
+      spec.vitalPoint.second+offsetY,
+    };
+    Board board = makeNakadeFixtureBoard(width,height,points);
+    const string expected = canonicalGoldenKeys({
+      goldenNakadeExpectedKey(spec,points,vital,board)
+    });
+    addGoldenCase(
+      cases,"nakade","positive",index+1,board,P_WHITE,false,expected,
+      canonicalGoldenKeys(canonicalNakadeProductKeys(board,P_WHITE))
+    );
+  }
+
+  set<vector<pair<int,int>>> supported;
+  for(const GoldenNakadeSpec& spec: specs)
+    supported.insert(canonicalNakadeTestShape(spec.points));
+  int negativeIndex = 0;
+  for(const vector<pair<int,int>>& shape: enumerateFreeNakadeTestShapes()) {
+    if(supported.find(shape) != supported.end())
+      continue;
+    const vector<pair<int,int>> points = translatedNakadePoints(shape,3,3);
+    Board board = makeNakadeFixtureBoard(12,12,points);
+    negativeIndex += 1;
+    addGoldenCase(
+      cases,"nakade","negativeBoundary",negativeIndex,board,P_WHITE,false,
+      "[]",canonicalGoldenKeys(canonicalNakadeProductKeys(board,P_WHITE))
+    );
+    if(negativeIndex == 15)
+      break;
+  }
+  testAssert(negativeIndex == 15);
+}
+
+// oracleLadderChainPoints는 기존 독립 minimax 대상 chain의 전체 GTP 좌표를 고정한다.
+static vector<string> oracleLadderChainPoints(const Board& board, Loc anchor) {
+  vector<string> points;
+  const Loc head = board.chain_head[anchor];
+  Loc point = head;
+  do {
+    points.push_back(Location::toString(point,board));
+    point = board.next_in_chain[point];
+  } while(point != head);
+  sort(points.begin(),points.end());
+  return points;
+}
+
+// goldenLadderExpectedKey는 독립 minimax 결과를 Ladder v1 공개 정규형으로 만든다.
+static string goldenLadderExpectedKey(
+  const Board& board,
+  Loc anchor,
+  Player defender,
+  bool defenderFirst,
+  LadderOracleStatus status
+) {
+  testAssert(status != LadderOracleStatus::UNKNOWN);
+  const string defenderColor = defender == P_BLACK ? "B" : "W";
+  const string attackerColor = defender == P_BLACK ? "W" : "B";
+  const vector<string> points = oracleLadderChainPoints(board,anchor);
+  ostringstream out;
+  out
+    << "ladder|1|chain|" << defenderColor
+    << "|chain:" << defenderColor << ":" << points[0]
+    << "|" << joinBensonStrings(points,",")
+    << "|" << (status == LadderOracleStatus::CAPTURED ? "attackerWins" : "defenderEscapes")
+    << "|high|" << attackerColor << "|" << defenderColor
+    << "|" << (defenderFirst ? 1 : 0) << "|null";
+  return out.str();
+}
+
+// productLadderPatternKey는 제품의 비모호 Ladder v1을 독립 정규형으로 바꾼다.
+static string productLadderPatternKey(const GoPattern::Pattern& pattern, const Board& board) {
+  testAssert(pattern.kind == GoPattern::Kind::LADDER);
+  testAssert(pattern.schemaVersion == 1);
+  testAssert(pattern.subject.type == GoPattern::SubjectType::CHAIN);
+  testAssert(pattern.outcome != GoPattern::Outcome::AMBIGUOUS);
+  testAssert(pattern.confidence == GoPattern::Confidence::HIGH);
+  vector<string> points;
+  for(Loc point: pattern.subject.points)
+    points.push_back(Location::toString(point,board));
+  sort(points.begin(),points.end());
+  const GoPattern::LadderDetails& details = get<GoPattern::LadderDetails>(pattern.details);
+  testAssert(details.ladderBreaker == Board::NULL_LOC);
+  const string defender = details.defender == P_BLACK ? "B" : "W";
+  const string attacker = details.attacker == P_BLACK ? "B" : "W";
+  ostringstream out;
+  out
+    << "ladder|1|chain|" << defender << "|" << pattern.subject.id
+    << "|" << joinBensonStrings(points,",")
+    << "|" << (pattern.outcome == GoPattern::Outcome::ATTACKER_WINS ?
+      "attackerWins" : "defenderEscapes")
+    << "|high|" << attacker << "|" << defender
+    << "|" << (details.defenderFirst ? 1 : 0) << "|null";
+  return out.str();
+}
+
+// appendLadderGoldenCases는 독립 minimax 완결 captured/escaped를 각각 15건 고정한다.
+static void appendLadderGoldenCases(vector<PatternGoldenCase>& cases) {
+  Rand rand("ladder-golden-v1-20260810");
+  int captured = 0;
+  int escaped = 0;
+  for(int sample = 0; sample < 30000 && (captured < 15 || escaped < 15); sample++) {
+    const int xSize = 4+static_cast<int>(rand.nextUInt(4));
+    const int ySize = 4+static_cast<int>(rand.nextUInt(4));
+    const int area = xSize*ySize;
+    Board board;
+    const int targetMoves = static_cast<int>(
+      rand.nextUInt(static_cast<uint32_t>(area*2+1))
+    );
+    randomLegalPosition(board,xSize,ySize,sample % 2 == 1,targetMoves,rand);
+    if(board.ko_loc != Board::NULL_LOC)
+      continue;
+
+    bool selectedThisState = false;
+    for(int y = 0; y < board.y_size && !selectedThisState; y++) {
+      for(int x = 0; x < board.x_size; x++) {
+        const Loc anchor = Location::getLoc(x,y,board.x_size);
+        const Player defender = board.colors[anchor];
+        if(
+          (defender != P_BLACK && defender != P_WHITE) ||
+          board.chain_head[anchor] != anchor
+        )
+          continue;
+        const int liberties = board.getNumLiberties(anchor);
+        if(liberties != 1 && liberties != 2)
+          continue;
+        const bool defenderFirst = liberties == 1;
+        if(
+          defenderFirst &&
+          oracleDefenderMoves(board,anchor,defender).size() !=
+            oracleChainLiberties(board,anchor).size()
+        )
+          continue;
+        vector<Hash128> path;
+        bool sawTacticalCapture = false;
+        const LadderOracleStatus status = solveLadderOracle(
+          board,anchor,defender,defenderFirst,area*2,path,&sawTacticalCapture
+        );
+        if(status == LadderOracleStatus::UNKNOWN || sawTacticalCapture)
+          continue;
+        if(status == LadderOracleStatus::CAPTURED && captured >= 15)
+          continue;
+        if(status == LadderOracleStatus::ESCAPED && escaped >= 15)
+          continue;
+
+        const Player nextPlayer = defenderFirst ? defender : getOpp(defender);
+        BoardHistory hist(board,nextPlayer,Rules::getTrompTaylorish(),0,false);
+        const GoPattern::LadderDetectionResult product =
+          GoPattern::detectLadders(board,hist);
+        vector<string> productKeys;
+        bool ambiguousTarget = false;
+        for(const GoPattern::Pattern& pattern: product.patterns) {
+          bool sameChain = false;
+          for(Loc point: pattern.subject.points) {
+            if(board.chain_head[point] == board.chain_head[anchor]) {
+              sameChain = true;
+              break;
+            }
+          }
+          if(sameChain && pattern.outcome == GoPattern::Outcome::AMBIGUOUS) {
+            ambiguousTarget = true;
+            break;
+          }
+          if(sameChain)
+            productKeys.push_back(productLadderPatternKey(pattern,board));
+        }
+        // 공개 계약상 ambiguous는 golden 대상이 아니다. 최종 oracle digest가 선택 위치까지 동결한다.
+        if(ambiguousTarget)
+          continue;
+        const string expected = canonicalGoldenKeys({
+          goldenLadderExpectedKey(board,anchor,defender,defenderFirst,status)
+        });
+        if(status == LadderOracleStatus::CAPTURED) {
+          captured += 1;
+          addGoldenCase(
+            cases,"ladder","positive",captured,board,nextPlayer,false,
+            expected,canonicalGoldenKeys(productKeys)
+          );
+        }
+        else {
+          escaped += 1;
+          addGoldenCase(
+            cases,"ladder","negativeBoundary",escaped,board,nextPlayer,false,
+            expected,canonicalGoldenKeys(productKeys)
+          );
+        }
+        selectedThisState = true;
+        break;
+      }
+    }
+  }
+  testAssert(captured == 15);
+  testAssert(escaped == 15);
+}
+
+// runPatternGoldenCatalogTest는 활성 5종 × 30건의 machine-parseable 증거를 출력한다.
+static void runPatternGoldenCatalogTest() {
+  vector<PatternGoldenCase> cases;
+  appendBensonGoldenCases(cases);
+  appendEyeGoldenCases(cases);
+  appendLadderGoldenCases(cases);
+  appendNakadeGoldenCases(cases);
+  appendSemeaiGoldenCases(cases);
+  testAssert(cases.size() == 150);
+
+  map<string,map<string,int>> counts;
+  set<string> caseIds;
+  map<string,set<string>> positionsByKind;
+  int mismatches = 0;
+  ostringstream oracleStream;
+  ostringstream productStream;
+  for(const PatternGoldenCase& golden: cases) {
+    const string expectedDigest = sha256String(golden.expectedCanonical);
+    const string productDigest = sha256String(golden.productCanonical);
+    const bool matched = golden.expectedCanonical == golden.productCanonical;
+    if(!matched)
+      mismatches += 1;
+    testAssert(caseIds.insert(golden.caseId).second);
+    testAssert(positionsByKind[golden.kind].insert(golden.positionHash).second);
+    counts[golden.kind][golden.stratum] += 1;
+    oracleStream
+      << golden.caseId << "|" << golden.positionHash << "|"
+      << expectedDigest << "\n";
+    productStream
+      << golden.caseId << "|" << golden.positionHash << "|"
+      << productDigest << "\n";
+    cout << "PATTERN_GOLDEN " << json{
+      {"caseId", golden.caseId},
+      {"expectedDigest", expectedDigest},
+      {"kind", golden.kind},
+      {"matched", matched},
+      {"positionHash", golden.positionHash},
+      {"productDigest", productDigest},
+      {"stratum", golden.stratum},
+    }.dump() << endl;
+  }
+  for(const string& kind: {"bensonAlive","eye","ladder","nakade","semeai"}) {
+    testAssert(counts[kind]["positive"] == 15);
+    testAssert(counts[kind]["negativeBoundary"] == 15);
+  }
+  const string oracleDigest = sha256String(oracleStream.str());
+  const string productDigest = sha256String(productStream.str());
+  cout << "PATTERN_GOLDEN_SUMMARY " << json{
+    {"caseCount", static_cast<int>(cases.size())},
+    {"mismatches", mismatches},
+    {"oracleDigest", oracleDigest},
+    {"productDigest", productDigest},
+  }.dump() << endl;
+  testAssert(mismatches == 0);
+  testAssert(
+    oracleDigest == "8187ab80866afbddce0f8799045bdc566565ca394d44625cc7ced46019151c3f"
+  );
+  testAssert(productDigest == oracleDigest);
+}
+
 void Tests::runPatternTests() {
   cout << "Running pattern tests" << endl;
 
@@ -3011,6 +3861,7 @@ ooooo
   runSemeaiIndependentPropertyTest();
   runLadderPatternTest();
   runLadderIndependentPropertyTest();
+  runPatternGoldenCatalogTest();
   int squareStates = runSquareBoardPropertyTest();
   pair<int,int> nonSquareResult = runNonSquarePropertyTest();
   int suicideFixtures = runSuicideSensitiveFixtureTest();

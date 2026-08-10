@@ -20,7 +20,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y cmake build-essential zlib1g-dev libzip-dev opencl-headers ocl-icd-opencl-dev
+        sudo apt-get install -y cmake build-essential zlib1g-dev libzip-dev libeigen3-dev opencl-headers ocl-icd-opencl-dev
 
     - name: Cache CMake build
       uses: actions/cache@v4
@@ -46,6 +46,20 @@ jobs:
       working-directory: cpp
       run: |
         ./katago runtests
+
+    - name: Build targeted EIGEN analysis test binary
+      working-directory: cpp
+      run: |
+        cmake -S . -B build-eigen-analysis-test -DUSE_BACKEND=EIGEN -DCMAKE_BUILD_TYPE=Release
+        cmake --build build-eigen-analysis-test -j$(nproc)
+
+    - name: Run analysis pattern owner-map E2E
+      working-directory: cpp
+      run: |
+        python3 tests/test_analysis_patterns_owner_map.py \
+          ./build-eigen-analysis-test/katago \
+          configs/analysis_example.cfg \
+          tests/models/g170-b6c96-s175395328-d26788732.bin.gz
 
     - name: Upload artifact
       if: github.event_name == 'push' && github.ref == 'refs/heads/master'
