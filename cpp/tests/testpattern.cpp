@@ -1,13 +1,16 @@
 #include "../tests/tests.h"
 #include "../pattern/detector.h"
+#include "../pattern/eye.h"
 #include "../pattern/eyefacts.h"
 #include "../pattern/semeai.h"
 #include "../core/rand.h"
+#include "../core/sha2.h"
 
 #include <algorithm>
 #include <chrono>
 #include <iterator>
 #include <set>
+#include <sstream>
 
 using namespace std;
 using json = nlohmann::json;
@@ -167,6 +170,667 @@ static void runEyePointFactsTest() {
     vector<GoPattern::EyePointFact> facts = GoPattern::extractEyePointFacts(board,hist);
     testAssert(facts.empty());
   }
+}
+
+// findEyeAt은 지정 한 점을 subject로 하는 공개 Eye 패턴을 찾는다.
+// patterns는 검색할 결과, loc은 대상 좌표이며, 반환값은 없으면 nullptr이다.
+static const GoPattern::Pattern* findEyeAt(
+  const vector<GoPattern::Pattern>& patterns,
+  Loc loc
+) {
+  for(const GoPattern::Pattern& pattern: patterns) {
+    if(
+      pattern.kind == GoPattern::Kind::EYE &&
+      pattern.subject.points.size() == 1 &&
+      pattern.subject.points[0] == loc
+    )
+      return &pattern;
+  }
+  return nullptr;
+}
+
+// makeKoEyeBoard는 백의 지정 착수 뒤 흑의 즉시 되따냄이 한 점 Eye 후보가 되는 3×3 패를 만든다.
+// 반환값은 무활로 chain이 없는 고정 시작 보드다.
+static Board makeKoEyeBoard() {
+  Board board(3,3);
+  board.colors[Location::getLoc(1,1,board.x_size)] = P_BLACK;
+  board.colors[Location::getLoc(2,1,board.x_size)] = P_WHITE;
+  board.colors[Location::getLoc(0,2,board.x_size)] = P_BLACK;
+  board.colors[Location::getLoc(2,2,board.x_size)] = P_BLACK;
+  board.regenChainsFromColors();
+  return board;
+}
+
+// runEyeHistoryBoundaryTest는 실제 BoardHistory의 패·종국·encore 경계에서 Eye 공개 여부를 검증한다.
+// 반환값은 없으며 계약의 합법성·pass-for-ko·phase 억제 조건을 각각 고정한다.
+static void runEyeHistoryBoundaryTest() {
+  const Loc koCapture = Location::getLoc(1,2,3);
+  const Loc koRecapture = Location::getLoc(2,2,3);
+  for(int koRule: {Rules::KO_SIMPLE,Rules::KO_POSITIONAL,Rules::KO_SITUATIONAL}) {
+    Board board = makeKoEyeBoard();
+    Rules rules = Rules::getSimpleTerritory();
+    rules.koRule = koRule;
+    BoardHistory hist(board,P_WHITE,rules,0,false);
+    testAssert(hist.isLegal(board,koCapture,P_WHITE));
+    testAssert(findEyeAt(GoPattern::detectEyes(board,hist),koCapture) != nullptr);
+    hist.makeBoardMoveAssumeLegal(board,koCapture,P_WHITE,NULL);
+    testAssert(!hist.isLegal(board,koRecapture,P_BLACK));
+    testAssert(GoPattern::detectEyes(board,hist).empty());
+  }
+
+  Board positive = Board::parseBoard(7,7,R"%%(
+.......
+.ooooo.
+.oxxxo.
+.ox.xo.
+.oxxxo.
+.ooooo.
+.......
+)%%");
+  const Loc center = Location::ofString("D4",positive);
+  Rules territoryRules = Rules::getSimpleTerritory();
+  BoardHistory encoreHist(positive,P_WHITE,territoryRules,0,false);
+  encoreHist.makeBoardMoveAssumeLegal(positive,Board::PASS_LOC,P_WHITE,NULL);
+  encoreHist.makeBoardMoveAssumeLegal(positive,Board::PASS_LOC,P_BLACK,NULL);
+  testAssert(encoreHist.encorePhase == 1);
+  testAssert(!encoreHist.isGameFinished);
+  testAssert(!encoreHist.isPastNormalPhaseEnd);
+  testAssert(findEyeAt(GoPattern::detectEyes(positive,encoreHist),center) != nullptr);
+
+  Board encoreKoBoard = makeKoEyeBoard();
+  BoardHistory encoreKoHist(encoreKoBoard,P_WHITE,territoryRules,0,false);
+  encoreKoHist.makeBoardMoveAssumeLegal(encoreKoBoard,Board::PASS_LOC,P_WHITE,NULL);
+  encoreKoHist.makeBoardMoveAssumeLegal(encoreKoBoard,Board::PASS_LOC,P_BLACK,NULL);
+  testAssert(encoreKoHist.encorePhase == 1);
+  testAssert(encoreKoHist.isLegal(encoreKoBoard,koCapture,P_WHITE));
+  encoreKoHist.makeBoardMoveAssumeLegal(encoreKoBoard,koCapture,P_WHITE,NULL);
+  testAssert(encoreKoHist.isLegal(encoreKoBoard,koRecapture,P_BLACK));
+  testAssert(encoreKoHist.isPassForKo(encoreKoBoard,koRecapture,P_BLACK));
+  testAssert(GoPattern::detectEyes(encoreKoBoard,encoreKoHist).empty());
+
+  Board finishedBoard(positive);
+  BoardHistory finished(finishedBoard,P_WHITE,Rules::getTrompTaylorish(),0,false);
+  finished.makeBoardMoveAssumeLegal(finishedBoard,Board::PASS_LOC,P_WHITE,NULL);
+  finished.makeBoardMoveAssumeLegal(finishedBoard,Board::PASS_LOC,P_BLACK,NULL);
+  testAssert(finished.isGameFinished);
+  testAssert(GoPattern::detectEyes(finishedBoard,finished).empty());
+
+  Board pastNormalBoard(positive);
+  BoardHistory pastNormal(pastNormalBoard,P_WHITE,territoryRules,0,false);
+  pastNormal.makeBoardMoveAssumeLegal(pastNormalBoard,Board::PASS_LOC,P_WHITE,NULL);
+  pastNormal.makeBoardMoveAssumeLegal(
+    pastNormalBoard,
+    Board::PASS_LOC,
+    P_BLACK,
+    NULL,
+    true
+  );
+  testAssert(pastNormal.isPastNormalPhaseEnd);
+  testAssert(GoPattern::detectEyes(pastNormalBoard,pastNormal).empty());
+}
+
+// runEyeSnapbackFixtureTest는 즉시 포획 뒤 상대가 한 돌만 되잡는 고정 snapback 전이를 검증한다.
+// 반환값은 없으며 포획 chain 전체 좌표와 비반복 후속 국면을 함께 고정한다.
+static void runEyeSnapbackFixtureTest() {
+  Board board = Board::parseBoard(4,3,R"%%(
+....
+oxx.
+.oox
+)%%");
+  const Loc capture = Location::ofString("A1",board);
+  const Loc recapture = Location::ofString("B1",board);
+  const Loc remainingEmpty = Location::ofString("C1",board);
+  BoardHistory hist(board,P_BLACK,Rules::getSimpleTerritory(),0,false);
+  const Hash128 originalHash = board.pos_hash;
+
+  vector<GoPattern::Pattern> patterns = GoPattern::detectEyes(board,hist);
+  const GoPattern::Pattern* pattern = findEyeAt(patterns,capture);
+  testAssert(pattern != nullptr);
+  const GoPattern::EyeDetails& details = get<GoPattern::EyeDetails>(pattern->details);
+  testAssert(details.attacker == P_BLACK);
+  testAssert(details.capturedChains.size() == 1);
+  testAssert(details.capturedChains[0].id == "chain:W:B1");
+  testAssert(details.capturedChains[0].points.size() == 2);
+  testAssert(details.capturedChains[0].points[0] == recapture);
+  testAssert(details.capturedChains[0].points[1] == remainingEmpty);
+
+  testAssert(hist.isLegal(board,capture,P_BLACK));
+  testAssert(!hist.isPassForKo(board,capture,P_BLACK));
+  hist.makeBoardMoveAssumeLegal(board,capture,P_BLACK,NULL);
+  testAssert(board.colors[recapture] == C_EMPTY);
+  testAssert(board.colors[remainingEmpty] == C_EMPTY);
+  testAssert(hist.isLegal(board,recapture,P_WHITE));
+  testAssert(!hist.isPassForKo(board,recapture,P_WHITE));
+  hist.makeBoardMoveAssumeLegal(board,recapture,P_WHITE,NULL);
+  testAssert(board.colors[capture] == C_EMPTY);
+  testAssert(board.colors[recapture] == P_WHITE);
+  testAssert(board.colors[remainingEmpty] == C_EMPTY);
+  testAssert(board.pos_hash != originalHash);
+}
+
+// runEyePatternTest는 Eye v1 typed 계약, 실제 포획, 정렬, 색 반전, 음성 경계를 검증한다.
+// 반환값은 없으며 공개 JSON과 원본 불변성을 함께 고정한다.
+static void runEyePatternTest() {
+  Board board = Board::parseBoard(7,7,R"%%(
+.......
+.ooooo.
+.oxxxo.
+.ox.xo.
+.oxxxo.
+.ooooo.
+.......
+)%%");
+  const Loc center = Location::ofString("D4",board);
+  BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+  const Hash128 originalHash = board.pos_hash;
+  const size_t originalHistorySize = hist.moveHistory.size();
+  GoPattern::DetectionResult result = GoPattern::detect(board,hist);
+  const GoPattern::Pattern* pattern = findEyeAt(result.patterns,center);
+  testAssert(pattern != nullptr);
+  testAssert(board.pos_hash == originalHash);
+  testAssert(hist.moveHistory.size() == originalHistorySize);
+  testAssert(pattern->schemaVersion == 1);
+  testAssert(pattern->subject.type == GoPattern::SubjectType::REGION);
+  testAssert(pattern->subject.color == P_BLACK);
+  testAssert(pattern->subject.id == "region:B:D4");
+  testAssert(pattern->outcome == GoPattern::Outcome::OPPONENT_CAN_CAPTURE_ADJACENT_CHAIN);
+  testAssert(pattern->confidence == GoPattern::Confidence::PROVEN);
+  const GoPattern::EyeDetails& details = get<GoPattern::EyeDetails>(pattern->details);
+  testAssert(details.attacker == P_WHITE);
+  testAssert(details.capturedChains.size() == 1);
+  testAssert(details.capturedChains[0].id == "chain:B:C3");
+
+  json actual = GoPattern::toJson(*pattern,board);
+  json expected = {
+    {"kind", "eye"},
+    {"schemaVersion", 1},
+    {"subject", {
+      {"type", "region"},
+      {"color", "B"},
+      {"id", "region:B:D4"},
+      {"points", {"D4"}},
+    }},
+    {"outcome", "opponentCanCaptureAdjacentChain"},
+    {"confidence", "proven"},
+    {"details", {
+      {"attacker", "W"},
+      {"capturedChains", {
+        {
+          {"id", "chain:B:C3"},
+          {"points", {"C3","C4","C5","D3","D5","E3","E4","E5"}},
+        },
+      }},
+      {"semantics", "immediateLegalCapture"},
+    }},
+  };
+  testAssert(actual == expected);
+
+  Board noOwnerTurn(board);
+  BoardHistory ownerTurn(noOwnerTurn,P_BLACK,Rules::getTrompTaylorish(),0,false);
+  testAssert(findEyeAt(GoPattern::detectEyes(noOwnerTurn,ownerTurn),center) == nullptr);
+
+  Board multi = Board::parseBoard(5,3,R"%%(
+.oxo.
+ox.xo
+.oxo.
+)%%");
+  const Loc multiCenter = Location::ofString("C2",multi);
+  BoardHistory multiHist(multi,P_WHITE,Rules::getTrompTaylorish(),0,false);
+  vector<GoPattern::Pattern> multiPatterns = GoPattern::detectEyes(multi,multiHist);
+  const GoPattern::Pattern* multiPattern = findEyeAt(
+    multiPatterns,
+    multiCenter
+  );
+  testAssert(multiPattern != nullptr);
+  const GoPattern::EyeDetails& multiDetails = get<GoPattern::EyeDetails>(multiPattern->details);
+  testAssert(multiDetails.capturedChains.size() == 4);
+  testAssert(multiDetails.capturedChains[0].id == "chain:B:B2");
+  testAssert(multiDetails.capturedChains[1].id == "chain:B:C1");
+  testAssert(multiDetails.capturedChains[2].id == "chain:B:C3");
+  testAssert(multiDetails.capturedChains[3].id == "chain:B:D2");
+
+  Board inverted(multi.x_size,multi.y_size);
+  for(int y = 0; y < multi.y_size; y++) {
+    for(int x = 0; x < multi.x_size; x++) {
+      Loc loc = Location::getLoc(x,y,multi.x_size);
+      if(multi.colors[loc] == P_BLACK)
+        inverted.colors[loc] = P_WHITE;
+      else if(multi.colors[loc] == P_WHITE)
+        inverted.colors[loc] = P_BLACK;
+    }
+  }
+  inverted.regenChainsFromColors();
+  BoardHistory invertedHist(inverted,P_BLACK,Rules::getTrompTaylorish(),0,false);
+  vector<GoPattern::Pattern> invertedPatterns =
+    GoPattern::detectEyes(inverted,invertedHist);
+  const GoPattern::Pattern* invertedPattern = findEyeAt(
+    invertedPatterns,
+    multiCenter
+  );
+  testAssert(invertedPattern != nullptr);
+  testAssert(invertedPattern->subject.color == P_WHITE);
+  const GoPattern::EyeDetails& invertedDetails =
+    get<GoPattern::EyeDetails>(invertedPattern->details);
+  testAssert(invertedDetails.attacker == P_BLACK);
+  testAssert(invertedDetails.capturedChains[0].id == "chain:W:B2");
+
+  Board corner = Board::parseBoard(2,2,R"%%(
+xx
+x.
+)%%");
+  const Loc cornerPoint = Location::ofString("B1",corner);
+  BoardHistory cornerHist(corner,P_WHITE,Rules::getSimpleTerritory(),0,false);
+  vector<GoPattern::Pattern> cornerPatterns = GoPattern::detectEyes(corner,cornerHist);
+  const GoPattern::Pattern* cornerPattern = findEyeAt(
+    cornerPatterns,
+    cornerPoint
+  );
+  testAssert(cornerPattern != nullptr);
+  testAssert(cornerPattern->subject.id == "region:B:B1");
+
+  Board edge = Board::parseBoard(3,3,R"%%(
+.o.
+oxo
+x.x
+)%%");
+  const Loc edgePoint = Location::ofString("B1",edge);
+  BoardHistory edgeHist(edge,P_WHITE,Rules::getSimpleTerritory(),0,false);
+  vector<GoPattern::Pattern> edgePatterns = GoPattern::detectEyes(edge,edgeHist);
+  const GoPattern::Pattern* edgePattern = findEyeAt(
+    edgePatterns,
+    edgePoint
+  );
+  testAssert(edgePattern != nullptr);
+  testAssert(get<GoPattern::EyeDetails>(edgePattern->details).capturedChains.size() == 3);
+
+  Board trueEye = Board::parseBoard(5,5,R"%%(
+.....
+..x..
+.x.x.
+..x..
+.....
+)%%");
+  const Loc trueEyeCenter = Location::ofString("C3",trueEye);
+  Rules suicideAllowed = Rules::getTrompTaylorish();
+  Rules suicideForbidden = suicideAllowed;
+  suicideForbidden.multiStoneSuicideLegal = false;
+  BoardHistory allowedHist(trueEye,P_WHITE,suicideAllowed,0,false);
+  BoardHistory forbiddenHist(trueEye,P_WHITE,suicideForbidden,0,false);
+  testAssert(!allowedHist.isLegal(trueEye,trueEyeCenter,P_WHITE));
+  testAssert(!forbiddenHist.isLegal(trueEye,trueEyeCenter,P_WHITE));
+  testAssert(GoPattern::detectEyes(trueEye,allowedHist).empty());
+  testAssert(GoPattern::detectEyes(trueEye,forbiddenHist).empty());
+
+  BoardHistory positiveSuicideForbidden(board,P_WHITE,suicideForbidden,0,false);
+  testAssert(positiveSuicideForbidden.isLegal(board,center,P_WHITE));
+  testAssert(
+    findEyeAt(GoPattern::detectEyes(board,positiveSuicideForbidden),center) != nullptr
+  );
+
+  Board falseNoCapture = Board::parseBoard(5,5,R"%%(
+.....
+.oxo.
+.x.x.
+..x..
+.....
+)%%");
+  BoardHistory falseHist(falseNoCapture,P_WHITE,suicideAllowed,0,false);
+  testAssert(GoPattern::detectEyes(falseNoCapture,falseHist).empty());
+}
+
+// RawEyeChain은 KataGo Board chain을 사용하지 않는 독립 raw-grid 연결요소다.
+struct RawEyeChain {
+  int color;
+  vector<int> points;
+  vector<int> liberties;
+};
+
+// rawEyeNeighbors는 행 우선 raw-grid 좌표의 판 안 직교 이웃을 반환한다.
+// point와 width/height는 raw 배열 좌표계이며, 반환값은 결정적 좌표 목록이다.
+static vector<int> rawEyeNeighbors(int point, int width, int height) {
+  const int x = point % width;
+  const int y = point / width;
+  vector<int> neighbors;
+  if(x > 0)
+    neighbors.push_back(point-1);
+  if(x+1 < width)
+    neighbors.push_back(point+1);
+  if(y > 0)
+    neighbors.push_back(point-width);
+  if(y+1 < height)
+    neighbors.push_back(point+width);
+  return neighbors;
+}
+
+// rawEyeChains는 0/1/2 raw 배열을 flood-fill해 돌 chain과 활로를 독립 계산한다.
+// labels는 빈칸/흑/백 배열이며, 반환값은 Board 내부 chain 자료구조와 무관한 연결요소다.
+static vector<RawEyeChain> rawEyeChains(
+  const vector<int>& labels,
+  int width,
+  int height
+) {
+  vector<bool> visited(labels.size(),false);
+  vector<RawEyeChain> chains;
+  for(int initial = 0; initial < static_cast<int>(labels.size()); initial++) {
+    if(labels[initial] == 0 || visited[initial])
+      continue;
+    RawEyeChain chain;
+    chain.color = labels[initial];
+    vector<int> queue{initial};
+    visited[initial] = true;
+    set<int> libertySet;
+    for(size_t index = 0; index < queue.size(); index++) {
+      const int point = queue[index];
+      chain.points.push_back(point);
+      for(int adjacent: rawEyeNeighbors(point,width,height)) {
+        if(labels[adjacent] == 0)
+          libertySet.insert(adjacent);
+        else if(labels[adjacent] == chain.color && !visited[adjacent]) {
+          visited[adjacent] = true;
+          queue.push_back(adjacent);
+        }
+      }
+    }
+    sort(chain.points.begin(),chain.points.end());
+    chain.liberties.assign(libertySet.begin(),libertySet.end());
+    chains.push_back(std::move(chain));
+  }
+  return chains;
+}
+
+// rawGtpPoint는 작은 raw-grid 좌표를 KataGo와 같은 GTP 점 문자열로 독립 변환한다.
+// point와 width/height는 행 우선 좌표계이며, 반환값은 I 열을 건너뛴 공개 좌표다.
+static string rawGtpPoint(int point, int width, int height) {
+  const int x = point % width;
+  const int y = point / width;
+  char column = static_cast<char>('A' + x + (x >= 8 ? 1 : 0));
+  return string(1,column) + Global::intToString(height-y);
+}
+
+// RawEyePattern은 독립 판정기가 만든 공개 비교 필드다.
+struct RawEyePattern {
+  int owner;
+  int attacker;
+  int point;
+  vector<vector<int>> capturedChains;
+};
+
+static string joinEyeStrings(const vector<string>& values, const string& delimiter);
+
+// rawEyePattern은 raw 배열에 한 수를 적용해 실제 제거된 인접 chain이 있는지 독립 판정한다.
+// labels는 원본 상태, attacker는 현재 차례 1/2이며, 반환값은 계약 후보가 아니면 false다.
+static bool rawEyePattern(
+  const vector<int>& labels,
+  int width,
+  int height,
+  int point,
+  int attacker,
+  RawEyePattern& result
+) {
+  if(labels[point] != 0)
+    return false;
+  const int owner = 3-attacker;
+  const vector<int> adjacentPoints = rawEyeNeighbors(point,width,height);
+  if(adjacentPoints.empty())
+    return false;
+  for(int adjacent: adjacentPoints) {
+    if(labels[adjacent] != owner)
+      return false;
+  }
+
+  vector<RawEyeChain> beforeChains = rawEyeChains(labels,width,height);
+  vector<vector<int>> captured;
+  vector<int> after = labels;
+  after[point] = attacker;
+  for(const RawEyeChain& chain: beforeChains) {
+    if(chain.color != owner)
+      continue;
+    bool touchesPoint = false;
+    for(int adjacent: adjacentPoints) {
+      if(find(chain.points.begin(),chain.points.end(),adjacent) != chain.points.end()) {
+        touchesPoint = true;
+        break;
+      }
+    }
+    if(!touchesPoint || chain.liberties != vector<int>{point})
+      continue;
+    captured.push_back(chain.points);
+    for(int capturedPoint: chain.points)
+      after[capturedPoint] = 0;
+  }
+  if(captured.empty())
+    return false;
+
+  bool playedChainHasLiberty = false;
+  for(const RawEyeChain& chain: rawEyeChains(after,width,height)) {
+    if(
+      chain.color == attacker &&
+      find(chain.points.begin(),chain.points.end(),point) != chain.points.end() &&
+      !chain.liberties.empty()
+    ) {
+      playedChainHasLiberty = true;
+      break;
+    }
+  }
+  if(!playedChainHasLiberty)
+    return false;
+
+  sort(captured.begin(),captured.end());
+  result = RawEyePattern{owner,attacker,point,std::move(captured)};
+  return true;
+}
+
+// rawEyePatternKey는 독립 후보의 봉투·chain ID·전체 좌표를 결정적 비교 문자열로 만든다.
+// candidate와 width/height는 raw 판정 결과이며, 반환값은 제품 결과와 직접 비교할 키다.
+static string rawEyePatternKey(const RawEyePattern& candidate, int width, int height) {
+  const string owner = candidate.owner == 1 ? "B" : "W";
+  const string attacker = candidate.attacker == 1 ? "B" : "W";
+  const string point = rawGtpPoint(candidate.point,width,height);
+  ostringstream out;
+  out << "eye|1|region|" << owner << "|region:" << owner << ":" << point
+      << "|" << point << "|opponentCanCaptureAdjacentChain|proven|" << attacker;
+  vector<string> chainKeys;
+  for(const vector<int>& chain: candidate.capturedChains) {
+    vector<string> points;
+    for(int rawPoint: chain)
+      points.push_back(rawGtpPoint(rawPoint,width,height));
+    sort(points.begin(),points.end());
+    chainKeys.push_back("chain:" + owner + ":" + points[0] + "=" + joinEyeStrings(points,","));
+  }
+  sort(chainKeys.begin(),chainKeys.end());
+  out << "|" << joinEyeStrings(chainKeys,";") << "|immediateLegalCapture";
+  return out.str();
+}
+
+// productEyePatternKey는 제품 Eye typed 결과를 독립 키와 같은 형식으로 정규화한다.
+// pattern과 board는 제품 결과이며, 반환값은 모든 공개 불변식을 포함한 비교 키다.
+static string productEyePatternKey(const GoPattern::Pattern& pattern, const Board& board) {
+  testAssert(pattern.kind == GoPattern::Kind::EYE);
+  testAssert(pattern.schemaVersion == 1);
+  testAssert(pattern.subject.type == GoPattern::SubjectType::REGION);
+  testAssert(pattern.subject.points.size() == 1);
+  testAssert(pattern.outcome == GoPattern::Outcome::OPPONENT_CAN_CAPTURE_ADJACENT_CHAIN);
+  testAssert(pattern.confidence == GoPattern::Confidence::PROVEN);
+  const string owner = pattern.subject.color == P_BLACK ? "B" : "W";
+  const string point = Location::toString(pattern.subject.points[0],board);
+  const GoPattern::EyeDetails& details = get<GoPattern::EyeDetails>(pattern.details);
+  const string attacker = details.attacker == P_BLACK ? "B" : "W";
+  testAssert(details.attacker == getOpp(pattern.subject.color));
+  testAssert(!details.capturedChains.empty());
+  vector<string> chainKeys;
+  for(const GoPattern::EyeCapturedChain& chain: details.capturedChains) {
+    vector<string> points;
+    for(Loc loc: chain.points)
+      points.push_back(Location::toString(loc,board));
+    sort(points.begin(),points.end());
+    points.erase(unique(points.begin(),points.end()),points.end());
+    chainKeys.push_back(chain.id + "=" + joinEyeStrings(points,","));
+  }
+  sort(chainKeys.begin(),chainKeys.end());
+  ostringstream out;
+  out << "eye|1|region|" << owner << "|" << pattern.subject.id
+      << "|" << point << "|opponentCanCaptureAdjacentChain|proven|" << attacker
+      << "|" << joinEyeStrings(chainKeys,";") << "|immediateLegalCapture";
+  return out.str();
+}
+
+// sha256String은 고정된 열거 자료를 소문자 SHA-256 문자열로 바꾼다.
+// input은 원문 자료이며, 반환값은 64자리 digest다.
+static string sha256String(const string& input) {
+  char hash[65];
+  SHA2::get256(reinterpret_cast<const uint8_t*>(input.data()),input.size(),hash);
+  return string(hash);
+}
+
+// joinEyeStrings는 결정적 검증 문자열 목록을 지정 구분자로 연결한다.
+// values는 입력 목록, delimiter는 구분자이며, 반환값은 빈 목록이면 빈 문자열이다.
+static string joinEyeStrings(const vector<string>& values, const string& delimiter) {
+  ostringstream out;
+  for(size_t index = 0; index < values.size(); index++) {
+    if(index > 0)
+      out << delimiter;
+    out << values[index];
+  }
+  return out.str();
+}
+
+// runEyeIndependentExhaustiveTest는 2×2~3×3 전체 합법 raw 상태를 제품과 독립 전수 대조한다.
+// 반환값은 없으며 상태·후보 수, fingerprint, 제품/오라클 digest를 고정한다.
+static void runEyeIndependentExhaustiveTest() {
+  struct ExpectedCount {
+    int width;
+    int height;
+    int states;
+    int candidates;
+  };
+  const vector<ExpectedCount> expectedCounts = {
+    {2,2,57,8},
+    {2,3,489,44},
+    {3,2,489,44},
+    {3,3,12675,1306},
+  };
+  ostringstream stateStream;
+  ostringstream oracleStream;
+  ostringstream productStream;
+  stateStream << "seed=ternary-little-endian-v1\n";
+  oracleStream << "seed=ternary-little-endian-v1\n";
+  productStream << "seed=ternary-little-endian-v1\n";
+
+  int totalStates = 0;
+  int totalCandidates = 0;
+  for(const ExpectedCount& expected: expectedCounts) {
+    int stateLimit = 1;
+    for(int point = 0; point < expected.width * expected.height; point++)
+      stateLimit *= 3;
+    int comparedStates = 0;
+    int comparedCandidates = 0;
+    for(int state = 0; state < stateLimit; state++) {
+      vector<int> labels(expected.width*expected.height,0);
+      int remaining = state;
+      for(int point = 0; point < static_cast<int>(labels.size()); point++) {
+        labels[point] = remaining % 3;
+        remaining /= 3;
+      }
+      const vector<RawEyeChain> rawChains =
+        rawEyeChains(labels,expected.width,expected.height);
+      bool zeroLiberty = false;
+      for(const RawEyeChain& chain: rawChains) {
+        if(chain.liberties.empty()) {
+          zeroLiberty = true;
+          break;
+        }
+      }
+      if(zeroLiberty)
+        continue;
+
+      comparedStates += 1;
+      stateStream << expected.width << "x" << expected.height << "|" << state << "|";
+      for(int label: labels)
+        stateStream << label;
+      stateStream << "\n";
+
+      Board board(expected.width,expected.height);
+      for(int point = 0; point < static_cast<int>(labels.size()); point++) {
+        const int x = point % expected.width;
+        const int y = point / expected.width;
+        Loc loc = Location::getLoc(x,y,expected.width);
+        board.colors[loc] = labels[point] == 0 ? C_EMPTY :
+          (labels[point] == 1 ? P_BLACK : P_WHITE);
+      }
+      board.regenChainsFromColors();
+      Rules rules = Rules::getSimpleTerritory();
+
+      for(int attacker: {1,2}) {
+        vector<string> expectedKeys;
+        for(int point = 0; point < static_cast<int>(labels.size()); point++) {
+          RawEyePattern candidate;
+          if(rawEyePattern(
+            labels,
+            expected.width,
+            expected.height,
+            point,
+            attacker,
+            candidate
+          ))
+            expectedKeys.push_back(
+              rawEyePatternKey(candidate,expected.width,expected.height)
+            );
+        }
+        sort(expectedKeys.begin(),expectedKeys.end());
+
+        const Player nextPlayer = attacker == 1 ? P_BLACK : P_WHITE;
+        BoardHistory hist(board,nextPlayer,rules,0,false);
+        vector<GoPattern::Pattern> actual = GoPattern::detectEyes(board,hist);
+        vector<string> actualKeys;
+        for(const GoPattern::Pattern& pattern: actual)
+          actualKeys.push_back(productEyePatternKey(pattern,board));
+        sort(actualKeys.begin(),actualKeys.end());
+        if(actualKeys != expectedKeys) {
+          cerr << "Eye exhaustive mismatch " << expected.width << "x" << expected.height
+               << " state=" << state << " attacker=" << attacker << endl;
+          cerr << "expected=" << joinEyeStrings(expectedKeys,"#") << endl;
+          cerr << "actual=" << joinEyeStrings(actualKeys,"#") << endl;
+        }
+        testAssert(actualKeys == expectedKeys);
+
+        comparedCandidates += static_cast<int>(expectedKeys.size());
+        const string prefix = Global::strprintf(
+          "%dx%d|%d|%d|",
+          expected.width,
+          expected.height,
+          state,
+          attacker
+        );
+        oracleStream << prefix << joinEyeStrings(expectedKeys,"#") << "\n";
+        productStream << prefix << joinEyeStrings(actualKeys,"#") << "\n";
+      }
+    }
+    testAssert(comparedStates == expected.states);
+    testAssert(comparedCandidates == expected.candidates);
+    cout << "Eye independent " << expected.width << "x" << expected.height
+         << ": " << comparedStates << " states, " << comparedCandidates
+         << " candidates" << endl;
+    totalStates += comparedStates;
+    totalCandidates += comparedCandidates;
+  }
+
+  const string stateFingerprint = sha256String(stateStream.str());
+  const string oracleDigest = sha256String(oracleStream.str());
+  const string productDigest = sha256String(productStream.str());
+  cout
+    << "Eye independent validation: " << totalStates << " states, "
+    << totalCandidates << " candidates, 0 mismatches, state fingerprint "
+    << stateFingerprint << ", oracle digest " << oracleDigest
+    << ", product digest " << productDigest << endl;
+  testAssert(totalStates == 13710);
+  testAssert(totalCandidates == 1402);
+  testAssert(
+    stateFingerprint == "31a09396d3f0a9280dfd97e8c1b72c4c5a7fc3c8c26a5918c5654c02d71944b2"
+  );
+  testAssert(
+    oracleDigest == "4d917a709b5d1d096999f4d22df7fb25aa87ddb36f3826bf055f80408e21563e"
+  );
+  testAssert(productDigest == oracleDigest);
 }
 
 // makeNakadeFixtureBoard는 한 흑 chain 안에 지정한 빈 눈 공간만 남긴 표적 판을 만든다.
@@ -1655,6 +2319,95 @@ static void runBensonPerformanceTest() {
   testAssert(p95 <= 20.0);
 }
 
+// makeDenseEyePositiveBoard는 19×19에 간격을 둔 즉시 포획 눈 9개를 배치한다.
+// 반환값은 각 5×5 tile의 흰 외곽·검은 내부 ring·빈 중심이 보존된 합법 보드다.
+static Board makeDenseEyePositiveBoard() {
+  Board board(19,19);
+  for(int baseY: {0,6,12}) {
+    for(int baseX: {0,6,12}) {
+      for(int localY = 0; localY < 5; localY++) {
+        for(int localX = 0; localX < 5; localX++) {
+          Loc loc = Location::getLoc(baseX+localX,baseY+localY,board.x_size);
+          const bool boundary =
+            localX == 0 || localX == 4 || localY == 0 || localY == 4;
+          if(boundary)
+            board.colors[loc] = P_WHITE;
+          else if(localX == 2 && localY == 2)
+            board.colors[loc] = C_EMPTY;
+          else
+            board.colors[loc] = P_BLACK;
+        }
+      }
+    }
+  }
+  board.regenChainsFromColors();
+  for(int y = 0; y < board.y_size; y++) {
+    for(int x = 0; x < board.x_size; x++) {
+      Loc loc = Location::getLoc(x,y,board.x_size);
+      if(board.colors[loc] == P_BLACK || board.colors[loc] == P_WHITE)
+        testAssert(board.getNumLiberties(loc) > 0);
+    }
+  }
+  return board;
+}
+
+// runEyePositivePerformanceTest는 Eye 양성 9개가 있는 19×19 full detect의 p95 예산을 검증한다.
+// 반환값은 없으며 실제 BoardHistory replay 증명과 200회 중 95백분위 20ms 상한을 함께 검사한다.
+static void runEyePositivePerformanceTest() {
+  Board board = makeDenseEyePositiveBoard();
+  BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+  const Hash128 originalHash = board.pos_hash;
+  const size_t originalHistorySize = hist.moveHistory.size();
+
+  GoPattern::DetectionResult initial = GoPattern::detect(board,hist);
+  int eyeCount = 0;
+  int replayedEyeCount = 0;
+  for(const GoPattern::Pattern& pattern: initial.patterns) {
+    if(pattern.kind != GoPattern::Kind::EYE)
+      continue;
+    eyeCount += 1;
+    const GoPattern::EyeDetails& details = get<GoPattern::EyeDetails>(pattern.details);
+    testAssert(pattern.subject.points.size() == 1);
+    const Loc move = pattern.subject.points[0];
+    testAssert(details.attacker == P_WHITE);
+    testAssert(hist.isLegal(board,move,details.attacker));
+    testAssert(!hist.isPassForKo(board,move,details.attacker));
+    Board replayBoard(board);
+    BoardHistory replayHist(hist);
+    replayHist.makeBoardMoveAssumeLegal(replayBoard,move,details.attacker,NULL);
+    for(const GoPattern::EyeCapturedChain& captured: details.capturedChains) {
+      for(Loc point: captured.points)
+        testAssert(replayBoard.colors[point] == C_EMPTY);
+    }
+    replayedEyeCount += 1;
+  }
+  testAssert(eyeCount >= 9);
+  testAssert(replayedEyeCount == eyeCount);
+  testAssert(board.pos_hash == originalHash);
+  testAssert(hist.moveHistory.size() == originalHistorySize);
+
+  vector<double> milliseconds;
+  milliseconds.reserve(200);
+  for(int iteration = 0; iteration < 200; iteration++) {
+    auto start = chrono::steady_clock::now();
+    GoPattern::DetectionResult result = GoPattern::detect(board,hist);
+    auto end = chrono::steady_clock::now();
+    testAssert(!result.truncated);
+    int detectedEyes = 0;
+    for(const GoPattern::Pattern& pattern: result.patterns) {
+      if(pattern.kind == GoPattern::Kind::EYE)
+        detectedEyes += 1;
+    }
+    testAssert(detectedEyes >= 9);
+    milliseconds.push_back(chrono::duration<double,std::milli>(end-start).count());
+  }
+  sort(milliseconds.begin(),milliseconds.end());
+  const double p95 = milliseconds[189];
+  cout << "Eye-positive 19x19 full Pattern postprocess p95: "
+       << p95 << " ms (" << eyeCount << " eyes replayed)" << endl;
+  testAssert(p95 <= 20.0);
+}
+
 void Tests::runPatternTests() {
   cout << "Running pattern tests" << endl;
 
@@ -1729,6 +2482,10 @@ ooooo
 
   runSmallBoardExhaustiveBensonTest();
   runEyePointFactsTest();
+  runEyePatternTest();
+  runEyeHistoryBoundaryTest();
+  runEyeSnapbackFixtureTest();
+  runEyeIndependentExhaustiveTest();
   runNakadePatternTest();
   runNakadeCatalogExhaustiveTest();
   runSemeaiPatternTest();
@@ -1748,4 +2505,5 @@ ooooo
     << sekiFixtures << " seki-boundary fixtures"
     << endl;
   runBensonPerformanceTest();
+  runEyePositivePerformanceTest();
 }

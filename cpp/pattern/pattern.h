@@ -13,6 +13,7 @@ namespace GoPattern {
 // Kind는 구현과 릴리스 게이트가 끝난 패턴 종류만 포함한다.
 enum class Kind {
   BENSON_ALIVE,
+  EYE,
   LADDER,
   NAKADE,
   SEMEAI,
@@ -27,6 +28,7 @@ enum class SubjectType {
 // Outcome은 현재 활성 Kind가 반환할 수 있는 판정 결과다.
 enum class Outcome {
   ALIVE,
+  OPPONENT_CAN_CAPTURE_ADJACENT_CHAIN,
   ATTACKER_WINS,
   DEFENDER_ESCAPES,
   AMBIGUOUS,
@@ -59,6 +61,18 @@ struct BensonVitalRegion {
 struct BensonAliveDetails {
   std::vector<BensonVitalRegion> vitalRegions;
   int eyeCount;
+};
+
+// EyeCapturedChain은 Eye 착수의 실제 전이로 제거된 인접 소유자 chain 전체를 보존한다.
+struct EyeCapturedChain {
+  std::string id;
+  std::vector<Loc> points;
+};
+
+// EyeDetails는 현재 차례 공격자와 실제 전이로 제거된 chain 증거를 보존한다.
+struct EyeDetails {
+  Player attacker;
+  std::vector<EyeCapturedChain> capturedChains;
 };
 
 // LadderDetails는 현재 차례 기준 사다리 참가자와 선후수, 확인된 축머리를 보존한다.
@@ -101,6 +115,7 @@ struct SemeaiDetails {
 // PatternDetails는 구현·게이트가 확정된 Kind의 typed details만 포함한다.
 using PatternDetails = std::variant<
   BensonAliveDetails,
+  EyeDetails,
   LadderDetails,
   NakadeDetails,
   SemeaiDetails

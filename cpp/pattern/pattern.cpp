@@ -14,6 +14,8 @@ static string kindToString(Kind kind) {
   switch(kind) {
   case Kind::BENSON_ALIVE:
     return "bensonAlive";
+  case Kind::EYE:
+    return "eye";
   case Kind::LADDER:
     return "ladder";
   case Kind::NAKADE:
@@ -44,6 +46,8 @@ static string outcomeToString(Outcome outcome) {
   switch(outcome) {
   case Outcome::ALIVE:
     return "alive";
+  case Outcome::OPPONENT_CAN_CAPTURE_ADJACENT_CHAIN:
+    return "opponentCanCaptureAdjacentChain";
   case Outcome::ATTACKER_WINS:
     return "attackerWins";
   case Outcome::DEFENDER_ESCAPES:
@@ -111,6 +115,23 @@ static json detailsToJson(const BensonAliveDetails& details, const Board& board)
   return json{
     {"eyeCount", details.eyeCount},
     {"vitalRegions", std::move(vitalRegions)},
+  };
+}
+
+// detailsToJson은 Eye v1의 실제 포획 공격자와 제거된 chain 증거를 공개 JSON으로 직렬화한다.
+// details는 전이 검증을 통과한 근거이고 board는 좌표 변환에 사용하며, 반환값은 details 객체다.
+static json detailsToJson(const EyeDetails& details, const Board& board) {
+  json capturedChains = json::array();
+  for(const EyeCapturedChain& chain: details.capturedChains) {
+    capturedChains.push_back(json{
+      {"id", chain.id},
+      {"points", sortedPointStrings(chain.points,board)},
+    });
+  }
+  return json{
+    {"attacker", playerToPatternColor(details.attacker)},
+    {"capturedChains", std::move(capturedChains)},
+    {"semantics", "immediateLegalCapture"},
   };
 }
 
