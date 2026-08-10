@@ -324,6 +324,7 @@ add_executable(katago
   program/selfplaymanager.cpp
   pattern/pattern.cpp
   pattern/benson.cpp
+  pattern/eye.cpp
   pattern/eyefacts.cpp
   pattern/ladder.cpp
   pattern/nakade.cpp
