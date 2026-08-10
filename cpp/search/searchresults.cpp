@@ -2004,6 +2004,56 @@ std::pair<std::vector<double>,std::vector<double>> Search::getAverageAndStandard
   return std::make_pair(ownershipToOutput, ownershipStdevToOutput);
 }
 
+bool Search::getRootChildTreeOwnership(
+  Loc move,
+  Player perspective,
+  RootChildTreeOwnershipData& result
+) const {
+  if(
+    (perspective != P_BLACK && perspective != P_WHITE) ||
+    rootNode == NULL ||
+    !alwaysIncludeOwnerMap
+  )
+    return false;
+  vector<AnalysisData> analysisData;
+  static constexpr int MIN_MOVES = 0;
+  static constexpr int MAX_PV_DEPTH = 1;
+  const bool includeWeightFactors = false;
+  const bool duplicateForSymmetries = true;
+  getAnalysisData(
+    analysisData,
+    MIN_MOVES,
+    includeWeightFactors,
+    MAX_PV_DEPTH,
+    duplicateForSymmetries
+  );
+  for(const AnalysisData& data: analysisData) {
+    if(data.move != move || data.node == NULL)
+      continue;
+    const auto rootOwnership = getAverageAndStandardDeviationTreeOwnership(perspective,rootNode,0);
+    const auto childOwnership = getAverageAndStandardDeviationTreeOwnership(perspective,data.node,data.symmetry);
+    result.move = move;
+    result.edgeVisits = data.numVisits;
+    result.childVisits = data.childVisits;
+    result.root = TreeOwnershipData{
+      rootBoard.x_size,
+      rootBoard.y_size,
+      perspective,
+      rootOwnership.first,
+      rootOwnership.second,
+    };
+    result.child = TreeOwnershipData{
+      rootBoard.x_size,
+      rootBoard.y_size,
+      perspective,
+      childOwnership.first,
+      childOwnership.second,
+    };
+    return true;
+  }
+  return false;
+}
+
 
 bool Search::getAnalysisJson(
   const Player perspective,

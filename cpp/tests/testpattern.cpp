@@ -1,12 +1,14 @@
 #include "../tests/tests.h"
 #include "../pattern/detector.h"
 #include "../pattern/eyefacts.h"
+#include "../pattern/ownershipdelta.h"
 #include "../pattern/semeai.h"
 #include "../core/rand.h"
 
 #include <algorithm>
 #include <chrono>
 #include <iterator>
+#include <limits>
 #include <set>
 
 using namespace std;
@@ -1655,6 +1657,305 @@ static void runBensonPerformanceTest() {
   testAssert(p95 <= 20.0);
 }
 
+// makeOwnershipField는 NN 없는 OwnershipDelta 단위 테스트용 고정 흑 관점 지도를 만든다.
+// 크기와 sigma는 입력값이며, 반환값은 평균 0·모든 점 유효인 행 우선 field다.
+static GoPattern::OwnershipField makeOwnershipField(int xSize, int ySize, double sigma = 0.05) {
+  const size_t area = static_cast<size_t>(xSize) * static_cast<size_t>(ySize);
+  return GoPattern::OwnershipField{
+    xSize,
+    ySize,
+    P_BLACK,
+    vector<double>(area,0.0),
+    vector<double>(area,sigma),
+    vector<bool>(area,true),
+  };
+}
+
+// runOwnershipDeltaRequestPlanTest는 기록 수 병합·중복 제거·방문 수·억제 경계를 검사한다.
+// 반환값은 없다.
+static void runOwnershipDeltaRequestPlanTest() {
+  const Move recorded(Location::getLoc(2,2,5),P_BLACK);
+  vector<Loc> existing{
+    Location::getLoc(0,0,5),
+    Location::getLoc(1,0,5),
+  };
+  GoPattern::OwnershipDeltaRequestPlan plan = GoPattern::planRecordedMoveOwnershipDelta(
+    true,true,false,false,P_BLACK,true,true,recorded,existing,1
+  );
+  testAssert(plan.eligibility == GoPattern::OwnershipDeltaEligibility::ELIGIBLE);
+  testAssert(plan.includeMoves.size() == 3);
+  testAssert(plan.includeMoves.back() == recorded.loc);
+  testAssert(plan.includeMovesMinVisits == 30);
+
+  plan = GoPattern::planRecordedMoveOwnershipDelta(
+    true,true,false,false,P_BLACK,true,true,recorded,
+    {existing[0],existing[0],recorded.loc,recorded.loc},1
+  );
+  testAssert(plan.eligibility == GoPattern::OwnershipDeltaEligibility::ELIGIBLE);
+  testAssert(plan.includeMoves.size() == 2);
+  testAssert(plan.includeMoves[0] == existing[0]);
+  testAssert(plan.includeMoves[1] == recorded.loc);
+
+  plan = GoPattern::planRecordedMoveOwnershipDelta(
+    true,true,false,false,P_BLACK,true,true,recorded,{recorded.loc},50
+  );
+  testAssert(plan.eligibility == GoPattern::OwnershipDeltaEligibility::ELIGIBLE);
+  testAssert(plan.includeMoves.size() == 1);
+  testAssert(plan.includeMovesMinVisits == 50);
+
+  vector<Loc> eight;
+  for(int x = 0; x < 5; x++)
+    eight.push_back(Location::getLoc(x,0,5));
+  for(int x = 0; x < 3; x++)
+    eight.push_back(Location::getLoc(x,1,5));
+  plan = GoPattern::planRecordedMoveOwnershipDelta(
+    true,true,false,false,P_BLACK,true,true,recorded,eight,7
+  );
+  testAssert(plan.eligibility == GoPattern::OwnershipDeltaEligibility::TOO_MANY_INCLUDE_MOVES);
+  testAssert(plan.includeMoves == eight);
+  testAssert(plan.includeMovesMinVisits == 7);
+  testAssert(!plan.warning.empty());
+
+  const Move pass(Board::PASS_LOC,P_BLACK);
+  testAssert(
+    GoPattern::planRecordedMoveOwnershipDelta(
+      true,true,false,false,P_BLACK,true,false,pass,existing,1
+    ).eligibility == GoPattern::OwnershipDeltaEligibility::PASS_MOVE
+  );
+  testAssert(
+    GoPattern::planRecordedMoveOwnershipDelta(
+      true,true,false,true,P_BLACK,true,true,recorded,existing,1
+    ).eligibility == GoPattern::OwnershipDeltaEligibility::INCLUDE_ALL_MOVES
+  );
+  testAssert(
+    GoPattern::planRecordedMoveOwnershipDelta(
+      true,true,false,false,P_BLACK,true,false,recorded,existing,1
+    ).eligibility == GoPattern::OwnershipDeltaEligibility::NOT_AUTHORITATIVE_NEXT_MOVE
+  );
+  testAssert(
+    GoPattern::planRecordedMoveOwnershipDelta(
+      true,true,true,false,P_BLACK,true,true,recorded,existing,1
+    ).eligibility == GoPattern::OwnershipDeltaEligibility::TERMINAL
+  );
+  testAssert(
+    GoPattern::planRecordedMoveOwnershipDelta(
+      true,true,false,false,P_BLACK,false,false,Move(Board::NULL_LOC,C_EMPTY),existing,1
+    ).eligibility == GoPattern::OwnershipDeltaEligibility::NO_RECORDED_MOVE
+  );
+  testAssert(
+    GoPattern::planRecordedMoveOwnershipDelta(
+      false,true,false,false,P_BLACK,true,true,recorded,existing,1
+    ).eligibility == GoPattern::OwnershipDeltaEligibility::PATTERNS_DISABLED
+  );
+  const GoPattern::OwnershipDeltaRequestPlan disabledPlan =
+    GoPattern::planRecordedMoveOwnershipDelta(
+      true,false,false,false,P_BLACK,true,true,recorded,existing,7
+    );
+  testAssert(disabledPlan.eligibility == GoPattern::OwnershipDeltaEligibility::PATTERNS_DISABLED);
+  testAssert(disabledPlan.includeMoves == existing);
+  testAssert(disabledPlan.includeMovesMinVisits == 7);
+  testAssert(disabledPlan.warning.empty());
+}
+
+// runOwnershipDeltaComponentTest는 evaluator와 같은 수식·부호·4-neighbor·정렬을 검사한다.
+// 반환값은 없다.
+static void runOwnershipDeltaComponentTest() {
+  Board board(4,3);
+  GoPattern::OwnershipField root = makeOwnershipField(4,3);
+  GoPattern::OwnershipField child = root;
+  child.mean[0] = 0.50;
+  child.mean[1] = 0.30;
+  child.mean[5] = 0.25;
+  child.mean[10] = -0.45;
+  child.mean[11] = -0.30;
+  const GoPattern::OwnershipDeltaThresholds thresholds{0.40,0.20,2.0,2};
+  vector<GoPattern::Pattern> patterns = GoPattern::detectOwnershipDelta(
+    board,
+    GoPattern::OwnershipDeltaInput{root,child,Location::ofString("C2",board)},
+    thresholds
+  );
+  testAssert(patterns.size() == 2);
+  const GoPattern::Pattern* black = nullptr;
+  const GoPattern::Pattern* white = nullptr;
+  for(const GoPattern::Pattern& pattern: patterns) {
+    testAssert(pattern.kind == GoPattern::Kind::OWNERSHIP_DELTA);
+    testAssert(pattern.schemaVersion == 1);
+    testAssert(pattern.subject.type == GoPattern::SubjectType::REGION);
+    testAssert(pattern.outcome == GoPattern::Outcome::CHANGED);
+    testAssert(pattern.confidence == GoPattern::Confidence::MEDIUM);
+    if(pattern.subject.color == P_BLACK)
+      black = &pattern;
+    else if(pattern.subject.color == P_WHITE)
+      white = &pattern;
+  }
+  testAssert(black != nullptr && white != nullptr);
+  testAssert(black->subject.id == "region:B:A3");
+  testAssert(black->subject.points.size() == 3);
+  testAssert(Location::toString(black->subject.points[0],board) == "A3");
+  testAssert(Location::toString(black->subject.points[1],board) == "B2");
+  testAssert(Location::toString(black->subject.points[2],board) == "B3");
+  const GoPattern::OwnershipDeltaDetails& blackDetails =
+    get<GoPattern::OwnershipDeltaDetails>(black->details);
+  testAssert(blackDetails.affectedPointCount == 3);
+  testAssert(abs(blackDetails.meanRootOwnership) < 1e-12);
+  testAssert(abs(blackDetails.meanChildOwnership - 0.35) < 1e-12);
+  testAssert(abs(blackDetails.meanDelta - 0.35) < 1e-12);
+  testAssert(abs(blackDetails.uncertainty - sqrt(0.005)) < 1e-12);
+  testAssert(
+    abs(
+      (blackDetails.meanChildOwnership - blackDetails.meanRootOwnership) -
+      blackDetails.meanDelta
+    ) <= 1e-6
+  );
+  testAssert(white->subject.id == "region:W:C1");
+
+  const json serialized = GoPattern::toJson(*black,board);
+  testAssert(serialized["kind"] == "ownershipDelta");
+  testAssert(serialized["subject"]["points"] == json({"A3","B2","B3"}));
+  testAssert(serialized["details"].size() == 8);
+  testAssert(serialized["details"]["move"] == "C2");
+  testAssert(serialized["details"]["perspective"] == "B");
+  testAssert(serialized["details"]["semantics"] == "rootChildPredictedOwnershipChange");
+
+  GoPattern::OwnershipField uncertainChild = root;
+  uncertainChild.mean[0] = 0.50;
+  root.pointStdDev[0] = 0.40;
+  uncertainChild.pointStdDev[0] = 0.40;
+  testAssert(GoPattern::detectOwnershipDelta(
+    board,
+    GoPattern::OwnershipDeltaInput{root,uncertainChild,Location::ofString("A1",board)},
+    GoPattern::OwnershipDeltaThresholds{0.40,0.20,1.0,1}
+  ).empty());
+
+  GoPattern::OwnershipField noSeedRoot = makeOwnershipField(4,3);
+  GoPattern::OwnershipField noSeedChild = noSeedRoot;
+  noSeedChild.mean[0] = 0.30;
+  noSeedChild.mean[1] = 0.30;
+  testAssert(GoPattern::detectOwnershipDelta(
+    board,
+    GoPattern::OwnershipDeltaInput{noSeedRoot,noSeedChild,Location::ofString("A1",board)},
+    thresholds
+  ).empty());
+
+  Board tieBoard(3,1);
+  GoPattern::OwnershipField tieRoot = makeOwnershipField(3,1,0.01);
+  GoPattern::OwnershipField tieChild = tieRoot;
+  tieChild.mean[0] = 0.50;
+  tieChild.mean[2] = -0.50;
+  patterns = GoPattern::detectOwnershipDelta(
+    tieBoard,
+    GoPattern::OwnershipDeltaInput{tieRoot,tieChild,Location::ofString("B1",tieBoard)},
+    GoPattern::OwnershipDeltaThresholds{0.40,0.20,1.0,1}
+  );
+  testAssert(patterns.size() == 2);
+  testAssert(patterns[0].subject.color == P_BLACK);
+  testAssert(patterns[1].subject.color == P_WHITE);
+
+  Board rankingBoard(6,3);
+  GoPattern::OwnershipField rankingRoot = makeOwnershipField(6,3,0.01);
+  GoPattern::OwnershipField rankingChild = rankingRoot;
+  const vector<int> isolatedIndices{0,2,4,7,9,11};
+  for(size_t i = 0; i < isolatedIndices.size(); i++)
+    rankingChild.mean[isolatedIndices[i]] = 0.90 - 0.10 * static_cast<double>(i);
+  patterns = GoPattern::detectOwnershipDelta(
+    rankingBoard,
+    GoPattern::OwnershipDeltaInput{
+      rankingRoot,
+      rankingChild,
+      Location::ofString("A1",rankingBoard),
+    },
+    GoPattern::OwnershipDeltaThresholds{0.30,0.30,1.0,1}
+  );
+  testAssert(patterns.size() == 5);
+  double previousMagnitude = 2.0;
+  for(const GoPattern::Pattern& pattern: patterns) {
+    const double magnitude = abs(get<GoPattern::OwnershipDeltaDetails>(pattern.details).meanDelta);
+    testAssert(magnitude < previousMagnitude);
+    previousMagnitude = magnitude;
+  }
+}
+
+// runOwnershipDeltaCaptureFixtureTest는 착수·따낸 돌·주변 변화가 한 component에 남는지 검사한다.
+// 반환값은 없다.
+static void runOwnershipDeltaCaptureFixtureTest() {
+  Board board(5,5);
+  GoPattern::OwnershipField root = makeOwnershipField(5,5,0.02);
+  GoPattern::OwnershipField child = root;
+  const vector<string> affected{"B3","C2","C3","C4","D3"};
+  for(const string& coordinate: affected) {
+    Loc loc = Location::ofString(coordinate,board);
+    const int index = Location::getY(loc,board.x_size) * board.x_size +
+      Location::getX(loc,board.x_size);
+    child.mean[index] = coordinate == "C3" || coordinate == "B3" ? 0.80 : 0.30;
+  }
+  vector<GoPattern::Pattern> patterns = GoPattern::detectOwnershipDelta(
+    board,
+    GoPattern::OwnershipDeltaInput{root,child,Location::ofString("C3",board)},
+    GoPattern::OwnershipDeltaThresholds{0.70,0.25,2.0,3}
+  );
+  testAssert(patterns.size() == 1);
+  testAssert(patterns[0].subject.id == "region:B:B3");
+  testAssert(patterns[0].subject.points.size() == affected.size());
+  const GoPattern::OwnershipDeltaDetails& details =
+    get<GoPattern::OwnershipDeltaDetails>(patterns[0].details);
+  testAssert(details.affectedPointCount == static_cast<int>(affected.size()));
+}
+
+// runOwnershipDeltaValidationTest는 비정사각·유한수·범위·관점·크기 오류를 거절하는지 검사한다.
+// 반환값은 없다.
+static void runOwnershipDeltaValidationTest() {
+  Board board(3,2);
+  GoPattern::OwnershipField root = makeOwnershipField(3,2);
+  GoPattern::OwnershipField child = root;
+  child.mean[0] = 0.8;
+  const GoPattern::OwnershipDeltaThresholds thresholds{0.7,0.2,1.0,1};
+  vector<GoPattern::Pattern> patterns = GoPattern::detectOwnershipDelta(
+    board,
+    GoPattern::OwnershipDeltaInput{root,child,Location::ofString("A2",board)},
+    thresholds
+  );
+  testAssert(patterns.size() == 1);
+  testAssert(patterns[0].subject.id == "region:B:A2");
+
+  auto rejects = [&board,&thresholds](
+    GoPattern::OwnershipField invalidRoot,
+    GoPattern::OwnershipField invalidChild
+  ) {
+    try {
+      GoPattern::detectOwnershipDelta(
+        board,
+        GoPattern::OwnershipDeltaInput{
+          invalidRoot,
+          invalidChild,
+          Location::ofString("A2",board),
+        },
+        thresholds
+      );
+      return false;
+    }
+    catch(const invalid_argument&) {
+      return true;
+    }
+  };
+  GoPattern::OwnershipField invalid = root;
+  invalid.mean[0] = numeric_limits<double>::quiet_NaN();
+  testAssert(rejects(invalid,child));
+  invalid = root;
+  invalid.mean[0] = 1.01;
+  testAssert(rejects(invalid,child));
+  invalid = root;
+  invalid.pointStdDev[0] = -0.01;
+  testAssert(rejects(invalid,child));
+  invalid = root;
+  invalid.perspective = P_WHITE;
+  testAssert(rejects(invalid,child));
+  invalid = root;
+  invalid.mean.pop_back();
+  testAssert(rejects(invalid,child));
+  invalid = makeOwnershipField(2,3);
+  testAssert(rejects(invalid,child));
+}
+
 void Tests::runPatternTests() {
   cout << "Running pattern tests" << endl;
 
@@ -1733,6 +2034,10 @@ ooooo
   runNakadeCatalogExhaustiveTest();
   runSemeaiPatternTest();
   runSemeaiIndependentPropertyTest();
+  runOwnershipDeltaRequestPlanTest();
+  runOwnershipDeltaComponentTest();
+  runOwnershipDeltaCaptureFixtureTest();
+  runOwnershipDeltaValidationTest();
   runLadderPatternTest();
   runLadderIndependentPropertyTest();
   int squareStates = runSquareBoardPropertyTest();
