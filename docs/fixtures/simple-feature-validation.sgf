@@ -1,0 +1,9 @@
+(;FF[4]GM[1]CA[UTF-8]AP[KataGo:1.18.2]SZ[9]KM[7.5]RU[Chinese]
+C[9x9 교대 착수 검증 기보. 흑의 마지막 E6 착수로 백 E5 한 점을 잡는다.]
+;B[de]C[B D5]
+;W[ee]C[W E5]
+;B[ef]C[B E4]
+;W[ai]C[W A1]
+;B[fe]C[B F5]
+;W[ah]C[W A2]
+;B[ed]C[B E6, W E5 포획])

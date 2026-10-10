@@ -1,0 +1,4 @@
+(;GM[1]FF[4]CA[UTF-8]SZ[5:3]RU[Japanese]KM[0]PL[B]
+C[두 눈 검증용 5×3 설치 국면. 윗줄 xxxxx 가운데 x.x.x 아랫줄 xxxxx이며 B2와 D2가 눈이다. 흑 13돌은 AB 설치돌이므로 착수·포획 수와 다르다. 일본 영토계가에서 포획돌과 덤이 없으면 두 눈만 흑집 2점이다. Analysis Engine은 preventCleanupPhase=false 설정에서 세 차례 양측 패스 뒤 확정 종료한다.]
+AB[aa][ba][ca][da][ea][ab][cb][eb][ac][bc][cc][dc][ec]
+;B[];W[];B[];W[];B[];W[])
