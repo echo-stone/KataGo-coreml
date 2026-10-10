@@ -46,6 +46,7 @@ int MainCmds::runtests(const vector<string>& args) {
   Tests::runRulesTests();
   Tests::runPassAliveSuicideModeTests();
   Tests::runPatternTests();
+  Tests::runExcludeTerritoryAtariModeTests();
 
   Tests::runBoardUndoTest();
   Tests::runBoardHandicapTest();
@@ -78,6 +79,7 @@ int MainCmds::runoutputtests(const vector<string>& args) {
   ScoreValue::initTables();
 
   Tests::runNNInputsV3V4Tests();
+  Tests::runExcludeTerritoryAtariNNInputsTests();
   Tests::runNNLessSearchTests();
   Tests::runTrainingWriteTests();
   Tests::runPassAliveSuicideGameTests();
@@ -261,6 +263,15 @@ int MainCmds::runnnontinyboardtest(const vector<string>& args) {
   return 0;
 }
 
+int MainCmds::runonnxmodelfiletests(const vector<string>& args) {
+  if(args.size() != 2 && args.size() != 3) {
+    cerr << "Must supply one or two arguments: SCRATCHDIR [MODELFILE]" << endl;
+    return 1;
+  }
+  Tests::runOnnxModelFileTests(args[1], args.size() >= 3 ? args[2] : "");
+  return 0;
+}
+
 int MainCmds::runnnsymmetriestest(const vector<string>& args) {
   if(args.size() != 5) {
     cerr << "Must supply exactly four arguments: MODEL_FILE INPUTSNHWC CUDANHWC FP16" << endl;
@@ -380,12 +391,16 @@ int MainCmds::runtinynntests(const vector<string>& args) {
       maxTime,
       maxPonderTime,
       std::vector<int>(),
+      1,
+      -1,
       nnCacheSizePowerOfTwo,
       nnMutexPoolSizePowerOfTwo,
       numSearchThreads
     );
     istringstream in(cfgStr);
     cfg.initialize(in);
+    //The ONNX backend requires an explicit provider choice in real configs, so tests set cpu.
+    cfg.overrideKey("onnxProvider", "cpu");
   }
 
   const bool logToStdoutDefault = true;
@@ -449,13 +464,12 @@ int MainCmds::runnnevalcanarytests(const vector<string>& args) {
   {
     Setup::initializeSession(cfg);
     const int expectedConcurrentEvals = 1;
-    const int defaultMaxBatchSize = 8;
     const bool defaultRequireExactNNLen = false;
     const bool disableFP16 = false;
     const string expectedSha256 = "";
     nnEval = Setup::initializeNNEvaluator(
       modelFile,modelFile,expectedSha256,cfg,logger,seedRand,expectedConcurrentEvals,
-      NNPos::MAX_BOARD_LEN,NNPos::MAX_BOARD_LEN,defaultMaxBatchSize,defaultRequireExactNNLen,disableFP16,
+      NNPos::MAX_BOARD_LEN,NNPos::MAX_BOARD_LEN,Setup::MaxBatchSizeRequest::fromConcurrency(),defaultRequireExactNNLen,disableFP16,
       Setup::SETUP_FOR_GTP
     );
   }
@@ -508,13 +522,12 @@ int MainCmds::runbeginsearchspeedtest(const vector<string>& args) {
   {
     Setup::initializeSession(cfg);
     const int expectedConcurrentEvals = params.numThreads;
-    const int defaultMaxBatchSize = std::max(8,((params.numThreads+3)/4)*4);
     const bool defaultRequireExactNNLen = false;
     const bool disableFP16 = false;
     const string expectedSha256 = "";
     nnEval = Setup::initializeNNEvaluator(
       modelFile,modelFile,expectedSha256,cfg,logger,rand,expectedConcurrentEvals,
-      Board::MAX_LEN,Board::MAX_LEN,defaultMaxBatchSize,defaultRequireExactNNLen,disableFP16,
+      Board::MAX_LEN,Board::MAX_LEN,Setup::MaxBatchSizeRequest::fromConcurrency(),defaultRequireExactNNLen,disableFP16,
       Setup::SETUP_FOR_GTP
     );
   }
@@ -546,7 +559,7 @@ int MainCmds::runbeginsearchspeedtest(const vector<string>& args) {
 
   Player nextPla = P_BLACK;
   rules.komi = 6.5;
-  BoardHistory hist(board,nextPla,rules,0,false);
+  BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes());
 
   bot->setPosition(nextPla,board,hist);
 
@@ -632,13 +645,12 @@ int MainCmds::runownershipspeedtest(const vector<string>& args) {
   {
     Setup::initializeSession(cfg);
     const int expectedConcurrentEvals = params.numThreads;
-    const int defaultMaxBatchSize = std::max(8,((params.numThreads+3)/4)*4);
     const bool defaultRequireExactNNLen = false;
     const bool disableFP16 = false;
     const string expectedSha256 = "";
     nnEval = Setup::initializeNNEvaluator(
       modelFile,modelFile,expectedSha256,cfg,logger,rand,expectedConcurrentEvals,
-      Board::MAX_LEN,Board::MAX_LEN,defaultMaxBatchSize,defaultRequireExactNNLen,disableFP16,
+      Board::MAX_LEN,Board::MAX_LEN,Setup::MaxBatchSizeRequest::fromConcurrency(),defaultRequireExactNNLen,disableFP16,
       Setup::SETUP_FOR_GTP
     );
   }
@@ -670,7 +682,7 @@ int MainCmds::runownershipspeedtest(const vector<string>& args) {
 
   Player nextPla = P_BLACK;
   rules.komi = 7.0;
-  BoardHistory hist(board,nextPla,rules,0,false);
+  BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes());
 
   bot->setPosition(nextPla,board,hist);
   bot->setAlwaysIncludeOwnerMap(true);

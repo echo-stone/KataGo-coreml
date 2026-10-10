@@ -27,6 +27,11 @@ echo-stone/KataGo-coreml
 ## 전환 기준
 
 - 최초 전환 기준은 공식 `v1.17.2` 태그이다.
+- 현재 동기화 기준은 공식 `v1.18.2` 태그(`fd0723fd`)이다. 최초 전환
+  기준 `v1.17.2`는 이력으로 유지한다. 이번 동기화의 범위와 검증 결과는
+  [v1.18.2 동기화 보고](upstream-v1.18.2-sync.md)에 기록한다.
+- 미출시 변경이 포함된 `upstream/master`(`d91ea855`)는 이번 동기화에
+  반영하지 않는다. 이후에도 검증 대상은 최신 안정 릴리스 태그로 정한다.
 - 기존 `metal-coreml-stable` 계보는
   `legacy/coreml-stable-before-v1.17.2` 브랜치로 보존한다.
 - 구형 `coremlbackend.*`, `USE_COREML_BACKEND` 및 구형 CoreML CMake 변경은
@@ -41,6 +46,9 @@ echo-stone/KataGo-coreml
 2. Analysis Engine의 `action: "final_score"`
 3. KataServer가 사용하는 GTP·분석 검색 설정 확장
 4. 로컬 macOS Metal/CoreML 빌드 도우미와 관련 테스트·문서
+5. Analysis Engine의 `includePatterns`와 `patterns` v1 검출 결과
+6. Analysis Engine의 `includeAlive`, `includeSeki`, 독립 `alive`·`seki`
+   액션과 돌의 생사·빅 배열
 
 ## 설정 마이그레이션
 
@@ -54,8 +62,8 @@ MPSGraph GPU와 CoreML/ANE를 함께 사용한다.
 
 기존 장치 값 `101`, `102`는 공식 백엔드에서 유효하지 않다. 여러 ANE
 스레드를 사용하려면 각 스레드에 동일하게 `100`을 지정한다.
-공식 v1.17.2의 CoreML 변환기는 신경망 모델 버전 8~17만 지원하므로,
-ANE 배포 전 실제 운영 모델로 초기화를 검증한다.
+최초 전환 당시 v1.17.2의 CoreML 변환기는 신경망 모델 버전 8~17만
+지원했다. v1.18.2에서도 ANE 배포 전 실제 운영 모델로 초기화를 검증한다.
 
 ```text
 numNNServerThreadsPerModel = 4

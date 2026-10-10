@@ -119,7 +119,7 @@ static void checkBensonAgainstRawOracle(const Board& board, bool suicideLegal) {
   );
   Rules rules = Rules::getTrompTaylorish();
   rules.multiStoneSuicideLegal = suicideLegal;
-  BoardHistory hist(board,P_BLACK,rules,0,false);
+  BoardHistory hist(board,P_BLACK,rules,0,BoardHistoryModes(false,false));
   const vector<GoPattern::Pattern> patterns = GoPattern::detectBensonAlive(board,hist);
   map<string,const GoPattern::Pattern*> actualByChain;
   for(const GoPattern::Pattern& pattern: patterns) {
@@ -198,7 +198,7 @@ static void runSmallBoardExhaustiveBensonTest() {
         );
         Rules rules = Rules::getTrompTaylorish();
         rules.multiStoneSuicideLegal = suicideMode == 1;
-        BoardHistory hist(board,P_BLACK,rules,0,false);
+        BoardHistory hist(board,P_BLACK,rules,0,BoardHistoryModes(false,false));
         const vector<GoPattern::Pattern> patterns = GoPattern::detectBensonAlive(board,hist);
         map<string,bool> productAlive;
         for(const GoPattern::Pattern& pattern: patterns)
@@ -274,7 +274,7 @@ static void runEyePointFactsTest() {
 ..x..
 .....
 )%%");
-    BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+    BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
     vector<GoPattern::EyePointFact> facts = GoPattern::extractEyePointFacts(board,hist);
     testAssert(facts.size() == 1);
     testAssert(facts[0].owner == P_BLACK);
@@ -293,7 +293,7 @@ static void runEyePointFactsTest() {
 .....
 )%%");
     Loc center = Location::getLoc(2,2,board.x_size);
-    BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+    BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
     vector<GoPattern::EyePointFact> facts = GoPattern::extractEyePointFacts(board,hist);
     testAssert(facts.size() == 1);
     testAssert(facts[0].loc == center);
@@ -311,7 +311,7 @@ static void runEyePointFactsTest() {
 .ooooo.
 .......
 )%%");
-    BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+    BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
     vector<GoPattern::EyePointFact> facts = GoPattern::extractEyePointFacts(board,hist);
     testAssert(facts.size() == 1);
     testAssert(facts[0].simpleEye);
@@ -325,7 +325,7 @@ static void runEyePointFactsTest() {
 .xox.
 .....
 )%%");
-    BoardHistory hist(board,P_BLACK,Rules::getTrompTaylorish(),0,false);
+    BoardHistory hist(board,P_BLACK,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
     vector<GoPattern::EyePointFact> facts = GoPattern::extractEyePointFacts(board,hist);
     testAssert(facts.empty());
   }
@@ -369,7 +369,7 @@ static void runEyeHistoryBoundaryTest() {
     Board board = makeKoEyeBoard();
     Rules rules = Rules::getSimpleTerritory();
     rules.koRule = koRule;
-    BoardHistory hist(board,P_WHITE,rules,0,false);
+    BoardHistory hist(board,P_WHITE,rules,0,BoardHistoryModes(false,false));
     testAssert(hist.isLegal(board,koCapture,P_WHITE));
     testAssert(findEyeAt(GoPattern::detectEyes(board,hist),koCapture) != nullptr);
     hist.makeBoardMoveAssumeLegal(board,koCapture,P_WHITE,NULL);
@@ -388,7 +388,7 @@ static void runEyeHistoryBoundaryTest() {
 )%%");
   const Loc center = Location::ofString("D4",positive);
   Rules territoryRules = Rules::getSimpleTerritory();
-  BoardHistory encoreHist(positive,P_WHITE,territoryRules,0,false);
+  BoardHistory encoreHist(positive,P_WHITE,territoryRules,0,BoardHistoryModes(false,false));
   encoreHist.makeBoardMoveAssumeLegal(positive,Board::PASS_LOC,P_WHITE,NULL);
   encoreHist.makeBoardMoveAssumeLegal(positive,Board::PASS_LOC,P_BLACK,NULL);
   testAssert(encoreHist.encorePhase == 1);
@@ -397,7 +397,7 @@ static void runEyeHistoryBoundaryTest() {
   testAssert(findEyeAt(GoPattern::detectEyes(positive,encoreHist),center) != nullptr);
 
   Board encoreKoBoard = makeKoEyeBoard();
-  BoardHistory encoreKoHist(encoreKoBoard,P_WHITE,territoryRules,0,false);
+  BoardHistory encoreKoHist(encoreKoBoard,P_WHITE,territoryRules,0,BoardHistoryModes(false,false));
   encoreKoHist.makeBoardMoveAssumeLegal(encoreKoBoard,Board::PASS_LOC,P_WHITE,NULL);
   encoreKoHist.makeBoardMoveAssumeLegal(encoreKoBoard,Board::PASS_LOC,P_BLACK,NULL);
   testAssert(encoreKoHist.encorePhase == 1);
@@ -408,14 +408,14 @@ static void runEyeHistoryBoundaryTest() {
   testAssert(GoPattern::detectEyes(encoreKoBoard,encoreKoHist).empty());
 
   Board finishedBoard(positive);
-  BoardHistory finished(finishedBoard,P_WHITE,Rules::getTrompTaylorish(),0,false);
+  BoardHistory finished(finishedBoard,P_WHITE,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
   finished.makeBoardMoveAssumeLegal(finishedBoard,Board::PASS_LOC,P_WHITE,NULL);
   finished.makeBoardMoveAssumeLegal(finishedBoard,Board::PASS_LOC,P_BLACK,NULL);
   testAssert(finished.isGameFinished);
   testAssert(GoPattern::detectEyes(finishedBoard,finished).empty());
 
   Board pastNormalBoard(positive);
-  BoardHistory pastNormal(pastNormalBoard,P_WHITE,territoryRules,0,false);
+  BoardHistory pastNormal(pastNormalBoard,P_WHITE,territoryRules,0,BoardHistoryModes(false,false));
   pastNormal.makeBoardMoveAssumeLegal(pastNormalBoard,Board::PASS_LOC,P_WHITE,NULL);
   pastNormal.makeBoardMoveAssumeLegal(
     pastNormalBoard,
@@ -439,7 +439,7 @@ oxx.
   const Loc capture = Location::ofString("A1",board);
   const Loc recapture = Location::ofString("B1",board);
   const Loc remainingEmpty = Location::ofString("C1",board);
-  BoardHistory hist(board,P_BLACK,Rules::getSimpleTerritory(),0,false);
+  BoardHistory hist(board,P_BLACK,Rules::getSimpleTerritory(),0,BoardHistoryModes(false,false));
   const Hash128 originalHash = board.pos_hash;
 
   vector<GoPattern::Pattern> patterns = GoPattern::detectEyes(board,hist);
@@ -480,7 +480,7 @@ static void runEyePatternTest() {
 .......
 )%%");
   const Loc center = Location::ofString("D4",board);
-  BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+  BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
   const Hash128 originalHash = board.pos_hash;
   const size_t originalHistorySize = hist.moveHistory.size();
   GoPattern::DetectionResult result = GoPattern::detect(board,hist);
@@ -525,7 +525,7 @@ static void runEyePatternTest() {
   testAssert(actual == expected);
 
   Board noOwnerTurn(board);
-  BoardHistory ownerTurn(noOwnerTurn,P_BLACK,Rules::getTrompTaylorish(),0,false);
+  BoardHistory ownerTurn(noOwnerTurn,P_BLACK,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
   testAssert(findEyeAt(GoPattern::detectEyes(noOwnerTurn,ownerTurn),center) == nullptr);
 
   Board multi = Board::parseBoard(5,3,R"%%(
@@ -534,7 +534,7 @@ ox.xo
 .oxo.
 )%%");
   const Loc multiCenter = Location::ofString("C2",multi);
-  BoardHistory multiHist(multi,P_WHITE,Rules::getTrompTaylorish(),0,false);
+  BoardHistory multiHist(multi,P_WHITE,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
   vector<GoPattern::Pattern> multiPatterns = GoPattern::detectEyes(multi,multiHist);
   const GoPattern::Pattern* multiPattern = findEyeAt(
     multiPatterns,
@@ -559,7 +559,7 @@ ox.xo
     }
   }
   inverted.regenChainsFromColors();
-  BoardHistory invertedHist(inverted,P_BLACK,Rules::getTrompTaylorish(),0,false);
+  BoardHistory invertedHist(inverted,P_BLACK,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
   vector<GoPattern::Pattern> invertedPatterns =
     GoPattern::detectEyes(inverted,invertedHist);
   const GoPattern::Pattern* invertedPattern = findEyeAt(
@@ -578,7 +578,7 @@ xx
 x.
 )%%");
   const Loc cornerPoint = Location::ofString("B1",corner);
-  BoardHistory cornerHist(corner,P_WHITE,Rules::getSimpleTerritory(),0,false);
+  BoardHistory cornerHist(corner,P_WHITE,Rules::getSimpleTerritory(),0,BoardHistoryModes(false,false));
   vector<GoPattern::Pattern> cornerPatterns = GoPattern::detectEyes(corner,cornerHist);
   const GoPattern::Pattern* cornerPattern = findEyeAt(
     cornerPatterns,
@@ -593,7 +593,7 @@ oxo
 x.x
 )%%");
   const Loc edgePoint = Location::ofString("B1",edge);
-  BoardHistory edgeHist(edge,P_WHITE,Rules::getSimpleTerritory(),0,false);
+  BoardHistory edgeHist(edge,P_WHITE,Rules::getSimpleTerritory(),0,BoardHistoryModes(false,false));
   vector<GoPattern::Pattern> edgePatterns = GoPattern::detectEyes(edge,edgeHist);
   const GoPattern::Pattern* edgePattern = findEyeAt(
     edgePatterns,
@@ -613,14 +613,14 @@ x.x
   Rules suicideAllowed = Rules::getTrompTaylorish();
   Rules suicideForbidden = suicideAllowed;
   suicideForbidden.multiStoneSuicideLegal = false;
-  BoardHistory allowedHist(trueEye,P_WHITE,suicideAllowed,0,false);
-  BoardHistory forbiddenHist(trueEye,P_WHITE,suicideForbidden,0,false);
+  BoardHistory allowedHist(trueEye,P_WHITE,suicideAllowed,0,BoardHistoryModes(false,false));
+  BoardHistory forbiddenHist(trueEye,P_WHITE,suicideForbidden,0,BoardHistoryModes(false,false));
   testAssert(!allowedHist.isLegal(trueEye,trueEyeCenter,P_WHITE));
   testAssert(!forbiddenHist.isLegal(trueEye,trueEyeCenter,P_WHITE));
   testAssert(GoPattern::detectEyes(trueEye,allowedHist).empty());
   testAssert(GoPattern::detectEyes(trueEye,forbiddenHist).empty());
 
-  BoardHistory positiveSuicideForbidden(board,P_WHITE,suicideForbidden,0,false);
+  BoardHistory positiveSuicideForbidden(board,P_WHITE,suicideForbidden,0,BoardHistoryModes(false,false));
   testAssert(positiveSuicideForbidden.isLegal(board,center,P_WHITE));
   testAssert(
     findEyeAt(GoPattern::detectEyes(board,positiveSuicideForbidden),center) != nullptr
@@ -633,7 +633,7 @@ x.x
 ..x..
 .....
 )%%");
-  BoardHistory falseHist(falseNoCapture,P_WHITE,suicideAllowed,0,false);
+  BoardHistory falseHist(falseNoCapture,P_WHITE,suicideAllowed,0,BoardHistoryModes(false,false));
   testAssert(GoPattern::detectEyes(falseNoCapture,falseHist).empty());
 }
 
@@ -938,7 +938,7 @@ static void runEyeIndependentExhaustiveTest() {
         sort(expectedKeys.begin(),expectedKeys.end());
 
         const Player nextPlayer = attacker == 1 ? P_BLACK : P_WHITE;
-        BoardHistory hist(board,nextPlayer,rules,0,false);
+        BoardHistory hist(board,nextPlayer,rules,0,BoardHistoryModes(false,false));
         vector<GoPattern::Pattern> actual = GoPattern::detectEyes(board,hist);
         vector<string> actualKeys;
         for(const GoPattern::Pattern& pattern: actual)
@@ -1133,7 +1133,7 @@ static void runNakadeCatalogExhaustiveTest() {
     for(const vector<pair<int,int>>& orientation: orientations) {
       vector<pair<int,int>> emptyPoints = translatedNakadePoints(orientation,3,3);
       Board board = makeNakadeFixtureBoard(12,12,emptyPoints);
-      BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+      BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
       GoPattern::DetectionResult result = GoPattern::detect(board,hist);
       const bool actual = findKind(result.patterns,GoPattern::Kind::NAKADE) != nullptr;
       const bool expected = supported.find(shape) != supported.end();
@@ -1200,7 +1200,7 @@ static void runNakadePatternTest() {
   for(const Fixture& fixture: fixtures) {
     vector<pair<int,int>> emptyPoints = translatedNakadePoints(fixture.points,3,2);
     Board board = makeNakadeFixtureBoard(9,7,emptyPoints);
-    BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+    BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
     GoPattern::DetectionResult result = GoPattern::detect(board,hist);
     const GoPattern::Pattern* pattern = findKind(result.patterns,GoPattern::Kind::NAKADE);
     testAssert(pattern != nullptr);
@@ -1244,7 +1244,7 @@ static void runNakadePatternTest() {
   {
     vector<pair<int,int>> points = translatedNakadePoints(fixtures[0].points,3,2);
     Board board = makeNakadeFixtureBoard(9,7,points);
-    BoardHistory defenderTurn(board,P_BLACK,Rules::getTrompTaylorish(),0,false);
+    BoardHistory defenderTurn(board,P_BLACK,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
     GoPattern::DetectionResult defenderTurnResult =
       GoPattern::detect(board,defenderTurn);
     const GoPattern::Pattern* pattern = findKind(
@@ -1255,7 +1255,7 @@ static void runNakadePatternTest() {
     testAssert(pattern->outcome == GoPattern::Outcome::UNSETTLED);
     testAssert(pattern->confidence == GoPattern::Confidence::MEDIUM);
 
-    BoardHistory koBoundary(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+    BoardHistory koBoundary(board,P_WHITE,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
     Loc vital = Location::getLoc(4,2,board.x_size);
     koBoundary.superKoBanned[vital] = true;
     GoPattern::DetectionResult koBoundaryResult =
@@ -1272,7 +1272,7 @@ static void runNakadePatternTest() {
   {
     vector<pair<int,int>> sidePoints = translatedNakadePoints(fixtures[2].points,0,2);
     Board sideBoard = makeNakadeFixtureBoard(7,7,sidePoints);
-    BoardHistory hist(sideBoard,P_WHITE,Rules::getTrompTaylorish(),0,false);
+    BoardHistory hist(sideBoard,P_WHITE,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
     GoPattern::DetectionResult sideResult = GoPattern::detect(sideBoard,hist);
     testAssert(
       findKind(sideResult.patterns,GoPattern::Kind::NAKADE) !=
@@ -1280,7 +1280,7 @@ static void runNakadePatternTest() {
     );
 
     Board cornerBoard = makeNakadeFixtureBoard(7,7,fixtures[1].points);
-    BoardHistory cornerHist(cornerBoard,P_WHITE,Rules::getTrompTaylorish(),0,false);
+    BoardHistory cornerHist(cornerBoard,P_WHITE,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
     GoPattern::DetectionResult cornerResult = GoPattern::detect(cornerBoard,cornerHist);
     testAssert(
       findKind(cornerResult.patterns,GoPattern::Kind::NAKADE) == nullptr
@@ -1290,7 +1290,7 @@ static void runNakadePatternTest() {
   {
     vector<pair<int,int>> squareFour = {{3,2},{3,3},{4,2},{4,3}};
     Board board = makeNakadeFixtureBoard(9,7,squareFour);
-    BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+    BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
     GoPattern::DetectionResult squareResult = GoPattern::detect(board,hist);
     testAssert(
       findKind(squareResult.patterns,GoPattern::Kind::NAKADE) == nullptr
@@ -1300,7 +1300,7 @@ static void runNakadePatternTest() {
     Board mixedBoard = makeNakadeFixtureBoard(9,7,straightThree);
     mixedBoard.colors[Location::getLoc(3,1,mixedBoard.x_size)] = P_WHITE;
     mixedBoard.regenChainsFromColors();
-    BoardHistory mixedHist(mixedBoard,P_WHITE,Rules::getTrompTaylorish(),0,false);
+    BoardHistory mixedHist(mixedBoard,P_WHITE,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
     testAssert(
       findKind(
         GoPattern::detect(mixedBoard,mixedHist).patterns,
@@ -1317,7 +1317,7 @@ static void runSemeaiPatternTest() {
 .o.
 .xx
 )%%");
-  BoardHistory blackTurn(board,P_BLACK,Rules::getTrompTaylorish(),0,false);
+  BoardHistory blackTurn(board,P_BLACK,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
   vector<GoPattern::Pattern> patterns = GoPattern::detectSemeai(board,blackTurn);
   testAssert(patterns.size() == 1);
   const GoPattern::Pattern& pattern = patterns[0];
@@ -1356,7 +1356,7 @@ static void runSemeaiPatternTest() {
   testAssert(encoded["details"]["sharedLibertyCount"] == 1);
   testAssert(encoded["details"]["semantics"] == "sharedLibertyRace");
 
-  BoardHistory whiteTurn(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+  BoardHistory whiteTurn(board,P_WHITE,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
   vector<GoPattern::Pattern> whitePatterns = GoPattern::detectSemeai(board,whiteTurn);
   testAssert(whitePatterns.size() == 1);
   const GoPattern::SemeaiDetails& whiteDetails =
@@ -1381,7 +1381,7 @@ static void runSemeaiPatternTest() {
     P_BLACK,
     Rules::getTrompTaylorish(),
     0,
-    false
+    BoardHistoryModes(false,false)
   );
   testAssert(GoPattern::detectSemeai(disconnected,disconnectedHist).empty());
 
@@ -1395,7 +1395,7 @@ x..
     P_BLACK,
     Rules::getTrompTaylorish(),
     0,
-    false
+    BoardHistoryModes(false,false)
   );
   testAssert(GoPattern::detectSemeai(thirdChain,thirdChainHist).empty());
 }
@@ -1657,7 +1657,7 @@ static void runSemeaiIndependentPropertyTest() {
       for(Player nextPlayer: {P_BLACK,P_WHITE}) {
         vector<OracleSemeaiPattern> expected =
           oracleSemeaiPatterns(board,nextPlayer);
-        BoardHistory hist(board,nextPlayer,Rules::getTrompTaylorish(),0,false);
+        BoardHistory hist(board,nextPlayer,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
         vector<GoPattern::Pattern> actual = GoPattern::detectSemeai(board,hist);
         set<string> expectedKeys;
         for(const OracleSemeaiPattern& candidate: expected) {
@@ -1719,7 +1719,7 @@ xo..xo...
 xoox..xo.
 .xx.o.xxo
 )%%");
-  BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+  BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
   GoPattern::DetectionResult detection = GoPattern::detect(board,hist);
   int attackerWins = 0;
   int ambiguous = 0;
@@ -1944,7 +1944,7 @@ static BoardHistory randomLegalPosition(
   Rules rules = Rules::getTrompTaylorish();
   rules.multiStoneSuicideLegal = suicideLegal;
   Player nextPla = P_BLACK;
-  BoardHistory hist(board,nextPla,rules,0,false);
+  BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
   for(int i = 0; i < targetMoves; i++) {
     if(!playRandomLegalMove(board,hist,nextPla,rand))
       break;
@@ -2176,7 +2176,7 @@ static int runLadderIndependentPropertyTest() {
               nextPlayer,
               generatedHist.rules,
               generatedHist.initialTurnNumber,
-              false
+              BoardHistoryModes(false,false)
             );
             GoPattern::DetectionResult detection = GoPattern::detect(board,outputHist);
             bool foundEscaped = false;
@@ -2276,7 +2276,7 @@ static pair<int,int> runNonSquarePropertyTest() {
     Rules rules = Rules::getTrompTaylorish();
     rules.multiStoneSuicideLegal = suicideLegal;
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
     checkBensonAgainstRawOracle(board,suicideLegal);
     checkedStates += 1;
 
@@ -2436,7 +2436,7 @@ o.xoo.x
   rules.scoringRule = Rules::SCORING_TERRITORY;
   rules.komi = -0.5f;
   rules.multiStoneSuicideLegal = false;
-  BoardHistory hist(board,P_WHITE,rules,0,false);
+  BoardHistory hist(board,P_WHITE,rules,0,BoardHistoryModes(false,false));
   const vector<pair<Loc,Player>> fillMoves = {
     {Location::getLoc(6,5,board.x_size),P_WHITE},
     {Location::getLoc(5,6,board.x_size),P_BLACK},
@@ -2473,7 +2473,7 @@ static void runBensonPerformanceTest() {
     }
   }
   board.regenChainsFromColors();
-  BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+  BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
 
   vector<double> milliseconds;
   milliseconds.reserve(200);
@@ -2526,7 +2526,7 @@ static Board makeDenseEyePositiveBoard() {
 // 반환값은 없으며 실제 BoardHistory replay 증명과 200회 중 95백분위 20ms 상한을 함께 검사한다.
 static void runEyePositivePerformanceTest() {
   Board board = makeDenseEyePositiveBoard();
-  BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+  BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
   const Hash128 originalHash = board.pos_hash;
   const size_t originalHistorySize = hist.moveHistory.size();
 
@@ -2742,7 +2742,7 @@ oooo.o
   Rules rules = Rules::getSimpleTerritory();
   rules.koRule = Rules::KO_SPIGHT;
   rules.komi = 0.5f;
-  BoardHistory hist(board,black,rules,0,false);
+  BoardHistory hist(board,black,rules,0,BoardHistoryModes(false,false));
   string prefix = invertColors ? "inverted-" : "base-";
   recordRareSnapshot(evidence,prefix+"initial",board,hist);
 
@@ -2792,7 +2792,7 @@ static void runSpightKoRecapScenario(RareHistoryEvidence& evidence) {
   Board board = makeKoEyeBoard();
   Rules rules = Rules::getSimpleTerritory();
   rules.koRule = Rules::KO_SPIGHT;
-  BoardHistory hist(board,P_WHITE,rules,0,false);
+  BoardHistory hist(board,P_WHITE,rules,0,BoardHistoryModes(false,false));
   const Loc koCapture = Location::getLoc(1,2,board.x_size);
   const Loc koRecapture = Location::getLoc(2,2,board.x_size);
   recordRareSnapshot(evidence,"ko-recap-initial",board,hist);
@@ -2851,7 +2851,7 @@ static void runButtonRareScenario(
   rules.koRule = Rules::KO_SIMPLE;
   rules.hasButton = hasButton;
   rules.komi = komi;
-  BoardHistory hist(board,initialPla,rules,0,false);
+  BoardHistory hist(board,initialPla,rules,0,BoardHistoryModes(false,false));
   string prefix = string(invertColors ? "inverted-" : "base-") +
     (hasButton ? "button-" : "no-button-") + Global::floatToString(komi) + "-";
   GoPattern::DetectionResult initial = GoPattern::detect(board,hist);
@@ -2888,7 +2888,7 @@ static void runPassRareScenario(
   Rules rules = Rules::getSimpleTerritory();
   rules.koRule = Rules::KO_POSITIONAL;
   rules.komi = komi;
-  BoardHistory hist(board,initialPla,rules,0,false);
+  BoardHistory hist(board,initialPla,rules,0,BoardHistoryModes(false,false));
   string prefix = string(invertColors ? "inverted-" : "base-") +
     Global::floatToString(komi) + "-";
   recordRareSnapshot(evidence,prefix+"initial",board,hist);
@@ -2925,7 +2925,7 @@ static void runNoResultSequence(
   Player initialPla,
   const vector<pair<Loc,Player>>& moves
 ) {
-  BoardHistory hist(board,initialPla,rules,0,false);
+  BoardHistory hist(board,initialPla,rules,0,BoardHistoryModes(false,false));
   recordRareSnapshot(evidence,label+"-initial",board,hist);
   for(size_t index = 0; index < moves.size(); index++) {
     playRareMove(board,hist,moves[index].first,moves[index].second);
@@ -3204,7 +3204,7 @@ static vector<string> productBensonKeys(
 ) {
   Rules rules = Rules::getTrompTaylorish();
   rules.multiStoneSuicideLegal = suicideLegal;
-  BoardHistory hist(board,nextPlayer,rules,0,false);
+  BoardHistory hist(board,nextPlayer,rules,0,BoardHistoryModes(false,false));
   vector<string> keys;
   for(const GoPattern::Pattern& pattern: GoPattern::detectBensonAlive(board,hist))
     keys.push_back(productBensonPatternKey(pattern,board));
@@ -3295,7 +3295,7 @@ static void appendEyeGoldenCases(vector<PatternGoldenCase>& cases) {
           continue;
         Board board = boardFromRawGrid(colors,size.first,size.second);
         const Player nextPlayer = attacker == 1 ? P_BLACK : P_WHITE;
-        BoardHistory hist(board,nextPlayer,Rules::getSimpleTerritory(),0,false);
+        BoardHistory hist(board,nextPlayer,Rules::getSimpleTerritory(),0,BoardHistoryModes(false,false));
         vector<string> productKeys;
         for(const GoPattern::Pattern& pattern: GoPattern::detectEyes(board,hist))
           productKeys.push_back(productEyePatternKey(pattern,board));
@@ -3345,7 +3345,7 @@ static vector<string> canonicalSemeaiProductKeys(
   const Board& board,
   Player nextPlayer
 ) {
-  BoardHistory hist(board,nextPlayer,Rules::getTrompTaylorish(),0,false);
+  BoardHistory hist(board,nextPlayer,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
   vector<string> keys;
   for(const GoPattern::Pattern& pattern: GoPattern::detectSemeai(board,hist)) {
     vector<string> sharedPoints;
@@ -3503,7 +3503,7 @@ static vector<string> canonicalNakadeProductKeys(
   const Board& board,
   Player nextPlayer
 ) {
-  BoardHistory hist(board,nextPlayer,Rules::getTrompTaylorish(),0,false);
+  BoardHistory hist(board,nextPlayer,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
   vector<string> keys;
   for(const GoPattern::Pattern& pattern: GoPattern::detectNakade(board,hist))
     keys.push_back(productNakadePatternKey(pattern,board));
@@ -3668,7 +3668,7 @@ static void appendLadderGoldenCases(vector<PatternGoldenCase>& cases) {
           continue;
 
         const Player nextPlayer = defenderFirst ? defender : getOpp(defender);
-        BoardHistory hist(board,nextPlayer,Rules::getTrompTaylorish(),0,false);
+        BoardHistory hist(board,nextPlayer,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
         const GoPattern::LadderDetectionResult product =
           GoPattern::detectLadders(board,hist);
         vector<string> productKeys;
@@ -3786,7 +3786,7 @@ xxxxxxx
 x..x..x
 xxxxxxx
 )%%");
-    BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+    BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
     GoPattern::DetectionResult result = GoPattern::detect(board,hist);
     const GoPattern::Pattern* pattern = findKind(result.patterns,GoPattern::Kind::BENSON_ALIVE);
     testAssert(pattern != nullptr);
@@ -3830,7 +3830,7 @@ xxx
 x.x
 xxx
 )%%");
-    BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,false);
+    BoardHistory hist(board,P_WHITE,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
     GoPattern::DetectionResult result = GoPattern::detect(board,hist);
     testAssert(findKind(result.patterns,GoPattern::Kind::BENSON_ALIVE) == nullptr);
   }
@@ -3841,7 +3841,7 @@ ooooo
 o.o.o
 ooooo
 )%%");
-    BoardHistory hist(board,P_BLACK,Rules::getTrompTaylorish(),0,false);
+    BoardHistory hist(board,P_BLACK,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
     GoPattern::DetectionResult result = GoPattern::detect(board,hist);
     const GoPattern::Pattern* pattern = findKind(result.patterns,GoPattern::Kind::BENSON_ALIVE);
     testAssert(pattern != nullptr);

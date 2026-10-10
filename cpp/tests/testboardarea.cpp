@@ -12,7 +12,7 @@ void Tests::runBoardAreaTests() {
   // 계가 빅 후보와 예상 생존의 교집합만 돌별 빅 상태로 공개한다.
   {
     Board board = Board::parseBoard(5,3,"xxxxx\nxx.oo\nooooo");
-    BoardHistory hist(board,P_BLACK,Rules::getTrompTaylorish(),0,false);
+    BoardHistory hist(board,P_BLACK,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
     bool regions[Board::MAX_ARR_SIZE];
     board.calculateSekiRegions(regions,hist.suicideLegalForPassAlive());
     vector<bool> alive(Board::MAX_ARR_SIZE,true);
@@ -37,7 +37,7 @@ void Tests::runBoardAreaTests() {
   // 두 눈으로 둘러싸인 영역은 공배 접촉·단수에 따른 빅 후보가 아니다.
   {
     Board board = Board::parseBoard(5,3,"xxxxx\nx.x.x\nxxxxx");
-    BoardHistory hist(board,P_BLACK,Rules::getTrompTaylorish(),0,false);
+    BoardHistory hist(board,P_BLACK,Rules::getTrompTaylorish(),0,BoardHistoryModes(false,false));
     bool regions[Board::MAX_ARR_SIZE];
     board.calculateSekiRegions(regions,hist.suicideLegalForPassAlive());
     vector<bool> alive(Board::MAX_ARR_SIZE,true);
@@ -1890,7 +1890,7 @@ Group tax
 
 
   //============================================================================
-  auto printIndependentLifeAreas = [&out](const Board& board, Color result[Board::MAX_ARR_SIZE]) {
+  auto printIndependentLifeAreasWithMode = [&out](const Board& board, Color result[Board::MAX_ARR_SIZE], bool excludeTerritoryAdjacentToAtari) {
     bool keepTerritoriesBuf[4] = {false, true,  false, true};
     bool keepStonesBuf[4] =      {false, false, true, true};
 
@@ -1900,7 +1900,7 @@ Group tax
       bool keepStones = keepStonesBuf[mode/2];
       int whiteMinusBlackIndependentLifeRegionCount = 0;
       Board copy(board);
-      copy.calculateIndependentLifeArea(result,whiteMinusBlackIndependentLifeRegionCount,keepTerritories,keepStones,multiStoneSuicideLegal);
+      copy.calculateIndependentLifeArea(result,whiteMinusBlackIndependentLifeRegionCount,keepTerritories,keepStones,excludeTerritoryAdjacentToAtari,multiStoneSuicideLegal);
       out << "Keep Territories " << keepTerritories << " "
       << "Keep Stones " << keepStones << " "
       << "Suicide " << multiStoneSuicideLegal << endl;
@@ -1920,6 +1920,12 @@ Group tax
       testAssert(boardsSeemEqual(copy,board));
       copy.checkConsistency();
     }
+  };
+  //Legacy rules version 2 behavior (excludeTerritoryAdjacentToAtari off) - the "IndependentLife"
+  //tests below use this. The "(v3 excludeTerritoryAdjacentToAtari)" tests at the end cover
+  //excludeTerritoryAdjacentToAtari = true.
+  auto printIndependentLifeAreas = [&printIndependentLifeAreasWithMode](const Board& board, Color result[Board::MAX_ARR_SIZE]) {
+    printIndependentLifeAreasWithMode(board,result,false);
   };
 
 
@@ -3018,5 +3024,592 @@ whiteMinusBlackIndependentLifeRegionCount 0
 )%%";
     expect(name,out,expected);
   }
+
+  //============================================================================
+  //Rules version 3 behavior with excludeTerritoryAdjacentToAtari on - same boards as the
+  //corresponding tests above, but empty points adjacent to chains in atari do not count.
+  {
+    const char* name = "IndependentLife 1 (v3 excludeTerritoryAdjacentToAtari)";
+    Color result[Board::MAX_ARR_SIZE];
+    Board board = Board::parseBoard(19,19,R"%%(
+.oooxooo.ox..xo.o..
+o.xoxo.xoox..xoooxx
+oooxxxooxxx..xxxxoo
+xxx.xxxxx.x.....xo.
+..xxx....xx.....xoo
+................xxx
+xxxxxxxxxxxxxx..xoo
+.............x..xo.
+..oo.........x.xxox
+oo.o.......ooxxooox
+xoooo...ooooxoox.x.
+.xo.o...o.ox.xoxxxx
+xoooo...ooooxoooooo
+oo.........oooooooo
+xxxxxxxxxxxxxxxxxxx
+oooooox....xooooooo
+xxxo.ox....xo.ooxxx
+..xooox.xx.xooo.x..
+..xo.ox....xo.oox..
+)%%");
+
+    printIndependentLifeAreasWithMode(board,result,true);
+
+    string expected = R"%%(
+Keep Territories 0 Keep Stones 0 Suicide 0
+whiteMinusBlackIndependentLifeRegionCount 1
+OOOO...............
+OOOO...............
+OOO................
+...................
+...................
+...................
+...................
+...................
+...................
+...................
+...................
+...................
+...................
+...................
+...................
+OOOOOO.............
+XXXOOO.............
+XXXOOO.............
+XXXOOO.............
+
+Keep Territories 0 Keep Stones 0 Suicide 1
+whiteMinusBlackIndependentLifeRegionCount 1
+OOOO...............
+OOOO...............
+OOO................
+...................
+...................
+...................
+...................
+...................
+...................
+...................
+...................
+...................
+...................
+...................
+...................
+OOOOOO.............
+XXXOOO.............
+XXXOOO.............
+XXXOOO.............
+
+Keep Territories 1 Keep Stones 0 Suicide 0
+whiteMinusBlackIndependentLifeRegionCount 1
+OOOO.......XX..O...
+OOOO.......XX......
+OOO........XX......
+...X.....X.XXXXX...
+XX...XXXX..XXXXX...
+XXXXXXXXXXXXXXXX...
+..............XX...
+..............XX...
+..............X....
+..O................
+O.................X
+OO.O.....O.........
+O..................
+...................
+...................
+OOOOOO.XXXX........
+XXXOOO.XXXX..O.....
+XXXOOO.X..X......XX
+XXXOOO.XXXX..O...XX
+
+Keep Territories 1 Keep Stones 0 Suicide 1
+whiteMinusBlackIndependentLifeRegionCount 1
+OOOO.......XX..O...
+OOOO.......XX......
+OOO........XX......
+...X.....X.XXXXX...
+XX...XXXX..XXXXX...
+XXXXXXXXXXXXXXXX...
+..............XX...
+..............XX...
+..............X....
+..O................
+O.................X
+OO.O.....O.........
+O..................
+...................
+...................
+OOOOOO.XXXX........
+XXXOOO.XXXX..O.....
+XXXOOO.X..X......XX
+XXXOOO.XXXX..O...XX
+
+Keep Territories 0 Keep Stones 1 Suicide 0
+whiteMinusBlackIndependentLifeRegionCount 1
+OOOOXOOO.OX..XO.O..
+OOOOXO.XOOX..XOOOXX
+OOOXXXOOXXX..XXXXOO
+XXX.XXXXX.X.....XO.
+..XXX....XX.....XOO
+................XXX
+XXXXXXXXXXXXXX..XOO
+.............X..XO.
+..OO.........X.XXOX
+OO.O.......OOXXOOOX
+.OOOO...OOOOXOOX.X.
+..O.O...O.OX.XOXXXX
+.OOOO...OOOOXOOOOOO
+OO.........OOOOOOOO
+XXXXXXXXXXXXXXXXXXX
+OOOOOOX....XOOOOOOO
+XXXOOOX....XO.OOXXX
+XXXOOOX.XX.XOOO.X..
+XXXOOOX....XO.OOX..
+
+Keep Territories 0 Keep Stones 1 Suicide 1
+whiteMinusBlackIndependentLifeRegionCount 1
+OOOOXOOO.OX..XO.O..
+OOOOXO.XOOX..XOOOXX
+OOOXXXOOXXX..XXXXOO
+XXX.XXXXX.X.....XO.
+..XXX....XX.....XOO
+................XXX
+XXXXXXXXXXXXXX..XOO
+.............X..XO.
+..OO.........X.XXOX
+OO.O.......OOXXOOOX
+.OOOO...OOOOXOOX.X.
+..O.O...O.OX.XOXXXX
+.OOOO...OOOOXOOOOOO
+OO.........OOOOOOOO
+XXXXXXXXXXXXXXXXXXX
+OOOOOOX....XOOOOOOO
+XXXOOOX....XO.OOXXX
+XXXOOOX.XX.XOOO.X..
+XXXOOOX....XO.OOX..
+
+Keep Territories 1 Keep Stones 1 Suicide 0
+whiteMinusBlackIndependentLifeRegionCount 1
+OOOOXOOO.OXXXXOOO..
+OOOOXO.XOOXXXXOOOXX
+OOOXXXOOXXXXXXXXXOO
+XXXXXXXXXXXXXXXXXO.
+XXXXXXXXXXXXXXXXXOO
+XXXXXXXXXXXXXXXXXXX
+XXXXXXXXXXXXXXXXXOO
+.............XXXXO.
+..OO.........XXXXOX
+OOOO.......OOXXOOOX
+OOOOO...OOOOXOOX.XX
+OOOOO...OOOX.XOXXXX
+OOOOO...OOOOXOOOOOO
+OO.........OOOOOOOO
+XXXXXXXXXXXXXXXXXXX
+OOOOOOXXXXXXOOOOOOO
+XXXOOOXXXXXXOOOOXXX
+XXXOOOXXXXXXOOO.XXX
+XXXOOOXXXXXXOOOOXXX
+
+Keep Territories 1 Keep Stones 1 Suicide 1
+whiteMinusBlackIndependentLifeRegionCount 1
+OOOOXOOO.OXXXXOOO..
+OOOOXO.XOOXXXXOOOXX
+OOOXXXOOXXXXXXXXXOO
+XXXXXXXXXXXXXXXXXO.
+XXXXXXXXXXXXXXXXXOO
+XXXXXXXXXXXXXXXXXXX
+XXXXXXXXXXXXXXXXXOO
+.............XXXXO.
+..OO.........XXXXOX
+OOOO.......OOXXOOOX
+OOOOO...OOOOXOOX.XX
+OOOOO...OOOX.XOXXXX
+OOOOO...OOOOXOOOOOO
+OO.........OOOOOOOO
+XXXXXXXXXXXXXXXXXXX
+OOOOOOXXXXXXOOOOOOO
+XXXOOOXXXXXXOOOOXXX
+XXXOOOXXXXXXOOO.XXX
+XXXOOOXXXXXXOOOOXXX
+
+)%%";
+    expect(name,out,expected);
+  }
+
+  {
+    const char* name = "IndependentLife 2 (v3 excludeTerritoryAdjacentToAtari)";
+    Color result[Board::MAX_ARR_SIZE];
+    Board board = Board::parseBoard(19,19,R"%%(
+x.o.ox.......xo.ox.
+xo..ox.......xo..ox
+o..ox.........xo..o
+..ox.....o.....xo..
+oox.............xoo
+xx...............xx
+...................
+..xx.............xx
+xxoox......xxx..xoo
+oo.ox...xxxooox.xo.
+xoooox.xooooxooxxoo
+.xo.ox.xo.ox.xoxoo.
+xoooox.xooooxooxo.x
+ooxxx...xxxoooxxoo.
+xx.........xxx..xoo
+xxx..xxx.......xxxx
+oooxxooox...xxxoooo
+xxoooxxoox.xooo.oxx
+.xo.o.xo.oxxo.ooox.
+)%%");
+
+    printIndependentLifeAreasWithMode(board,result,true);
+
+    string expected = R"%%(
+Keep Territories 0 Keep Stones 0 Suicide 0
+whiteMinusBlackIndependentLifeRegionCount 4
+..............OOO..
+..............OOOO.
+...............OOOO
+................OOO
+.................OO
+...................
+...................
+...................
+..OO.............OO
+OOOO.............OO
+OOOOO............OO
+OOOOO...........OOO
+OOOOO...........OOO
+OO..............OOO
+.................OO
+...................
+...............OOOO
+............OOOOOOO
+............OOOOOOO
+
+Keep Territories 0 Keep Stones 0 Suicide 1
+whiteMinusBlackIndependentLifeRegionCount 3
+..............OOO..
+..............OOOO.
+...............OOOO
+................OOO
+.................OO
+...................
+...................
+...................
+..OO...............
+OOOO...............
+OOOOO..............
+OOOOO..............
+OOOOO..............
+OO.................
+...................
+...................
+...............OOOO
+............OOOOOOO
+............OOOOOOO
+
+Keep Territories 1 Keep Stones 0 Suicide 0
+whiteMinusBlackIndependentLifeRegionCount 4
+...O..........OOO..
+..OO..........OOOO.
+.OO............OOOO
+OO..............OOO
+.................OO
+...................
+...................
+...................
+..OO.............OO
+OOOO.............OO
+OOOOO............OO
+OOOOO...........OOO
+OOOOO...........OOO
+OO..............OOO
+.................OO
+...................
+...............OOOO
+............OOOOOOO
+...O........OOOOOOO
+
+Keep Territories 1 Keep Stones 0 Suicide 1
+whiteMinusBlackIndependentLifeRegionCount 3
+...O..........OOO..
+..OO..........OOOO.
+.OO............OOOO
+OO..............OOO
+.................OO
+...................
+...................
+...................
+..OO...............
+OOOO..............O
+OOOOO..............
+OOOOO..............
+OOOOO..............
+OO.................
+...................
+...................
+...............OOOO
+............OOOOOOO
+...O........OOOOOOO
+
+Keep Territories 0 Keep Stones 1 Suicide 0
+whiteMinusBlackIndependentLifeRegionCount 4
+X.O.OX.......XOOOX.
+XO..OX.......XOOOOX
+O..OX.........XOOOO
+..OX.....O.....XOOO
+OOX.............XOO
+XX...............XX
+...................
+..XX.............XX
+XXOOX......XXX..XOO
+OOOOX...XXXOOOX.XOO
+OOOOOX.XOOOOXOOXXOO
+OOOOOX.XO.OX.XOXOOO
+OOOOOX.XOOOOXOOXOOO
+OOXXX...XXXOOOXXOOO
+XX.........XXX..XOO
+XXX..XXX.......XXXX
+OOOXXOOOX...XXXOOOO
+XXOOOXXOOX.XOOOOOOO
+.XO.O.XO.OXXOOOOOOO
+
+Keep Territories 0 Keep Stones 1 Suicide 1
+whiteMinusBlackIndependentLifeRegionCount 3
+X.O.OX.......XOOOX.
+XO..OX.......XOOOOX
+O..OX.........XOOOO
+..OX.....O.....XOOO
+OOX.............XOO
+XX...............XX
+...................
+..XX.............XX
+XXOOX......XXX..XOO
+OOOOX...XXXOOOX.XO.
+OOOOOX.XOOOOXOOXXOO
+OOOOOX.XO.OX.XOXOO.
+OOOOOX.XOOOOXOOXO.X
+OOXXX...XXXOOOXXOO.
+XX.........XXX..XOO
+XXX..XXX.......XXXX
+OOOXXOOOX...XXXOOOO
+XXOOOXXOOX.XOOOOOOO
+.XO.O.XO.OXXOOOOOOO
+
+Keep Territories 1 Keep Stones 1 Suicide 0
+whiteMinusBlackIndependentLifeRegionCount 4
+X.OOOX.......XOOOX.
+XOOOOX.......XOOOOX
+OOOOX.........XOOOO
+OOOX.....O.....XOOO
+OOX.............XOO
+XX...............XX
+...................
+..XX.............XX
+XXOOX......XXX..XOO
+OOOOX...XXXOOOX.XOO
+OOOOOX.XOOOOXOOXXOO
+OOOOOX.XO.OX.XOXOOO
+OOOOOX.XOOOOXOOXOOO
+OOXXX...XXXOOOXXOOO
+XX.........XXX..XOO
+XXX..XXX.......XXXX
+OOOXXOOOX...XXXOOOO
+XXOOOXXOOX.XOOOOOOO
+.XOOO.XO.OXXOOOOOOO
+
+Keep Territories 1 Keep Stones 1 Suicide 1
+whiteMinusBlackIndependentLifeRegionCount 3
+X.OOOX.......XOOOX.
+XOOOOX.......XOOOOX
+OOOOX.........XOOOO
+OOOX.....O.....XOOO
+OOX.............XOO
+XX...............XX
+...................
+..XX.............XX
+XXOOX......XXX..XOO
+OOOOX...XXXOOOX.XOO
+OOOOOX.XOOOOXOOXXOO
+OOOOOX.XO.OX.XOXOO.
+OOOOOX.XOOOOXOOXO.X
+OOXXX...XXXOOOXXOO.
+XX.........XXX..XOO
+XXX..XXX.......XXXX
+OOOXXOOOX...XXXOOOO
+XXOOOXXOOX.XOOOOOOO
+.XOOO.XO.OXXOOOOOOO
+
+)%%";
+    expect(name,out,expected);
+  }
+
+  {
+    const char* name = "IndependentLife 7 (v3 excludeTerritoryAdjacentToAtari)";
+    Color result[Board::MAX_ARR_SIZE];
+
+    {
+      Board board = Board::parseBoard(15,5,R"%%(
+.xo.oox....xo.o
+xxxooox....xoox
+.xo.oxx...xxxo.
+xoooox....xoooo
+ooxxxx....xo.o.
+)%%");
+      printIndependentLifeAreasWithMode(board,result,true);
+    }
+
+    string expected = R"%%(
+Keep Territories 0 Keep Stones 0 Suicide 0
+whiteMinusBlackIndependentLifeRegionCount -1
+......XXXXXX...
+......XXXXXX...
+.....XXXXXXXX..
+.....XXXXXX....
+..XXXXXXXXX....
+
+Keep Territories 0 Keep Stones 0 Suicide 1
+whiteMinusBlackIndependentLifeRegionCount -1
+......XXXXXX...
+......XXXXXX...
+.....XXXXXXXX..
+.....XXXXXX....
+..XXXXXXXXX....
+
+Keep Territories 1 Keep Stones 0 Suicide 0
+whiteMinusBlackIndependentLifeRegionCount -1
+X.....XXXXXX...
+......XXXXXX...
+...O.XXXXXXXX..
+.....XXXXXX....
+..XXXXXXXXX.O.O
+
+Keep Territories 1 Keep Stones 0 Suicide 1
+whiteMinusBlackIndependentLifeRegionCount -1
+X.....XXXXXX...
+......XXXXXX...
+...O.XXXXXXXX..
+.....XXXXXX....
+..XXXXXXXXX.O.O
+
+Keep Territories 0 Keep Stones 1 Suicide 0
+whiteMinusBlackIndependentLifeRegionCount -1
+.XO.OOXXXXXXO.O
+XXXOOOXXXXXXOOX
+.XO.OXXXXXXXXO.
+XOOOOXXXXXXOOOO
+OOXXXXXXXXXO.O.
+
+Keep Territories 0 Keep Stones 1 Suicide 1
+whiteMinusBlackIndependentLifeRegionCount -1
+.XO.OOXXXXXXO.O
+XXXOOOXXXXXXOOX
+.XO.OXXXXXXXXO.
+XOOOOXXXXXXOOOO
+OOXXXXXXXXXO.O.
+
+Keep Territories 1 Keep Stones 1 Suicide 0
+whiteMinusBlackIndependentLifeRegionCount -1
+XXO.OOXXXXXXO.O
+XXXOOOXXXXXXOOX
+.XOOOXXXXXXXXO.
+XOOOOXXXXXXOOOO
+OOXXXXXXXXXOOOO
+
+Keep Territories 1 Keep Stones 1 Suicide 1
+whiteMinusBlackIndependentLifeRegionCount -1
+XXO.OOXXXXXXO.O
+XXXOOOXXXXXXOOX
+.XOOOXXXXXXXXO.
+XOOOOXXXXXXOOOO
+OOXXXXXXXXXOOOO
+
+)%%";
+    expect(name,out,expected);
+  }
+
+  {
+    const char* name = "IndependentLife 10 (v3 excludeTerritoryAdjacentToAtari)";
+    Color result[Board::MAX_ARR_SIZE];
+    
+    {
+      Board board = Board::parseBoard(15,5,R"%%(
+............x.o
+...........xxx.
+........xxxx.xx
+....oxxxxooxxxo
+....x....xo.xo.
+)%%");
+      printIndependentLifeAreasWithMode(board,result,true);
+    }
+
+    string expected = R"%%(
+Keep Territories 0 Keep Stones 0 Suicide 0
+whiteMinusBlackIndependentLifeRegionCount 0
+...............
+...............
+...............
+...............
+...............
+
+Keep Territories 0 Keep Stones 0 Suicide 1
+whiteMinusBlackIndependentLifeRegionCount 0
+...............
+...............
+...............
+...............
+...............
+
+Keep Territories 1 Keep Stones 0 Suicide 0
+whiteMinusBlackIndependentLifeRegionCount 0
+.............XX
+..............X
+............X..
+..............X
+.....XXX.....XX
+
+Keep Territories 1 Keep Stones 0 Suicide 1
+whiteMinusBlackIndependentLifeRegionCount 0
+...............
+...............
+............X..
+...............
+.....XXX.......
+
+Keep Territories 0 Keep Stones 1 Suicide 0
+whiteMinusBlackIndependentLifeRegionCount 0
+............X..
+...........XXX.
+........XXXX.XX
+....OXXXXOOXXX.
+....X....XO.X..
+
+Keep Territories 0 Keep Stones 1 Suicide 1
+whiteMinusBlackIndependentLifeRegionCount 0
+............X.O
+...........XXX.
+........XXXX.XX
+....OXXXXOOXXXO
+....X....XO.XO.
+
+Keep Territories 1 Keep Stones 1 Suicide 0
+whiteMinusBlackIndependentLifeRegionCount 0
+............XXX
+...........XXXX
+........XXXXXXX
+....OXXXXOOXXXX
+....XXXX.XO.XXX
+
+Keep Territories 1 Keep Stones 1 Suicide 1
+whiteMinusBlackIndependentLifeRegionCount 0
+............X.O
+...........XXX.
+........XXXXXXX
+....OXXXXOOXXXO
+....XXXX.XO.XO.
+)%%";
+    expect(name,out,expected);
+  }
+
   
 }

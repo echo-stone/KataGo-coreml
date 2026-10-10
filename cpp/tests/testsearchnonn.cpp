@@ -56,7 +56,7 @@ void Tests::runNNLessSearchTests() {
 .........
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     search->setPosition(nextPla,board,hist);
     search->runWholeSearch(nextPla);
@@ -135,7 +135,7 @@ void Tests::runNNLessSearchTests() {
 )%%");
     Player nextPla = P_BLACK;
     Rules rules = Rules::getTrompTaylorish();
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     // 목적: 현재 루트 트리에서 특정 착점의 edge 방문 수를 찾는다.
     // 매개변수: search는 완료된 검색, loc은 찾을 착점이다.
@@ -205,7 +205,7 @@ void Tests::runNNLessSearchTests() {
 .........
 .........
 )%%");
-      BoardHistory occupiedHist(occupiedBoard,nextPla,rules,0,false);
+      BoardHistory occupiedHist(occupiedBoard,nextPla,rules,0,BoardHistoryModes(false,false));
       vector<Loc> mixedIncludeMovesBlack = {
         Location::ofString("A1",occupiedBoard),
         Location::ofString("C3",occupiedBoard),
@@ -237,7 +237,7 @@ void Tests::runNNLessSearchTests() {
 .....
 .....
 )%%");
-      BoardHistory allLegalHist(allLegalBoard,nextPla,rules,0,false);
+      BoardHistory allLegalHist(allLegalBoard,nextPla,rules,0,BoardHistoryModes(false,false));
 
       SearchParams params;
       params.maxVisits = 1;
@@ -312,7 +312,7 @@ ooooooo
 ...o...
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     {
       //--------------------------------------
@@ -380,7 +380,7 @@ o..oo.x
 )%%");
     Player nextPla = P_BLACK;
     Rules rules = Rules::getTrompTaylorish();
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
     hist.makeBoardMoveAssumeLegal(board,Location::ofString("B5",board),nextPla,NULL);
     nextPla = getOpp(nextPla);
     hist.makeBoardMoveAssumeLegal(board,Location::ofString("pass",board),nextPla,NULL);
@@ -553,7 +553,7 @@ o..o.oo
     Player nextPla = P_WHITE;
     Rules rules = Rules::getTrompTaylorish();
     rules.multiStoneSuicideLegal = false;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     {
       cout << "First with no pruning" << endl;
@@ -615,7 +615,7 @@ o..o.oo
 .........
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     search->setPosition(nextPla,board,hist);
     search->runWholeSearch(nextPla);
@@ -686,7 +686,7 @@ o..o.oo
 .........
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     search->setPosition(nextPla,board,hist);
     search->runWholeSearch(nextPla);
@@ -727,7 +727,7 @@ o..o.oo
 .........
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     search->setPosition(nextPla,board,hist);
     search->setRootSymmetryPruningOnly({0,3,4,7});
@@ -769,7 +769,7 @@ o..o.oo
 .........
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     search->setPosition(nextPla,board,hist);
     search->setRootSymmetryPruningOnly({0,3,4,7});
@@ -826,7 +826,7 @@ xx......x
     }
 
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     search->setPosition(nextPla,board,hist);
     search->setRootSymmetryPruningOnly({0,3,4,7});
@@ -904,7 +904,7 @@ xx......x
     }
 
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     search->setPosition(nextPla,board,hist);
     search->setRootSymmetryPruningOnly({0,3,4,7});
@@ -982,7 +982,7 @@ xx......x
     }
 
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     search->setPosition(nextPla,board,hist);
     search->setRootSymmetryPruningOnly({0,3,4,7});
@@ -1052,7 +1052,7 @@ xx......x
 .......
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     search->setPosition(nextPla,board,hist);
     search->runWholeSearch(nextPla);
@@ -1153,7 +1153,7 @@ xxxxooo
 .xxxooo
 )%%");
     Player nextPla = P_WHITE;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     search->setPosition(nextPla,board,hist);
     search2->setPosition(nextPla,board,hist);
@@ -1243,7 +1243,7 @@ o.oo.oo
 .oooooo
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     PrintTreeOptions options;
     options = options.maxDepth(1);
@@ -1314,7 +1314,7 @@ oo.oxxxxxxxxoo
 ooooo.oooooooo
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     PrintTreeOptions options;
     options = options.maxDepth(1);
@@ -1379,7 +1379,7 @@ ooooo.oooooooo
 .......
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     PrintTreeOptions options;
     options = options.maxDepth(1);
@@ -1434,7 +1434,7 @@ ooooo.oooooooo
 .......
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     PrintTreeOptions options;
     options = options.maxDepth(1);
@@ -1490,7 +1490,7 @@ ooooo.oooooooo
 .......
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     PrintTreeOptions options;
     options = options.maxDepth(1);
@@ -1544,7 +1544,7 @@ xxx...xxx
 xxxxxxxxx
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     PrintTreeOptions options;
     options = options.maxDepth(1);
@@ -1658,7 +1658,7 @@ xxxxxxxxx
 .......
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     PrintTreeOptions options;
     options = options.maxDepth(1);
@@ -1810,7 +1810,7 @@ ooooooo
 .o.oo.x
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     {
       //--------------------------------------
@@ -1906,7 +1906,7 @@ oo..o..oo
       avoidMoveUntilByLoc[Board::PASS_LOC] = 3;
 
       Player nextPla = P_WHITE;
-      BoardHistory hist(board,nextPla,rules,0,false);
+      BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
       search->setPosition(nextPla,board,hist);
       search->setAvoidMoveUntilByLoc(avoidMoveUntilByLoc,avoidMoveUntilByLoc);
@@ -1974,7 +1974,7 @@ oo..o..oo
       avoidMoveUntilByLoc[Board::PASS_LOC] = 3;
 
       Player nextPla = P_WHITE;
-      BoardHistory hist(board,nextPla,rules,0,false);
+      BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
       search->setPosition(nextPla,board,hist);
       search->setAvoidMoveUntilByLoc(avoidMoveUntilByLoc,avoidMoveUntilByLoc);
@@ -2022,7 +2022,7 @@ oo..o..oo
       avoidMoveUntilByLoc[Board::PASS_LOC] = 10;
 
       Player nextPla = P_WHITE;
-      BoardHistory hist(board,nextPla,rules,0,false);
+      BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
       search->setPosition(nextPla,board,hist);
       search->setAvoidMoveUntilByLoc(avoidMoveUntilByLoc,vector<int>());
@@ -2081,7 +2081,7 @@ oo..o..oo
 .......
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     PrintTreeOptions options;
     options = options.maxDepth(1);
@@ -2148,7 +2148,7 @@ oo..o..oo
 .......
 )%%");
     Player nextPla = P_WHITE;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     PrintTreeOptions options;
     options = options.maxDepth(1);
@@ -2215,7 +2215,7 @@ oxooox.
 .ooox.x
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     PrintTreeOptions options;
     options = options.maxDepth(1);
@@ -2282,7 +2282,7 @@ oxooox.
 .ooox.x
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     PrintTreeOptions options;
     options = options.maxDepth(1);
@@ -2321,7 +2321,7 @@ oxooox.
 .ooox.x
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     PrintTreeOptions options;
     options = options.maxDepth(1);
@@ -2360,7 +2360,7 @@ oxooox.
 .ooox.x
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     PrintTreeOptions options;
     options = options.maxDepth(1);
@@ -2399,7 +2399,7 @@ oxooox.
 .ooox.x
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     PrintTreeOptions options;
     options = options.maxDepth(1);
@@ -2438,7 +2438,7 @@ xxoxx
 x.x.x
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
     PrintTreeOptions options;
     options = options.maxDepth(1);
 
@@ -2508,7 +2508,7 @@ xxoxx
 x.x.x
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
     PrintTreeOptions options;
     options = options.maxDepth(1);
 
@@ -2573,7 +2573,7 @@ x.x.x
 .............
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
     PrintTreeOptions options;
     options = options.maxDepth(1);
 
@@ -2752,7 +2752,7 @@ x.x.x
 .......
 )%%");
     Player nextPla = P_BLACK;
-    BoardHistory hist(board,nextPla,rules,0,false);
+    BoardHistory hist(board,nextPla,rules,0,BoardHistoryModes(false,false));
 
     // Search 1: params A.
     search->setPosition(nextPla,board,hist);
@@ -2819,7 +2819,7 @@ x.x.x
       BoardHistory hist;
       ExtraBlackAndKomi extraBlackAndKomi;
       OtherGameProperties otherGameProps;
-      gameInit.createGame(board,pla,hist,extraBlackAndKomi,NULL,PlaySettings(),otherGameProps,NULL,false);
+      gameInit.createGame(board,pla,hist,extraBlackAndKomi,NULL,PlaySettings(),otherGameProps,NULL,BoardHistoryModes());
       boardSizeDistribution[std::make_pair(board.x_size,board.y_size)] += 1;
     }
     for(int x = 2; x<=8; x += 2) {
