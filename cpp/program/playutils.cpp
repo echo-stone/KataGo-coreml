@@ -405,7 +405,8 @@ static ReportedSearchValues getWhiteScoreValuesCancellable(
   Player pla,
   int64_t numVisits,
   const OtherGameProperties& otherGameProps,
-  std::function<bool()>* shouldStopEarly
+  std::function<bool()>* shouldStopEarly,
+  vector<double>* ownership = nullptr
 ) {
   testAssert(numVisits > 0);
   SearchParams oldParams = bot->searchParams;
@@ -418,17 +419,29 @@ static ReportedSearchValues getWhiteScoreValuesCancellable(
     newParams.playoutDoublingAdvantage = otherGameProps.playoutDoublingAdvantage;
   }
 
-  bot->setParams(newParams);
-  bot->setPosition(pla,board,hist);
-  bot->runWholeSearch(pla,shouldStopEarly);
-
-  if(shouldStopEarly != NULL && (*shouldStopEarly)()) {
+  const bool oldIncludeOwnerMap = bot->alwaysIncludeOwnerMap;
+  try {
+    if(ownership != nullptr)
+      bot->setAlwaysIncludeOwnerMap(true);
+    bot->setParams(newParams);
+    bot->setPosition(pla,board,hist);
+    bot->runWholeSearch(pla,shouldStopEarly);
+    if(shouldStopEarly != NULL && (*shouldStopEarly)())
+      throw SearchComputationCancelled();
+    ReportedSearchValues values = bot->getRootValuesRequireSuccess();
+    if(ownership != nullptr)
+      *ownership = bot->getAverageTreeOwnership();
     bot->setParams(oldParams);
-    throw SearchComputationCancelled();
+    if(ownership != nullptr)
+      bot->setAlwaysIncludeOwnerMap(oldIncludeOwnerMap);
+    return values;
   }
-  ReportedSearchValues values = bot->getRootValuesRequireSuccess();
-  bot->setParams(oldParams);
-  return values;
+  catch(...) {
+    bot->setParams(oldParams);
+    if(ownership != nullptr)
+      bot->setAlwaysIncludeOwnerMap(oldIncludeOwnerMap);
+    throw;
+  }
 }
 
 ReportedSearchValues PlayUtils::getWhiteScoreValues(
@@ -655,7 +668,7 @@ void PlayUtils::adjustKomiToEven(
 
 // 목적: 선택적인 취소 콜백을 사용해 백 관점의 예상 점수 차이를 계산한다.
 // 매개변수: botB와 botW는 검색기이고, board와 hist 및 pla는 위치, numVisits는 탐색당 방문 수,
-// otherGameProps는 대국 속성, shouldStopEarly는 선택적인 취소 콜백이다.
+// otherGameProps는 대국 속성, shouldStopEarly는 선택적인 취소 콜백, initialOwnership은 원래 덤의 선택적인 영역 출력이다.
 // 반환값: 계산된 백 관점 점수 차이며, 취소된 경우 SearchComputationCancelled를 던진다.
 static float computeLeadCancellableInternal(
   Search* botB,
@@ -665,12 +678,33 @@ static float computeLeadCancellableInternal(
   Player pla,
   int64_t numVisits,
   const OtherGameProperties& otherGameProps,
-  std::function<bool()>* shouldStopEarly
+  std::function<bool()>* shouldStopEarly,
+  vector<double>* initialOwnership = nullptr
 ) {
   map<float,std::pair<double,double>> scoreWLCache;
   float oldKomi = hist.rules.komi;
   double naiveKomi;
   try {
+    if(initialOwnership != nullptr) {
+      initialOwnership->clear();
+      if(shouldStopEarly != nullptr && (*shouldStopEarly)())
+        throw SearchComputationCancelled();
+      const int64_t firstVisits = std::max((int64_t)100,(int64_t)botB->searchParams.numThreads * 20);
+      // 원래 덤의 첫 검색 결과를 캐시에 넣어 후속 덤 조정이 같은 위치를 다시 검색하지 않게 한다.
+      ReportedSearchValues first = getWhiteScoreValuesCancellable(
+        botB,board,hist,pla,firstVisits,otherGameProps,shouldStopEarly,initialOwnership
+      );
+      double lead = first.lead;
+      double winLoss = first.winLossValue;
+      if(botW != nullptr && botW != botB) {
+        ReportedSearchValues second = getWhiteScoreValuesCancellable(
+          botW,board,hist,pla,firstVisits,otherGameProps,shouldStopEarly
+        );
+        lead = 0.5 * (lead + second.lead);
+        winLoss = 0.5 * (winLoss + second.winLossValue);
+      }
+      scoreWLCache[oldKomi] = std::make_pair(lead,winLoss);
+    }
     naiveKomi = getNaiveEvenKomiHelper(scoreWLCache,botB,botW,board,hist,pla,numVisits,otherGameProps,shouldStopEarly);
   }
   catch(...) {
@@ -750,15 +784,18 @@ bool PlayUtils::computeLeadCancellable(
   int64_t numVisits,
   const OtherGameProperties& otherGameProps,
   std::function<bool()>& shouldStopEarly,
-  float& result
+  float& result,
+  vector<double>* initialOwnership
 ) {
   try {
     result = computeLeadCancellableInternal(
-      botB,botW,board,hist,pla,numVisits,otherGameProps,&shouldStopEarly
+      botB,botW,board,hist,pla,numVisits,otherGameProps,&shouldStopEarly,initialOwnership
     );
     return true;
   }
   catch(const SearchComputationCancelled&) {
+    if(initialOwnership != nullptr)
+      initialOwnership->clear();
     return false;
   }
 }

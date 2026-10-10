@@ -489,15 +489,19 @@ int MainCmds::analysis(const vector<string>& args) {
     Player winner = C_EMPTY;
     double finalWhiteMinusBlackScore = 0.0;
     string scoreSource;
+    vector<bool> isAlive;
 
     if(hasFinishedStoneStatuses(hist)) {
       winner = hist.winner;
       finalWhiteMinusBlackScore = hist.finalWhiteMinusBlackScore;
       scoreSource = "finished";
+      if(request->includeAlive)
+        isAlive = PlayUtils::computeAnticipatedStatusesSimple(board,hist);
     }
     else {
       int64_t numVisits = std::max((int64_t)50, (int64_t)finalScoreParams.numThreads * 10);
       float leadBuf;
+      vector<double> initialOwnership;
       // 목적: 현재 최종 점수 요청에 취소 신호가 들어왔는지 확인한다.
       // 매개변수: 요청 상태를 캡처하므로 별도 매개변수는 없다.
       // 반환값: 요청이 종료 상태이면 true, 아니면 false다.
@@ -505,10 +509,17 @@ int MainCmds::analysis(const vector<string>& args) {
         return request->status.load(std::memory_order_acquire) == AnalyzeRequest::STATUS_TERMINATED;
       };
       bool completed = PlayUtils::computeLeadCancellable(
-        bot->getSearchStopAndWait(),NULL,board,hist,pla,numVisits,OtherGameProperties(),shouldStopEarly,leadBuf
+        bot->getSearchStopAndWait(),NULL,board,hist,pla,numVisits,OtherGameProperties(),shouldStopEarly,leadBuf,
+        request->includeAlive ? &initialOwnership : nullptr
       );
       if(!completed)
         return false;
+      if(request->includeAlive) {
+        const Search* search = bot->getSearchStopAndWait();
+        isAlive = PlayUtils::computeAnticipatedStatusesFromOwnership(
+          board,initialOwnership,search->nnXLen,search->nnYLen
+        );
+      }
       double lead = leadBuf;
       if(hist.rules.gameResultWillBeInteger())
         lead = round(lead);
@@ -532,11 +543,13 @@ int MainCmds::analysis(const vector<string>& args) {
     ret["finalScore"] = formatFinalScore(winner,finalWhiteMinusBlackScore);
     ret["finalWhiteMinusBlackScore"] = Global::roundDynamic(finalWhiteMinusBlackScore,8);
     ret["scoreSource"] = scoreSource;
+    if(request->includeAlive)
+      ret["alive"] = stoneStatusesToJson(board,isAlive);
     pushToWrite(new string(ret.dump()));
     return true;
   };
 
-  // 목적: 요청 위치의 착점별 살아 있음 또는 빅 후보를 GTP 판정 절차로 계산해 기록한다.
+  // 목적: 요청 위치의 착점별 생사를 GTP 판정 절차로 계산해 기록한다.
   // 매개변수: request는 위치와 요청 종류, bot은 필요한 ownership 검색기다.
   // 반환값: 응답을 기록하면 true, 취소되면 false다.
   auto reportStoneStatus = [&pushToWrite](const AnalyzeRequest* request, AsyncBot* bot) {

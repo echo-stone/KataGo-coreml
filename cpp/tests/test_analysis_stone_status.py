@@ -229,6 +229,55 @@ def test_actions_and_errors(args):
         fail("경고 비활성 설정이 제거 오류를 우회함", quiet_process)
 
 
+def test_final_score_alive(args):
+    """목적: 최종 점수의 선택적 생사 응답 검증. 매개변수: CLI 설정. 반환값: 없음."""
+    ended = dict(rules="tromp-taylor", moves=MOVES + [["W", "pass"], ["B", "pass"]], analyzeTurns=[4])
+    requests = [
+        make_request("score-off", action="final_score"),
+        make_request("score-false", action="final_score", includeAlive=False),
+        make_request("score-alive", action="final_score", includeAlive=True),
+        make_request("score-reference", action="alive"),
+        make_request("score-finished-off", action="final_score", **ended),
+        make_request("score-finished-alive", action="final_score", includeAlive=True, **ended),
+        make_request("score-finished-reference", action="alive", **ended),
+        make_request("score-bad-bool", action="final_score", includeAlive="true"),
+    ]
+    results, process = run_requests(args, requests)
+    final = {r["id"]: final_response(results, r["id"], process)
+             for r in requests if r["id"] != "score-bad-bool"}
+    score_keys = {"id", "action", "turnNumber", "isDuringSearch", "winner", "finalScore",
+                  "finalWhiteMinusBlackScore", "scoreSource"}
+    for request_id in ("score-off", "score-false", "score-finished-off"):
+        if set(final[request_id]) != score_keys:
+            fail(f"{request_id}: 기존 점수 응답 필드 변경", process)
+    if analysis_without_status(final["score-off"]) != analysis_without_status(final["score-false"]):
+        fail("includeAlive=false가 기존 점수 결과를 변경함", process)
+    for request_id, reference_id, turn, source in (
+        ("score-alive", "score-reference", 2, "estimated"),
+        ("score-finished-alive", "score-finished-reference", 4, "finished"),
+    ):
+        result = final[request_id]
+        if set(result) != score_keys | {"alive"} or result["scoreSource"] != source:
+            fail(f"{request_id}: 점수·생사 결합 응답 형식 위반", process)
+        if assert_status(result, "alive", turn, process) != assert_status(final[reference_id], "alive", turn, process):
+            fail(f"{request_id}: 원래 덤의 독립 생사 판정과 불일치", process)
+    if analysis_without_status(final["score-finished-off"]) != analysis_without_status(final["score-finished-alive"]):
+        fail("종료 국면의 생사 요청이 점수 결과를 변경함", process)
+    errors = results["score-bad-bool"]
+    if len(errors) != 1 or errors[0].get("field") != "includeAlive" or "error" not in errors[0]:
+        fail("final_score의 잘못된 includeAlive 타입 오류 누락", process)
+    static_results, static_process = run_requests(
+        args, [make_request("score-static-only", action="final_score", includeAlive=True, **ended)]
+    )
+    static = final_response(static_results, "score-static-only", static_process)
+    if static["scoreSource"] != "finished" or not any(
+        "NN rows:" in line and line.split("NN rows:")[-1].strip() == "0"
+        for line in static_process.stderr.splitlines()
+    ):
+        fail("확정 종료 점수·생사 경로가 NN 검색을 실행함", static_process)
+
+
+
 def main():
     """CLI 인자를 해석하고 엔진 E2E 결과를 종료 코드로 반환한다."""
     parser = argparse.ArgumentParser()
@@ -239,6 +288,7 @@ def main():
     try:
         test_analysis(args)
         test_actions_and_errors(args)
+        test_final_score_alive(args)
     except (AssertionError, subprocess.TimeoutExpired) as error:
         print(f"analysis stone status E2E: failed: {error}", file=sys.stderr)
         return 1

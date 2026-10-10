@@ -30,6 +30,12 @@ static void testComputeLeadCancellation() {
   testAssert(callbackCount > 0);
   testAssert(result == 123.0f);
   testAssert(hist.rules.komi == originalKomi);
+  vector<double> ownership(1,999.0);
+  completed = PlayUtils::computeLeadCancellable(
+    NULL,NULL,board,hist,P_BLACK,50,OtherGameProperties(),shouldStopEarly,result,&ownership
+  );
+  testAssert(!completed && ownership.empty());
+  testAssert(result == 123.0f && hist.rules.komi == originalKomi);
 }
 
 static void checkKoHashConsistency(const BoardHistory& hist, const Board& board, Player nextPla) {

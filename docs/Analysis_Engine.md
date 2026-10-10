@@ -4,6 +4,10 @@
 
 일반 분석의 `includeAlive`와 독립 `action: "alive"`는 판 크기의 `alive` 문자열
 배열을 반환합니다. `"A"`는 생존, `"E"`는 빈 교차점, `"D"`는 죽음입니다.
+`action: "final_score"`도 `includeAlive: true`이면 기존 점수와 이 배열을 함께
+반환합니다. 미종료 국면은 원래 덤의 첫 탐색만 생사 예산으로 늘려 ownership을
+저장하며, 이 옵션으로 추정 점수가 달라질 수 있습니다. 생략·false는 기존 점수
+행동을 유지하고 확정 종료 국면은 추가 탐색 없이 정적 생사를 함께 반환합니다.
 기존 `includeSeki`와 `action: "seki"`는 제거되어 오류를 반환합니다.
 배열 좌표, 검색·계가의 차이와 응답 생략 규칙은
 [돌 생사 문자열 계약](analysis-stone-status.md)을 참조하세요.

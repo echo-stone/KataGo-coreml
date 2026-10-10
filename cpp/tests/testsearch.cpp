@@ -16,6 +16,93 @@ using namespace TestCommon;
 using namespace TestSearchCommon;
 
 
+// 목적: 실제 검색에서 원래 덤의 영역 저장, 첫·후속 방문 예산과 취소 시 설정 복구를 검증한다.
+// 매개변수: nnEval은 테스트 모델, logger는 검색 로그 출력기다.
+// 반환값: 검증 실패 시 testAssert가 중단하며 별도 반환값은 없다.
+static void testLeadInitialOwnership(NNEvaluator* nnEval, Logger& logger) {
+  Board board = Board::parseBoard(7,3,"xxxx..o\nx.x...o\nxxxx...");
+  Rules rules = Rules::parseRules("japanese");
+  rules.komi = 40.5f;
+  BoardHistory hist(board,P_BLACK,rules,0,BoardHistoryModes(false,false));
+  SearchParams params;
+  params.maxVisits = 321;
+  params.numThreads = 1;
+  params.conservativePass = true;
+  Search search(params,nnEval,&logger,"leadInitialOwnership");
+  vector<double> ownership;
+  vector<double> observedOriginalOwnership;
+  bool sawFirst = false;
+  bool sawAdjusted = false;
+  // 목적: 실제 검색 상태에서 예산과 덤을 관찰한다. 매개변수: 캡처한 검색기와 관측 변수. 반환값: 취소하지 않으므로 false다.
+  std::function<bool()> observe = [&]() {
+    if(search.searchParams.maxVisits == 100 && search.alwaysIncludeOwnerMap)
+      sawFirst = true;
+    if(search.searchParams.maxVisits == 50 && search.rootHistory.rules.komi != rules.komi) {
+      sawAdjusted = true;
+      testAssert(!search.alwaysIncludeOwnerMap);
+    }
+    if(observedOriginalOwnership.empty() && search.getRootNode() != nullptr &&
+       search.rootHistory.rules.komi == rules.komi && search.getRootVisits() >= 100)
+      observedOriginalOwnership = search.getAverageTreeOwnership();
+    return false;
+  };
+  float result = 123.0f;
+  testAssert(PlayUtils::computeLeadCancellable(
+    &search,nullptr,board,hist,P_BLACK,50,OtherGameProperties(),observe,result,&ownership
+  ));
+  testAssert(sawFirst && sawAdjusted);
+  testAssert(!observedOriginalOwnership.empty() && ownership == observedOriginalOwnership);
+  testAssert(hist.rules.komi == rules.komi);
+  testAssert(search.searchParams.maxVisits == 321 && !search.alwaysIncludeOwnerMap);
+
+  for(bool cancelAfterFirst : {false,true}) {
+    search.clearSearch();
+    ownership.assign(1,999.0);
+    bool enteredSearch = false;
+    // 목적: 첫 검색 중 또는 영역 저장 직후 취소한다. 매개변수: 검색기·출력 영역·취소 시점. 반환값: 지정 시점에 true다.
+    std::function<bool()> cancel = [&]() {
+      if(cancelAfterFirst)
+        return !ownership.empty();
+      if(search.searchParams.maxVisits == 100 && search.getRootNode() != nullptr) {
+        enteredSearch = true;
+        return true;
+      }
+      return false;
+    };
+    result = 123.0f;
+    testAssert(!PlayUtils::computeLeadCancellable(
+      &search,nullptr,board,hist,P_BLACK,50,OtherGameProperties(),cancel,result,&ownership
+    ));
+    testAssert(cancelAfterFirst || enteredSearch);
+    testAssert(ownership.empty() && result == 123.0f);
+    testAssert(hist.rules.komi == rules.komi);
+    testAssert(search.searchParams.maxVisits == 321 && !search.alwaysIncludeOwnerMap);
+  }
+  for(float extremeKomi : {-400.0f,400.0f}) {
+    hist.setKomi(extremeKomi);
+    search.clearSearch();
+    bool sawOriginalBudget = false;
+    vector<double> originalTreeOwnership;
+    // 목적: 클리핑 범위 밖에서도 원래 덤 검색의 캐시 재사용을 관찰한다. 매개변수: 검색기·원래 덤·관측 출력. 반환값: 취소하지 않으므로 false다.
+    std::function<bool()> observeExtreme = [&]() {
+      if(search.rootHistory.rules.komi == extremeKomi && search.getRootNode() != nullptr) {
+        testAssert(search.searchParams.maxVisits != 50);
+        if(search.searchParams.maxVisits == 100)
+          sawOriginalBudget = true;
+        if(originalTreeOwnership.empty() && search.getRootVisits() >= 100)
+          originalTreeOwnership = search.getAverageTreeOwnership();
+      }
+      return false;
+    };
+    testAssert(PlayUtils::computeLeadCancellable(
+      &search,nullptr,board,hist,P_BLACK,50,OtherGameProperties(),observeExtreme,result,&ownership
+    ));
+    testAssert(sawOriginalBudget && !originalTreeOwnership.empty());
+    testAssert(ownership == originalTreeOwnership && hist.rules.komi == extremeKomi);
+  }
+  cout << "Original-komi ownership, search budgets, cancellation, and extreme komi OK" << endl;
+}
+
 static void runBasicPositions(NNEvaluator* nnEval, Logger& logger)
 {
   {
@@ -185,6 +272,7 @@ void Tests::runSearchTests(const string& modelFile, bool inputsNHWC, bool useNHW
   Logger logger(nullptr, logToStdout, logToStderr, logTime);
 
   NNEvaluator* nnEval = startNNEval(modelFile,logger,"",NNPos::MAX_BOARD_LEN,NNPos::MAX_BOARD_LEN,symmetry,inputsNHWC,useNHWC,useFP16,false,false);
+  testLeadInitialOwnership(nnEval, logger);
   runBasicPositions(nnEval, logger);
   delete nnEval;
 

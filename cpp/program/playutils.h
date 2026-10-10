@@ -92,7 +92,8 @@ namespace PlayUtils {
   // 목적: 취소 신호를 확인하면서 백 관점의 예상 점수 차이를 계산한다.
   // 매개변수: botB와 botW는 검색기이고, board와 hist 및 pla는 위치, numVisits는 탐색당 방문 수,
   // otherGameProps는 대국 속성, shouldStopEarly는 취소 여부 콜백, result는 계산된 점수 차이를 받을 변수다.
-  // 반환값: 계산을 마치면 true, 취소 신호로 중단하면 false를 반환한다.
+  // initialOwnership은 선택적인 원래 덤 첫 검색 영역 출력이며, 사용하면 첫 검색만 최소 100회·스레드당 20회다.
+  // 반환값: 계산을 마치면 true, 취소 신호로 중단하면 출력 영역을 비우고 false를 반환한다.
   bool computeLeadCancellable(
     Search* botB,
     Search* botW, //can be NULL if only one bot
@@ -102,7 +103,8 @@ namespace PlayUtils {
     int64_t numVisits,
     const OtherGameProperties& otherGameProps,
     std::function<bool()>& shouldStopEarly,
-    float& result
+    float& result,
+    std::vector<double>* initialOwnership = nullptr
   );
 
   double getSearchFactor(
