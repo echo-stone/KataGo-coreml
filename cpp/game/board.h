@@ -336,6 +336,10 @@ struct Board
     bool isMultiStoneSuicideLegal
   ) const;
 
+  // 계가에서 사용하는 빅 후보 영역을 계산한다. result는 MAX_ARR_SIZE 크기의 출력 버퍼이며,
+  // isMultiStoneSuicideLegal은 pass-alive 계산의 자충 허용 여부다. 반환값은 없다.
+  void calculateSekiRegions(bool* result, bool isMultiStoneSuicideLegal) const;
+
   //Run some basic sanity checks on the board state, throws an exception if not consistent, for testing/debugging
   void checkConsistency() const;
   //For the moment, only used in testing since it does extra consistency checks.
@@ -422,6 +426,9 @@ struct Board
     Color* result,
     int& whiteMinusBlackIndependentLifeRegionCount
   ) const;
+
+  // basicArea에서 단수 또는 공배 접촉으로 표시된 빅 후보 영역을 result에 채운다. 반환값은 없다.
+  void calculateSekiRegionsHelper(const Color* basicArea, bool* result) const;
 
   bool countEmptyHelper(bool* emptyCounted, Loc initialLoc, int& count, int bound) const;
 

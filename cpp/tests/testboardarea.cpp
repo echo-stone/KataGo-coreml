@@ -1,5 +1,6 @@
 #include "../tests/tests.h"
 #include "../neuralnet/nninputs.h"
+#include "../program/playutils.h"
 
 using namespace std;
 using namespace TestCommon;
@@ -7,6 +8,69 @@ using namespace TestCommon;
 void Tests::runBoardAreaTests() {
   cout << "Running board area tests" << endl;
   ostringstream out;
+
+  // 계가 빅 후보와 예상 생존의 교집합만 돌별 빅 상태로 공개한다.
+  {
+    Board board = Board::parseBoard(5,3,"xxxxx\nxx.oo\nooooo");
+    BoardHistory hist(board,P_BLACK,Rules::getTrompTaylorish(),0,false);
+    bool regions[Board::MAX_ARR_SIZE];
+    board.calculateSekiRegions(regions,hist.suicideLegalForPassAlive());
+    vector<bool> alive(Board::MAX_ARR_SIZE,true);
+    vector<bool> seki = PlayUtils::computeAnticipatedSekiStatuses(board,hist,alive);
+    for(int y = 0; y<board.y_size; y++) {
+      for(int x = 0; x<board.x_size; x++) {
+        Loc loc = Location::getLoc(x,y,board.x_size);
+        testAssert(seki[loc] == (board.colors[loc] != C_EMPTY && regions[loc]));
+      }
+    }
+    Loc sharedLiberty = Location::getLoc(2,1,board.x_size);
+    testAssert(!seki[sharedLiberty]);
+    testAssert(seki[Location::getLoc(0,0,board.x_size)]);
+    testAssert(seki[Location::getLoc(4,2,board.x_size)]);
+
+    alive[Location::getLoc(0,0,board.x_size)] = false;
+    seki = PlayUtils::computeAnticipatedSekiStatuses(board,hist,alive);
+    testAssert(!seki[Location::getLoc(0,0,board.x_size)]);
+    testAssert(seki[Location::getLoc(1,0,board.x_size)]);
+  }
+
+  // 두 눈으로 둘러싸인 영역은 공배 접촉·단수에 따른 빅 후보가 아니다.
+  {
+    Board board = Board::parseBoard(5,3,"xxxxx\nx.x.x\nxxxxx");
+    BoardHistory hist(board,P_BLACK,Rules::getTrompTaylorish(),0,false);
+    bool regions[Board::MAX_ARR_SIZE];
+    board.calculateSekiRegions(regions,hist.suicideLegalForPassAlive());
+    vector<bool> alive(Board::MAX_ARR_SIZE,true);
+    vector<bool> seki = PlayUtils::computeAnticipatedSekiStatuses(board,hist,alive);
+    for(int y = 0; y<board.y_size; y++) {
+      for(int x = 0; x<board.x_size; x++) {
+        Loc loc = Location::getLoc(x,y,board.x_size);
+        testAssert(!regions[loc]);
+        testAssert(!seki[loc]);
+      }
+    }
+  }
+
+  // ownership 임계값은 돌무리 전체에 적용되고 경계값은 생존으로 포함하지 않는다.
+  {
+    Board board = Board::parseBoard(5,3,"xxx.o\n.....\n.....");
+    vector<double> ownerships(15,0.0);
+    Loc black0 = Location::getLoc(0,0,board.x_size);
+    Loc black1 = Location::getLoc(1,0,board.x_size);
+    Loc black2 = Location::getLoc(2,0,board.x_size);
+    Loc white = Location::getLoc(4,0,board.x_size);
+    ownerships[NNPos::locToPos(black0,board.x_size,5,3)] = 0.6;
+    ownerships[NNPos::locToPos(black1,board.x_size,5,3)] = -1.0;
+    ownerships[NNPos::locToPos(black2,board.x_size,5,3)] = -1.0;
+    ownerships[NNPos::locToPos(white,board.x_size,5,3)] = 0.2;
+    vector<bool> alive = PlayUtils::computeAnticipatedStatusesFromOwnership(board,ownerships,5,3);
+    testAssert(!alive[black0] && !alive[black1] && !alive[black2] && !alive[white]);
+    ownerships[NNPos::locToPos(black0,board.x_size,5,3)] = 0.59;
+    ownerships[NNPos::locToPos(white,board.x_size,5,3)] = 0.21;
+    alive = PlayUtils::computeAnticipatedStatusesFromOwnership(board,ownerships,5,3);
+    testAssert(alive[black0] && alive[black1] && alive[black2] && alive[white]);
+    testAssert(!alive[Location::getLoc(3,0,board.x_size)]);
+  }
 
   //============================================================================
   auto printAreas = [&out](const Board& board, Color result[Board::MAX_ARR_SIZE]) {

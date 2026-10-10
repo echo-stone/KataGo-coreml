@@ -37,7 +37,52 @@ static string formatFinalScore(Player winner, double finalWhiteMinusBlackScore) 
 enum class AnalyzeRequestKind {
   ANALYSIS,
   FINAL_SCORE,
+  ALIVE,
+  SEKI,
 };
+
+// 목적: GTP 종료 판정과 동일하게 검색의 인위적인 편향을 제거한다.
+// 매개변수: params는 요청에 적용할 원래 검색 설정이다.
+// 반환값: 보수적 패스와 편향 제거 설정이 적용된 검색 설정이다.
+static SearchParams getFinalStatusParams(const SearchParams& params) {
+  SearchParams result = params;
+  result.playoutDoublingAdvantage = 0.0;
+  result.humanSLChosenMoveProp = 0.0;
+  result.humanSLRootExploreProbWeightful = 0.0;
+  result.humanSLRootExploreProbWeightless = 0.0;
+  result.humanSLPlaExploreProbWeightful = 0.0;
+  result.humanSLPlaExploreProbWeightless = 0.0;
+  result.humanSLOppExploreProbWeightful = 0.0;
+  result.humanSLOppExploreProbWeightless = 0.0;
+  result.antiMirror = false;
+  result.avoidRepeatedPatternUtility = 0.0;
+  result.conservativePass = true;
+  return result;
+}
+
+// 목적: GTP와 같은 조건에서 종료된 대국의 확정 착점 판정을 사용한다.
+// 매개변수: hist는 현재 대국 이력과 규칙이다.
+// 반환값: 확정 판정을 사용할 수 있으면 true다.
+static bool hasFinishedStoneStatuses(const BoardHistory& hist) {
+  return hist.isGameFinished && (
+    (hist.rules.scoringRule == Rules::SCORING_AREA && !hist.rules.friendlyPassOk) ||
+    hist.rules.scoringRule == Rules::SCORING_TERRITORY
+  );
+}
+
+// 목적: Loc 색인 상태를 ownership과 같은 행 우선 순서의 JSON 불리언 배열로 바꾼다.
+// 매개변수: board는 판 크기, statuses는 Loc 색인 상태다.
+// 반환값: 빈 교차점도 false인 판 크기만큼의 JSON 배열이다.
+static json stoneStatusesToJson(const Board& board, const vector<bool>& statuses) {
+  json result = json::array();
+  for(int y = 0; y<board.y_size; y++) {
+    for(int x = 0; x<board.x_size; x++) {
+      Loc loc = Location::getLoc(x,y,board.x_size);
+      result.push_back(board.colors[loc] != C_EMPTY && statuses[loc]);
+    }
+  }
+  return result;
+}
 
 // 목적: 목적지 착점 목록에 중복을 만들지 않으면서 새 착점을 덧붙인다.
 // 매개변수: dst는 목적지 목록, src는 추가할 착점 목록이다.
@@ -77,6 +122,8 @@ struct AnalyzeRequest {
   bool includePVVisits;
   bool includeNoResultValue;
   bool includePatterns;
+  bool includeAlive;
+  bool includeSeki;
   bool patternsSuppressedByRulesSubstitution;
 
   bool reportDuringSearch;
@@ -288,6 +335,8 @@ int MainCmds::analysis(const vector<string>& args) {
     "includePVVisits",
     "includeNoResultValue",
     "includePatterns",
+    "includeAlive",
+    "includeSeki",
     "reportDuringSearchEvery",
     "firstReportDuringSearchAfter",
     "priority",
@@ -380,6 +429,26 @@ int MainCmds::analysis(const vector<string>& args) {
       ret
     );
 
+    if(success && !isDuringSearch && (request->includeAlive || request->includeSeki)) {
+      const Board& board = search->rootBoard;
+      const BoardHistory& hist = search->rootHistory;
+      vector<bool> isAlive;
+      if(hasFinishedStoneStatuses(hist))
+        isAlive = PlayUtils::computeAnticipatedStatusesSimple(board,hist);
+      else {
+        const vector<double> ownership = search->getAverageTreeOwnership();
+        isAlive = PlayUtils::computeAnticipatedStatusesFromOwnership(
+          board,ownership,search->nnXLen,search->nnYLen
+        );
+      }
+      if(request->includeAlive)
+        ret["alive"] = stoneStatusesToJson(board,isAlive);
+      if(request->includeSeki) {
+        const vector<bool> isSeki = PlayUtils::computeAnticipatedSekiStatuses(board,hist,isAlive);
+        ret["seki"] = stoneStatusesToJson(board,isSeki);
+      }
+    }
+
     if(success && request->includePatterns && !isDuringSearch) {
       ret["patterns"] = json::array();
       if(!request->patternsSuppressedByRulesSubstitution) {
@@ -410,18 +479,7 @@ int MainCmds::analysis(const vector<string>& args) {
   // 매개변수: request는 위치와 검색 설정을 제공하고, bot은 미종료 위치의 점수를 추정하는 검색 상태를 제공한다.
   // 반환값: 점수를 출력하면 true, 계산 도중 취소되면 false를 반환한다.
   auto reportFinalScore = [&pushToWrite](const AnalyzeRequest* request, AsyncBot* bot) {
-    SearchParams finalScoreParams = request->params;
-    finalScoreParams.playoutDoublingAdvantage = 0.0;
-    finalScoreParams.humanSLChosenMoveProp = 0.0;
-    finalScoreParams.humanSLRootExploreProbWeightful = 0.0;
-    finalScoreParams.humanSLRootExploreProbWeightless = 0.0;
-    finalScoreParams.humanSLPlaExploreProbWeightful = 0.0;
-    finalScoreParams.humanSLPlaExploreProbWeightless = 0.0;
-    finalScoreParams.humanSLOppExploreProbWeightful = 0.0;
-    finalScoreParams.humanSLOppExploreProbWeightless = 0.0;
-    finalScoreParams.antiMirror = false;
-    finalScoreParams.avoidRepeatedPatternUtility = 0.0;
-    finalScoreParams.conservativePass = true;
+    SearchParams finalScoreParams = getFinalStatusParams(request->params);
 
     Board board = request->board;
     BoardHistory hist = request->hist;
@@ -441,11 +499,7 @@ int MainCmds::analysis(const vector<string>& args) {
     double finalWhiteMinusBlackScore = 0.0;
     string scoreSource;
 
-    if(hist.isGameFinished && (
-         (hist.rules.scoringRule == Rules::SCORING_AREA && !hist.rules.friendlyPassOk) ||
-         (hist.rules.scoringRule == Rules::SCORING_TERRITORY)
-       )
-    ) {
+    if(hasFinishedStoneStatuses(hist)) {
       winner = hist.winner;
       finalWhiteMinusBlackScore = hist.finalWhiteMinusBlackScore;
       scoreSource = "finished";
@@ -491,6 +545,62 @@ int MainCmds::analysis(const vector<string>& args) {
     return true;
   };
 
+  // 목적: 요청 위치의 착점별 살아 있음 또는 빅 후보를 GTP 판정 절차로 계산해 기록한다.
+  // 매개변수: request는 위치와 요청 종류, bot은 필요한 ownership 검색기다.
+  // 반환값: 응답을 기록하면 true, 취소되면 false다.
+  auto reportStoneStatus = [&pushToWrite](const AnalyzeRequest* request, AsyncBot* bot) {
+    SearchParams statusParams = getFinalStatusParams(request->params);
+    const Board& board = request->board;
+    const BoardHistory& hist = request->hist;
+    const Player pla = request->nextPla;
+
+    bot->setParams(statusParams);
+    bot->setPosition(pla,board,hist);
+    bot->setAlwaysIncludeOwnerMap(false);
+
+    if(request->status.load(std::memory_order_acquire) == AnalyzeRequest::STATUS_TERMINATED)
+      return false;
+
+    vector<bool> isAlive;
+    if(hasFinishedStoneStatuses(hist))
+      isAlive = PlayUtils::computeAnticipatedStatusesSimple(board,hist);
+    else {
+      const int64_t numVisits = std::max((int64_t)100,(int64_t)statusParams.numThreads * 20);
+      vector<double> ownership;
+      // 목적: 독립 착점 상태 검색 중 종료 요청을 감지한다.
+      // 매개변수: 요청 상태를 캡처하므로 별도 매개변수는 없다.
+      // 반환값: 종료 요청을 받았으면 true다.
+      std::function<bool()> shouldStopEarly = [request]() {
+        return request->status.load(std::memory_order_acquire) == AnalyzeRequest::STATUS_TERMINATED;
+      };
+      isAlive = PlayUtils::computeAnticipatedStatusesWithOwnership(
+        bot->getSearchStopAndWait(),board,hist,pla,numVisits,ownership,&shouldStopEarly
+      );
+      if(ownership.empty())
+        return false;
+    }
+
+    if(request->status.load(std::memory_order_acquire) == AnalyzeRequest::STATUS_TERMINATED)
+      return false;
+
+    json ret;
+    ret["id"] = request->id;
+    ret["turnNumber"] = request->turnNumber;
+    ret["isDuringSearch"] = false;
+    if(request->kind == AnalyzeRequestKind::ALIVE) {
+      ret["action"] = "alive";
+      ret["alive"] = stoneStatusesToJson(board,isAlive);
+    }
+    else {
+      testAssert(request->kind == AnalyzeRequestKind::SEKI);
+      ret["action"] = "seki";
+      const vector<bool> isSeki = PlayUtils::computeAnticipatedSekiStatuses(board,hist,isAlive);
+      ret["seki"] = stoneStatusesToJson(board,isSeki);
+    }
+    pushToWrite(new string(ret.dump()));
+    return true;
+  };
+
   // Common eval cache for all analysis threads
   std::shared_ptr<EvalCacheTable> evalCache = nullptr;
   if(defaultParams.useEvalCache) {
@@ -498,7 +608,7 @@ int MainCmds::analysis(const vector<string>& args) {
   }
 
   auto analysisLoop = [
-    &logger,&toAnalyzeQueue,&reportAnalysis,&reportFinalScore,&reportNoAnalysis,&logSearchInfo,&nnEval,&openRequestsMutex,&openRequests
+    &logger,&toAnalyzeQueue,&reportAnalysis,&reportFinalScore,&reportStoneStatus,&reportNoAnalysis,&logSearchInfo,&nnEval,&openRequestsMutex,&openRequests
   ](AsyncBot* bot, int threadIdx) {
     while(true) {
       std::pair<std::pair<int64_t,int64_t>,AnalyzeRequest*> analysisItem;
@@ -513,15 +623,16 @@ int MainCmds::analysis(const vector<string>& args) {
       }
       //Else, the request is live and we marked it as popped
       else {
-        if(request->kind == AnalyzeRequestKind::FINAL_SCORE) {
+        if(request->kind != AnalyzeRequestKind::ANALYSIS) {
           int expected2 = AnalyzeRequest::STATUS_POPPED;
           if(!request->status.compare_exchange_strong(expected2,threadIdx,std::memory_order_acq_rel)) {
             testAssert(expected2 == AnalyzeRequest::STATUS_TERMINATED);
             reportNoAnalysis(request);
           }
           else {
-            bool finalScoreWritten = reportFinalScore(request,bot);
-            if(!finalScoreWritten)
+            const bool responseWritten = request->kind == AnalyzeRequestKind::FINAL_SCORE ?
+              reportFinalScore(request,bot) : reportStoneStatus(request,bot);
+            if(!responseWritten)
               reportNoAnalysis(request);
           }
         }
@@ -533,7 +644,9 @@ int MainCmds::analysis(const vector<string>& args) {
             request->includeOwnership ||
             request->includeOwnershipStdev ||
             request->includeMovesOwnership ||
-            request->includeMovesOwnershipStdev
+            request->includeMovesOwnershipStdev ||
+            request->includeAlive ||
+            request->includeSeki
           );
           bot->setParams(request->params);
           bot->setAvoidMoveUntilByLoc(request->avoidMoveUntilByLocBlack,request->avoidMoveUntilByLocWhite);
@@ -685,7 +798,7 @@ int MainCmds::analysis(const vector<string>& args) {
       rbase.id = input["id"].get<string>();
 
       //Special actions
-      bool isFinalScoreAction = false;
+      AnalyzeRequestKind requestKind = AnalyzeRequestKind::ANALYSIS;
       if(input.find("action") != input.end() && input["action"].is_string()) {
         string action = input["action"].get<string>();
         if(action == "query_version") {
@@ -789,18 +902,24 @@ int MainCmds::analysis(const vector<string>& args) {
           pushToWrite(new string(input.dump()));
         }
         else if(action == "final_score") {
-          isFinalScoreAction = true;
+          requestKind = AnalyzeRequestKind::FINAL_SCORE;
+        }
+        else if(action == "alive") {
+          requestKind = AnalyzeRequestKind::ALIVE;
+        }
+        else if(action == "seki") {
+          requestKind = AnalyzeRequestKind::SEKI;
         }
         else {
-          reportError("'action' field must be 'query_version' or 'query_models' or 'clear_cache' or 'terminate' or 'terminate_all' or 'final_score'");
+          reportError("'action' field must be 'query_version' or 'query_models' or 'clear_cache' or 'terminate' or 'terminate_all' or 'final_score' or 'alive' or 'seki'");
         }
 
-        if(!isFinalScoreAction)
+        if(requestKind == AnalyzeRequestKind::ANALYSIS)
           continue;
       }
 
       //Defaults
-      rbase.kind = isFinalScoreAction ? AnalyzeRequestKind::FINAL_SCORE : AnalyzeRequestKind::ANALYSIS;
+      rbase.kind = requestKind;
       rbase.params = defaultParams;
       rbase.perspective = defaultPerspective;
       rbase.analysisPVLen = analysisPVLen;
@@ -812,6 +931,8 @@ int MainCmds::analysis(const vector<string>& args) {
       rbase.includePVVisits = false;
       rbase.includeNoResultValue = false;
       rbase.includePatterns = false;
+      rbase.includeAlive = false;
+      rbase.includeSeki = false;
       rbase.patternsSuppressedByRulesSubstitution = false;
       rbase.reportDuringSearch = false;
       rbase.reportDuringSearchEvery = 1e30;
@@ -1238,6 +1359,16 @@ int MainCmds::analysis(const vector<string>& args) {
         if(!suc)
           continue;
       }
+      if(input.find("includeAlive") != input.end()) {
+        bool suc = parseBoolean(input, "includeAlive", rbase.includeAlive, "Must be a boolean");
+        if(!suc)
+          continue;
+      }
+      if(input.find("includeSeki") != input.end()) {
+        bool suc = parseBoolean(input, "includeSeki", rbase.includeSeki, "Must be a boolean");
+        if(!suc)
+          continue;
+      }
       if(input.find("includePolicy") != input.end()) {
         bool suc = parseBoolean(input, "includePolicy", rbase.includePolicy, "Must be a boolean");
         if(!suc)
@@ -1487,6 +1618,8 @@ int MainCmds::analysis(const vector<string>& args) {
           newRequest->includePVVisits = rbase.includePVVisits;
           newRequest->includeNoResultValue = rbase.includeNoResultValue;
           newRequest->includePatterns = rbase.includePatterns;
+          newRequest->includeAlive = rbase.includeAlive;
+          newRequest->includeSeki = rbase.includeSeki;
           newRequest->patternsSuppressedByRulesSubstitution =
             rbase.patternsSuppressedByRulesSubstitution;
           newRequest->reportDuringSearch = rbase.reportDuringSearch;

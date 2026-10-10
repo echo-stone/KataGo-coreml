@@ -46,4 +46,5 @@ MPSGraph GPU와 CoreML/ANE 경로를 함께 포함한다.
 
 - [공식 KataGo 기반 전환 및 동기화 정책](docs/coreml-upstream-migration.md)
 - [Analysis Engine 프로토콜](docs/Analysis_Engine.md)
+- [Analysis Engine 돌의 생사·빅 판정 계약](docs/analysis-stone-status.md)
 - [GTP 독자 검색 옵션](docs/GTP_Custom_Search_Params.md)

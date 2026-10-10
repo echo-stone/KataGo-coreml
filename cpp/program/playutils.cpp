@@ -790,7 +790,8 @@ vector<double> PlayUtils::computeOwnership(
   const Board& board,
   const BoardHistory& hist,
   Player pla,
-  int64_t numVisits
+  int64_t numVisits,
+  std::function<bool()>* shouldStopEarly
 ) {
   testAssert(numVisits > 0);
   bool oldAlwaysIncludeOwnerMap = bot->alwaysIncludeOwnerMap;
@@ -804,10 +805,21 @@ vector<double> PlayUtils::computeOwnership(
   newParams.conservativePass = true;
 
   bot->setParams(newParams);
-  bot->setPosition(pla,board,hist);
-  bot->runWholeSearch(pla);
-
-  vector<double> ownerships = bot->getAverageTreeOwnership();
+  vector<double> ownerships;
+  try {
+    bot->setPosition(pla,board,hist);
+    if(shouldStopEarly == nullptr || !(*shouldStopEarly)()) {
+      bot->runWholeSearch(pla,shouldStopEarly);
+      if((shouldStopEarly == nullptr || !(*shouldStopEarly)()) && bot->getRootNode() != nullptr)
+        ownerships = bot->getAverageTreeOwnership();
+    }
+  }
+  catch(...) {
+    bot->setParams(oldParams);
+    bot->setAlwaysIncludeOwnerMap(oldAlwaysIncludeOwnerMap);
+    bot->clearSearch();
+    throw;
+  }
 
   bot->setParams(oldParams);
   bot->setAlwaysIncludeOwnerMap(oldAlwaysIncludeOwnerMap);
@@ -857,19 +869,23 @@ vector<bool> PlayUtils::computeAnticipatedStatusesWithOwnership(
   const BoardHistory& hist,
   Player pla,
   int64_t numVisits,
-  vector<double>& ownershipsBuf
+  vector<double>& ownershipsBuf,
+  std::function<bool()>* shouldStopEarly
+) {
+  ownershipsBuf = computeOwnership(bot,board,hist,pla,numVisits,shouldStopEarly);
+  if(ownershipsBuf.size() < static_cast<size_t>(bot->nnXLen * bot->nnYLen))
+    return vector<bool>(Board::MAX_ARR_SIZE,false);
+  return computeAnticipatedStatusesFromOwnership(board,ownershipsBuf,bot->nnXLen,bot->nnYLen);
+}
+
+vector<bool> PlayUtils::computeAnticipatedStatusesFromOwnership(
+  const Board& board,
+  const vector<double>& ownerships,
+  int nnXLen,
+  int nnYLen
 ) {
   vector<bool> isAlive(Board::MAX_ARR_SIZE,false);
-  bool solved[Board::MAX_ARR_SIZE];
-  for(int i = 0; i<Board::MAX_ARR_SIZE; i++) {
-    isAlive[i] = false;
-    solved[i] = false;
-  }
-
-  ownershipsBuf = computeOwnership(bot,board,hist,pla,numVisits);
-  const vector<double>& ownerships = ownershipsBuf;
-  int nnXLen = bot->nnXLen;
-  int nnYLen = bot->nnYLen;
+  bool solved[Board::MAX_ARR_SIZE] = {};
 
   //Heuristic:
   //Stones are considered dead if their average ownership is less than 0.2 equity in their own color,
@@ -920,6 +936,28 @@ vector<bool> PlayUtils::computeAnticipatedStatusesWithOwnership(
   }
   return isAlive;
 
+}
+
+vector<bool> PlayUtils::computeAnticipatedSekiStatuses(
+  const Board& board,
+  const BoardHistory& hist,
+  const vector<bool>& isAlive
+) {
+  vector<bool> isSeki(Board::MAX_ARR_SIZE,false);
+  bool sekiRegions[Board::MAX_ARR_SIZE];
+  Color basicArea[Board::MAX_ARR_SIZE];
+  const bool suicideLegal = hist.suicideLegalForPassAlive();
+  board.calculateSekiRegions(sekiRegions,suicideLegal);
+  board.calculateArea(basicArea,true,true,true,suicideLegal);
+
+  for(int y = 0; y<board.y_size; y++) {
+    for(int x = 0; x<board.x_size; x++) {
+      Loc loc = Location::getLoc(x,y,board.x_size);
+      isSeki[loc] = board.colors[loc] != C_EMPTY &&
+        basicArea[loc] == board.colors[loc] && sekiRegions[loc] && isAlive[loc];
+    }
+  }
+  return isSeki;
 }
 
 string PlayUtils::BenchmarkResults::toStringNotDone() const {

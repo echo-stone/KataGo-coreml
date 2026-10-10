@@ -2043,21 +2043,9 @@ void Board::calculateIndependentLifeArea(
   bool keepStones,
   bool isMultiStoneSuicideLegal
 ) const {
-  //First, just compute basic area.
   Color basicArea[MAX_ARR_SIZE];
   std::fill(result,result+MAX_ARR_SIZE,C_EMPTY);
-  std::fill(basicArea,basicArea+MAX_ARR_SIZE,C_EMPTY);
-  calculateAreaForPla(P_BLACK,true,true,isMultiStoneSuicideLegal,basicArea);
-  calculateAreaForPla(P_WHITE,true,true,isMultiStoneSuicideLegal,basicArea);
-
-  //TODO can we merge this in to calculate area for pla?
-  for(int y = 0; y < y_size; y++) {
-    for(int x = 0; x < x_size; x++) {
-      Loc loc = Location::getLoc(x,y,x_size);
-      if(basicArea[loc] == C_EMPTY)
-        basicArea[loc] = colors[loc];
-    }
-  }
+  calculateArea(basicArea,true,true,true,isMultiStoneSuicideLegal);
 
   calculateIndependentLifeAreaHelper(basicArea,result,whiteMinusBlackIndependentLifeRegionCount);
 
@@ -2080,6 +2068,12 @@ void Board::calculateIndependentLifeArea(
     }
   }
 
+}
+
+void Board::calculateSekiRegions(bool* result, bool isMultiStoneSuicideLegal) const {
+  Color basicArea[MAX_ARR_SIZE];
+  calculateArea(basicArea,true,true,true,isMultiStoneSuicideLegal);
+  calculateSekiRegionsHelper(basicArea,result);
 }
 
 //This marks pass-alive stones, pass-alive territory always.
@@ -2398,51 +2392,11 @@ void Board::calculateIndependentLifeAreaHelper(
   Loc queue[MAX_ARR_SIZE];
   whiteMinusBlackIndependentLifeRegionCount = 0;
 
-  //Iterate through all the regions that players own via area scoring and mark
-  //all the ones that are touching dame OR that contain an atari stone
   bool isSeki[MAX_ARR_SIZE];
-  for(int i = 0; i<MAX_ARR_SIZE; i++)
-    isSeki[i] = false;
+  calculateSekiRegionsHelper(basicArea,isSeki);
 
   int queueHead = 0;
   int queueTail = 0;
-
-  for(int y = 0; y < y_size; y++) {
-    for(int x = 0; x < x_size; x++) {
-      Loc loc = Location::getLoc(x,y,x_size);
-      if(basicArea[loc] != C_EMPTY && !isSeki[loc]) {
-        if(
-          //Stone of player owning the area is in atari? Treat as seki.
-          (colors[loc] == basicArea[loc] && getNumLiberties(loc) == 1) ||
-          //Touches dame? Treat as seki
-          ((colors[loc+ADJ0] == C_EMPTY && basicArea[loc+ADJ0] == C_EMPTY) ||
-           (colors[loc+ADJ1] == C_EMPTY && basicArea[loc+ADJ1] == C_EMPTY) ||
-           (colors[loc+ADJ2] == C_EMPTY && basicArea[loc+ADJ2] == C_EMPTY) ||
-           (colors[loc+ADJ3] == C_EMPTY && basicArea[loc+ADJ3] == C_EMPTY))
-        ) {
-          Player pla = basicArea[loc];
-          isSeki[loc] = true;
-          queue[queueTail++] = loc;
-          while(queueHead != queueTail) {
-            //Pop next location off queue
-            Loc nextLoc = queue[queueHead++];
-
-            //Look all around it, floodfill
-            FOREACHADJ(
-              Loc adj = nextLoc + ADJOFFSET;
-              if(basicArea[adj] == pla && !isSeki[adj]) {
-                isSeki[adj] = true;
-                queue[queueTail++] = adj;
-              }
-            );
-          }
-        }
-      }
-    }
-  }
-
-  queueHead = 0;
-  queueTail = 0;
 
   //Now, walk through and copy all non-seki-touching basic areas into the result counting
   //how many there are.
@@ -2466,6 +2420,48 @@ void Board::calculateIndependentLifeAreaHelper(
               queue[queueTail++] = adj;
             }
           );
+        }
+      }
+    }
+  }
+}
+
+void Board::calculateSekiRegionsHelper(const Color* basicArea, bool* isSeki) const {
+  //Iterate through all the regions that players own via area scoring and mark
+  //all the ones that are touching dame OR that contain an atari stone
+  for(int i = 0; i<MAX_ARR_SIZE; i++)
+    isSeki[i] = false;
+
+  Loc queue[MAX_ARR_SIZE];
+  int queueHead = 0;
+  int queueTail = 0;
+
+  for(int y = 0; y < y_size; y++) {
+    for(int x = 0; x < x_size; x++) {
+      Loc loc = Location::getLoc(x,y,x_size);
+      if(basicArea[loc] != C_EMPTY && !isSeki[loc]) {
+        if(
+          //Stone of player owning the area is in atari? Treat as seki.
+          (colors[loc] == basicArea[loc] && getNumLiberties(loc) == 1) ||
+          //Touches dame? Treat as seki
+          ((colors[loc+ADJ0] == C_EMPTY && basicArea[loc+ADJ0] == C_EMPTY) ||
+           (colors[loc+ADJ1] == C_EMPTY && basicArea[loc+ADJ1] == C_EMPTY) ||
+           (colors[loc+ADJ2] == C_EMPTY && basicArea[loc+ADJ2] == C_EMPTY) ||
+           (colors[loc+ADJ3] == C_EMPTY && basicArea[loc+ADJ3] == C_EMPTY))
+        ) {
+          Player pla = basicArea[loc];
+          isSeki[loc] = true;
+          queue[queueTail++] = loc;
+          while(queueHead != queueTail) {
+            Loc nextLoc = queue[queueHead++];
+            FOREACHADJ(
+              Loc adj = nextLoc + ADJOFFSET;
+              if(basicArea[adj] == pla && !isSeki[adj]) {
+                isSeki[adj] = true;
+                queue[queueTail++] = adj;
+              }
+            );
+          }
         }
       }
     }

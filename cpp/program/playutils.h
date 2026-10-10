@@ -120,7 +120,8 @@ namespace PlayUtils {
     const Board& board,
     const BoardHistory& hist,
     Player pla,
-    int64_t numVisits
+    int64_t numVisits,
+    std::function<bool()>* shouldStopEarly = nullptr
   );
 
   //Determine all living and dead stones, if the game were terminated right now and
@@ -140,7 +141,25 @@ namespace PlayUtils {
     const BoardHistory& hist,
     Player pla,
     int64_t numVisits,
-    std::vector<double>& ownershipsBuf
+    std::vector<double>& ownershipsBuf,
+    std::function<bool()>* shouldStopEarly = nullptr
+  );
+
+  // ownerships의 NN 격자 예측값으로 현재 board의 돌무리별 예상 생존을 계산한다.
+  // nnXLen/nnYLen은 예측 격자 크기이며, 반환 배열은 Board::MAX_ARR_SIZE 길이의 Loc 인덱스다.
+  std::vector<bool> computeAnticipatedStatusesFromOwnership(
+    const Board& board,
+    const std::vector<double>& ownerships,
+    int nnXLen,
+    int nnYLen
+  );
+
+  // 계가 기준 빅 후보 중 살아 있다고 예상된 현재 돌만 표시한다.
+  // board/hist는 국면과 자충 규칙, isAlive는 Loc별 예상 생존이며 반환 배열은 Loc별 빅 후보다.
+  std::vector<bool> computeAnticipatedSekiStatuses(
+    const Board& board,
+    const BoardHistory& hist,
+    const std::vector<bool>& isAlive
   );
 
 
