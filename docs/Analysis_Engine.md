@@ -1,11 +1,12 @@
 # KataGo Parallel Analysis Engine
 
-## 돌의 생사·빅 판정 확장
+## 돌 생사 문자열 확장
 
-이 저장소의 Analysis Engine은 일반 분석 요청의 `includeAlive`와 `includeSeki`,
-독립 `action: "alive"` 및 `action: "seki"`를 지원합니다. 배열 좌표, 검색과
-계가의 차이, 응답 생략 규칙은 [돌의 생사·빅 판정 계약](analysis-stone-status.md)을
-참조하세요.
+일반 분석의 `includeAlive`와 독립 `action: "alive"`는 판 크기의 `alive` 문자열
+배열을 반환합니다. `"A"`는 생존, `"E"`는 빈 교차점, `"D"`는 죽음입니다.
+기존 `includeSeki`와 `action: "seki"`는 제거되어 오류를 반환합니다.
+배열 좌표, 검색·계가의 차이와 응답 생략 규칙은
+[돌 생사 문자열 계약](analysis-stone-status.md)을 참조하세요.
 
 KataGo contains an engine that can be used to analyze large numbers of positions in parallel (entire games, or multiple games).
 When properly configured and used with modern GPUs that can handle large batch sizes, this engine can be much faster than using

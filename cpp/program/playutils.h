@@ -154,14 +154,6 @@ namespace PlayUtils {
     int nnYLen
   );
 
-  // 계가 기준 빅 후보 중 살아 있다고 예상된 현재 돌만 표시한다.
-  // board/hist는 국면과 자충 규칙, isAlive는 Loc별 예상 생존이며 반환 배열은 Loc별 빅 후보다.
-  std::vector<bool> computeAnticipatedSekiStatuses(
-    const Board& board,
-    const BoardHistory& hist,
-    const std::vector<bool>& isAlive
-  );
-
 
   struct BenchmarkResults {
     int numThreads = 0;

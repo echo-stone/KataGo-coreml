@@ -38,7 +38,6 @@ enum class AnalyzeRequestKind {
   ANALYSIS,
   FINAL_SCORE,
   ALIVE,
-  SEKI,
 };
 
 // 목적: GTP 종료 판정과 동일하게 검색의 인위적인 편향을 제거한다.
@@ -70,15 +69,15 @@ static bool hasFinishedStoneStatuses(const BoardHistory& hist) {
   );
 }
 
-// 목적: Loc 색인 상태를 ownership과 같은 행 우선 순서의 JSON 불리언 배열로 바꾼다.
+// 목적: Loc 색인 상태를 ownership과 같은 행 우선 순서의 JSON 문자열 배열로 바꾼다.
 // 매개변수: board는 판 크기, statuses는 Loc 색인 상태다.
-// 반환값: 빈 교차점도 false인 판 크기만큼의 JSON 배열이다.
+// 반환값: 생존 A, 빈 교차점 E, 죽음 D를 담은 판 크기만큼의 JSON 배열이다.
 static json stoneStatusesToJson(const Board& board, const vector<bool>& statuses) {
   json result = json::array();
   for(int y = 0; y<board.y_size; y++) {
     for(int x = 0; x<board.x_size; x++) {
       Loc loc = Location::getLoc(x,y,board.x_size);
-      result.push_back(board.colors[loc] != C_EMPTY && statuses[loc]);
+      result.push_back(board.colors[loc] == C_EMPTY ? "E" : (statuses[loc] ? "A" : "D"));
     }
   }
   return result;
@@ -123,7 +122,6 @@ struct AnalyzeRequest {
   bool includeNoResultValue;
   bool includePatterns;
   bool includeAlive;
-  bool includeSeki;
   bool patternsSuppressedByRulesSubstitution;
 
   bool reportDuringSearch;
@@ -335,7 +333,6 @@ int MainCmds::analysis(const vector<string>& args) {
     "includeNoResultValue",
     "includePatterns",
     "includeAlive",
-    "includeSeki",
     "reportDuringSearchEvery",
     "firstReportDuringSearchAfter",
     "priority",
@@ -428,7 +425,7 @@ int MainCmds::analysis(const vector<string>& args) {
       ret
     );
 
-    if(success && !isDuringSearch && (request->includeAlive || request->includeSeki)) {
+    if(success && !isDuringSearch && request->includeAlive) {
       const Board& board = search->rootBoard;
       const BoardHistory& hist = search->rootHistory;
       vector<bool> isAlive;
@@ -440,12 +437,7 @@ int MainCmds::analysis(const vector<string>& args) {
           board,ownership,search->nnXLen,search->nnYLen
         );
       }
-      if(request->includeAlive)
-        ret["alive"] = stoneStatusesToJson(board,isAlive);
-      if(request->includeSeki) {
-        const vector<bool> isSeki = PlayUtils::computeAnticipatedSekiStatuses(board,hist,isAlive);
-        ret["seki"] = stoneStatusesToJson(board,isSeki);
-      }
+      ret["alive"] = stoneStatusesToJson(board,isAlive);
     }
 
     if(success && request->includePatterns && !isDuringSearch) {
@@ -586,16 +578,9 @@ int MainCmds::analysis(const vector<string>& args) {
     ret["id"] = request->id;
     ret["turnNumber"] = request->turnNumber;
     ret["isDuringSearch"] = false;
-    if(request->kind == AnalyzeRequestKind::ALIVE) {
-      ret["action"] = "alive";
-      ret["alive"] = stoneStatusesToJson(board,isAlive);
-    }
-    else {
-      testAssert(request->kind == AnalyzeRequestKind::SEKI);
-      ret["action"] = "seki";
-      const vector<bool> isSeki = PlayUtils::computeAnticipatedSekiStatuses(board,hist,isAlive);
-      ret["seki"] = stoneStatusesToJson(board,isSeki);
-    }
+    testAssert(request->kind == AnalyzeRequestKind::ALIVE);
+    ret["action"] = "alive";
+    ret["alive"] = stoneStatusesToJson(board,isAlive);
     pushToWrite(new string(ret.dump()));
     return true;
   };
@@ -644,8 +629,7 @@ int MainCmds::analysis(const vector<string>& args) {
             request->includeOwnershipStdev ||
             request->includeMovesOwnership ||
             request->includeMovesOwnershipStdev ||
-            request->includeAlive ||
-            request->includeSeki
+            request->includeAlive
           );
           bot->setParams(request->params);
           bot->setAvoidMoveUntilByLoc(request->avoidMoveUntilByLocBlack,request->avoidMoveUntilByLocWhite);
@@ -796,6 +780,11 @@ int MainCmds::analysis(const vector<string>& args) {
       AnalyzeRequest rbase;
       rbase.id = input["id"].get<string>();
 
+      if(input.contains("includeSeki")) {
+        reportErrorForId(rbase.id,"includeSeki","includeSeki has been removed; use includeAlive for A/E/D stone statuses");
+        continue;
+      }
+
       //Special actions
       AnalyzeRequestKind requestKind = AnalyzeRequestKind::ANALYSIS;
       if(input.find("action") != input.end() && input["action"].is_string()) {
@@ -906,11 +895,8 @@ int MainCmds::analysis(const vector<string>& args) {
         else if(action == "alive") {
           requestKind = AnalyzeRequestKind::ALIVE;
         }
-        else if(action == "seki") {
-          requestKind = AnalyzeRequestKind::SEKI;
-        }
         else {
-          reportError("'action' field must be 'query_version' or 'query_models' or 'clear_cache' or 'terminate' or 'terminate_all' or 'final_score' or 'alive' or 'seki'");
+          reportError("'action' field must be 'query_version' or 'query_models' or 'clear_cache' or 'terminate' or 'terminate_all' or 'final_score' or 'alive'");
         }
 
         if(requestKind == AnalyzeRequestKind::ANALYSIS)
@@ -931,7 +917,6 @@ int MainCmds::analysis(const vector<string>& args) {
       rbase.includeNoResultValue = false;
       rbase.includePatterns = false;
       rbase.includeAlive = false;
-      rbase.includeSeki = false;
       rbase.patternsSuppressedByRulesSubstitution = false;
       rbase.reportDuringSearch = false;
       rbase.reportDuringSearchEvery = 1e30;
@@ -1363,11 +1348,6 @@ int MainCmds::analysis(const vector<string>& args) {
         if(!suc)
           continue;
       }
-      if(input.find("includeSeki") != input.end()) {
-        bool suc = parseBoolean(input, "includeSeki", rbase.includeSeki, "Must be a boolean");
-        if(!suc)
-          continue;
-      }
       if(input.find("includePolicy") != input.end()) {
         bool suc = parseBoolean(input, "includePolicy", rbase.includePolicy, "Must be a boolean");
         if(!suc)
@@ -1618,7 +1598,6 @@ int MainCmds::analysis(const vector<string>& args) {
           newRequest->includeNoResultValue = rbase.includeNoResultValue;
           newRequest->includePatterns = rbase.includePatterns;
           newRequest->includeAlive = rbase.includeAlive;
-          newRequest->includeSeki = rbase.includeSeki;
           newRequest->patternsSuppressedByRulesSubstitution =
             rbase.patternsSuppressedByRulesSubstitution;
           newRequest->reportDuringSearch = rbase.reportDuringSearch;

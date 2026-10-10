@@ -942,28 +942,6 @@ vector<bool> PlayUtils::computeAnticipatedStatusesFromOwnership(
 
 }
 
-vector<bool> PlayUtils::computeAnticipatedSekiStatuses(
-  const Board& board,
-  const BoardHistory& hist,
-  const vector<bool>& isAlive
-) {
-  vector<bool> isSeki(Board::MAX_ARR_SIZE,false);
-  bool sekiRegions[Board::MAX_ARR_SIZE];
-  Color basicArea[Board::MAX_ARR_SIZE];
-  const bool suicideLegal = hist.suicideLegalForPassAlive();
-  board.calculateSekiRegions(sekiRegions,suicideLegal);
-  board.calculateArea(basicArea,true,true,true,suicideLegal);
-
-  for(int y = 0; y<board.y_size; y++) {
-    for(int x = 0; x<board.x_size; x++) {
-      Loc loc = Location::getLoc(x,y,board.x_size);
-      isSeki[loc] = board.colors[loc] != C_EMPTY &&
-        basicArea[loc] == board.colors[loc] && sekiRegions[loc] && isAlive[loc];
-    }
-  }
-  return isSeki;
-}
-
 string PlayUtils::BenchmarkResults::toStringNotDone() const {
   ostringstream out;
   out << "numSearchThreads = " << Global::strprintf("%2d",numThreads) << ":"
