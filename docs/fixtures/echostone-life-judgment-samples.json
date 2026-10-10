@@ -1,0 +1,199 @@
+{
+  "추출일": "2026-10-10",
+  "출처": "에코스톤 운영 DB public.problems 읽기 전용 조회",
+  "선정기준": "삭제되지 않은 문제 중 생존·사망·미생·빅 관련 quiz_choices가 있는 문제 전부. 조회 결과 7개이며 모두 life and death / 모양구분 / 판단, 지문객관식이다.",
+  "문제수": 7,
+  "주의": "정답형 7개는 선번과 대상 돌 표식이 없어 양쪽 선번과 모든 흑 체인을 기록한다. 일반 사활 3개는 RIGHT 수순 후의 관측이며 직접적인 생사 정답형과 구분한다.",
+  "problems": [
+    {
+      "id": 1016084,
+      "genre": "life and death",
+      "specific_genre": "모양구분",
+      "pattern_genre": "판단",
+      "tags": [
+        "지문객관식"
+      ],
+      "description": "흑은 살아있는 모양일까요?",
+      "sgf": "(;FF[4]GM[1]CA[UTF-8]ST[0]SZ[19]AB[ao][bp][bq][br][bs]AW[bl][bn][bo][do][cp][cq][dr][fr])",
+      "quiz_choices": [
+        {
+          "text": "살아있다"
+        },
+        {
+          "text": "죽어있다"
+        }
+      ],
+      "quiz_answer_index": 1,
+      "player_color": null
+    },
+    {
+      "id": 1016085,
+      "genre": "life and death",
+      "specific_genre": "모양구분",
+      "pattern_genre": "판단",
+      "tags": [
+        "지문객관식"
+      ],
+      "description": "흑은 살아있는 모양일까요?",
+      "sgf": "(;FF[4]GM[1]CA[UTF-8]ST[0]SZ[19]AB[ba][da][fa][ha][cb][db][eb][fb][gb]AW[ia][ab][ib][bc][cc][dc][ec][fc][gc][hc])",
+      "quiz_choices": [
+        {
+          "text": "살아있다"
+        },
+        {
+          "text": "죽어있다"
+        }
+      ],
+      "quiz_answer_index": 0,
+      "player_color": null
+    },
+    {
+      "id": 1016086,
+      "genre": "life and death",
+      "specific_genre": "모양구분",
+      "pattern_genre": "판단",
+      "tags": [
+        "지문객관식"
+      ],
+      "description": "흑은 살아있는 모양일까요?",
+      "sgf": "(;FF[4]GM[1]CA[UTF-8]ST[0]SZ[19]AB[ba][ea][ab][bb][cb][db]AW[fa][fb][bc][cc][dc][ec][be])",
+      "quiz_choices": [
+        {
+          "text": "살아있다"
+        },
+        {
+          "text": "죽어있다"
+        }
+      ],
+      "quiz_answer_index": 0,
+      "player_color": null
+    },
+    {
+      "id": 1016087,
+      "genre": "life and death",
+      "specific_genre": "모양구분",
+      "pattern_genre": "판단",
+      "tags": [
+        "지문객관식"
+      ],
+      "description": "흑은 살아있는 모양일까요?",
+      "sgf": "(;FF[4]GM[1]CA[UTF-8]ST[0]SZ[19]AB[bl][bm][bn][bo][bp][bq][ar][bs]AW[bi][bk][ck][cl][cm][cn][co][cp][cq][br][cr][er])",
+      "quiz_choices": [
+        {
+          "text": "살아있다"
+        },
+        {
+          "text": "죽어있다"
+        }
+      ],
+      "quiz_answer_index": 1,
+      "player_color": null
+    },
+    {
+      "id": 1016127,
+      "genre": "life and death",
+      "specific_genre": "모양구분",
+      "pattern_genre": "판단",
+      "tags": [
+        "지문객관식"
+      ],
+      "description": "흑은 살아있나요?",
+      "sgf": "(;FF[4]GM[1]CA[UTF-8]ST[0]SZ[19]AB[nr][or][pr][qr][rr][ms][ps][rs]AW[mp][nq][oq][pq][qq][rq][jr][lr][mr][sr][os])",
+      "quiz_choices": [
+        {
+          "text": "살아있다."
+        },
+        {
+          "text": "죽어있다."
+        },
+        {
+          "text": "미생이다."
+        }
+      ],
+      "quiz_answer_index": 0,
+      "player_color": null
+    },
+    {
+      "id": 1016128,
+      "genre": "life and death",
+      "specific_genre": "모양구분",
+      "pattern_genre": "판단",
+      "tags": [
+        "지문객관식"
+      ],
+      "description": "흑은 살아있나요?",
+      "sgf": "(;FF[4]GM[1]CA[UTF-8]ST[0]SZ[19]AB[bo][bp][bq][ar][br][dr][cs][ds]AW[bn][cn][co][cp][cq][eq][cr][er][gr][bs])",
+      "quiz_choices": [
+        {
+          "text": "살아있다."
+        },
+        {
+          "text": "죽어있다."
+        },
+        {
+          "text": "미생이다."
+        }
+      ],
+      "quiz_answer_index": 1,
+      "player_color": null
+    },
+    {
+      "id": 1016129,
+      "genre": "life and death",
+      "specific_genre": "모양구분",
+      "pattern_genre": "판단",
+      "tags": [
+        "지문객관식"
+      ],
+      "description": "흑은 살아있나요?",
+      "sgf": "(;FF[4]GM[1]CA[UTF-8]ST[0]SZ[19]AB[sp][rq][nr][or][pr][qr][rr][sr][ms][os]AW[rm][ro][rp][mq][nq][oq][pq][qq][kr][mr][ps])",
+      "quiz_choices": [
+        {
+          "text": "살아있다."
+        },
+        {
+          "text": "죽어있다."
+        },
+        {
+          "text": "미생이다."
+        }
+      ],
+      "quiz_answer_index": 0,
+      "player_color": null
+    }
+  ],
+  "추가선정기준": "생사 정답형 7개 외에 일반 사활 살기·잡기·빅 각 1개. 삭제되지 않은 사활 문제 중 RIGHT 및 AB 배치와 SZ[19]가 있고 SGF 길이 2000 미만이며 패 분류를 제외했다. 유형별 md5(id::text || :20261010) 오름차순 첫 문제를 선택했다.",
+  "전체문제수": 10,
+  "supplemental_problems": [
+    {
+      "id": 38017,
+      "genre": "life and death",
+      "specific_genre": "살기",
+      "pattern_genre": "빅",
+      "description": null,
+      "sgf": "(;FF[4]GM[1]SZ[19]AB[ma][mb][mc][me][nd][oa][ob][od][pb][pd][qb][qd][rd][sd]AW[na][nb][nc][oc][pc][qc][rb][rc][sa][sc](;B[qa]C[RIGHT])(;B[ra];W[qa]))",
+      "player_color": "black",
+      "sample_group": "빅"
+    },
+    {
+      "id": 1042061,
+      "genre": "사활",
+      "specific_genre": "살기",
+      "pattern_genre": null,
+      "description": "흑이 둘 차례예요. 흑을 살려보세요.",
+      "sgf": "(;GM[1]FF[4]CA[UTF-8]SZ[19]AB[lr][ls][mq][mr][nq][oq][pq][qq][qr][qs]AW[kq][kr][ks][lq][mp][ms][np][nr][op][or][os][pp][pr][qp][rp][rq][sr]PL[B](;B[ps]C[RIGHT]))",
+      "player_color": "b",
+      "sample_group": "살기"
+    },
+    {
+      "id": 1015713,
+      "genre": "life and death",
+      "specific_genre": "잡기",
+      "pattern_genre": "살려서 잡기",
+      "description": "백 돌을 잡아보세요.",
+      "sgf": "(;FF[4]GM[1]CA[UTF-8]ST[0]SZ[19]AB[cj][bk][cl][dl][am][dm][dn][do][ap][cp][cq][ar][br][dr]AW[al][bl][cm][bn][cn][ao][co][bp][bq](;B[aq]C[RIGHT])(;B[ak];W[aq]))",
+      "player_color": null,
+      "sample_group": "잡기"
+    }
+  ]
+}

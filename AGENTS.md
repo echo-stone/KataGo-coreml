@@ -49,4 +49,5 @@ MPSGraph GPU와 CoreML/ANE 경로를 함께 포함한다.
 - [Analysis Engine 프로토콜](docs/Analysis_Engine.md)
 - [Analysis Engine 돌의 생사·빅 판정 계약](docs/analysis-stone-status.md)
 - [간단한 기보를 이용한 기능 검증](docs/simple-sgf-feature-validation.md)
+- [에코스톤 문제 DB 사활 판정 검증](docs/echostone-life-judgment-validation.md)
 - [GTP 독자 검색 옵션](docs/GTP_Custom_Search_Params.md)
