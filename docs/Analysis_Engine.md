@@ -33,13 +33,15 @@
 | `isDuringSearch` | 항상 `false` |
 | `nextPlayer` | 해당 턴의 다음 착수자 `B` 또는 `W` |
 | `board.xSize`, `board.ySize` | 판의 가로·세로 크기 |
-| `board.stones` | 좌상단부터 행 우선으로 나열한 `B`/`W`/`.` 문자열 배열. 길이는 `xSize × ySize` |
+| `board.stones` | 좌상단부터 행 우선으로 나열한 `B`/`W`/`.`/`K` 문자열 배열. 길이는 `xSize × ySize`. `K`는 돌 없는 패 금지점 |
 | `board.koLoc` | 현재 패 좌표 문자열. 패가 없으면 기존 `Board::toJson`과 같은 문자열 `"null"`이며 JSON `null`이 아님 |
 | `board.numBlackCaptures`, `board.numWhiteCaptures` | 각각 포획된 흑돌·백돌의 누적 개수 |
 | `boardText` | `printBasicInfo` 텍스트를 GTP `showboard` 응답과 같은 방식으로 연속 개행 제거 및 양끝 공백 정리한 문자열. GTP 응답 본문과 직접 비교 가능 |
 
 `board.stones`는 이 액션만의 표기이며 기존 `Board::toJson`의 `X`/`O`/`.`/`|`
-전역 직렬화 계약을 바꾸지 않습니다. `alive`의 `B`/`W`/`b`/`w`/`.`와도
+전역 직렬화 계약을 바꾸지 않습니다. `K`는 `board.koLoc`에 해당하는 빈 교차점의
+표시입니다. 같은 지점의 `alive` 값은 `"."`이고, `boardText`는 기존 GTP
+`showboard` 텍스트 형식을 유지합니다. `alive`의 `B`/`W`/`b`/`w`/`.`와도
 구별해야 합니다. `board.stones`에는 죽음 판정이 없습니다.
 
 KataGo contains an engine that can be used to analyze large numbers of positions in parallel (entire games, or multiple games).

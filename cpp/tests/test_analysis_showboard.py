@@ -60,7 +60,16 @@ def assert_board(response, width, height, points, next_player, captures=(0, 0)):
         x = ord(point[0]) - ord("A")
         y = height - int(point[1:])
         expected[y * width + x] = color
+    ko_loc = board["koLoc"]
+    if ko_loc != "null":
+        ko_x = ord(ko_loc[0]) - ord("A")
+        ko_y = height - int(ko_loc[1:])
+        ko_index = ko_y * width + ko_x
+        assert expected[ko_index] == ".", board
+        expected[ko_index] = "K"
     assert board["stones"] == expected, (board["stones"], expected)
+    assert set(board["stones"]) <= {"B", "W", ".", "K"}, board
+    assert board["stones"].count("K") == (0 if ko_loc == "null" else 1), board
     assert board["numBlackCaptures"] == captures[0]
     assert board["numWhiteCaptures"] == captures[1]
     assert isinstance(board["koLoc"], str)
@@ -91,14 +100,15 @@ def gtp_board_text(args, plays=()):
 def test_showboard(args):
     """빈판·초기 돌·패스·포획·연속 색·다중 턴·원자적 오류를 검사한다."""
     capture = [["W", "B2"], ["B", "A2"], ["B", "B1"], ["B", "C2"]]
+    ko_stones = [["W", point] for point in ("B2", "A3", "C3", "B4")]
+    ko_stones += [["B", point] for point in ("A2", "B1", "C2")]
     requests = [
         request("empty"),
         request("two-moves", moves=[["B", "A1"], ["W", "E5"]]),
         request("rectangle", 4, 3, [["B", "A3"], ["W", "D1"]],
                 [["W", "B2"], ["W", "pass"]], analyzeTurns=[0, 1, 2]),
         request("capture", stones=capture, moves=[["B", "B3"]], initialPlayer="B"),
-        request("ko", stones=[["W", point] for point in ("B2", "A3", "C3", "B4")]
-                + [["B", point] for point in ("A2", "B1", "C2")],
+        request("ko", stones=ko_stones,
                 moves=[["B", "B3"], ["W", "pass"]], initialPlayer="B",
                 analyzeTurns=[1, 2]),
         request("illegal", moves=[["B", "A1"], ["W", "B1"], ["B", "A1"]],
@@ -126,11 +136,21 @@ def test_showboard(args):
     assert_board(ko[1], 5, 5, ko_points, "B", (0, 1))
     assert ko[0]["board"]["koLoc"] == "B2", ko[0]
     assert ko[1]["board"]["koLoc"] == "null", ko[1]
+    ko_index = 3 * 5 + 1
+    assert ko[0]["board"]["stones"][ko_index] == "K", ko[0]
+    assert ko[1]["board"]["stones"][ko_index] == ".", ko[1]
     assert len(responses["illegal"]) == 1, responses["illegal"]
     assert responses["illegal"][0].get("field") == "moves"
     assert "Illegal move 2" in responses["illegal"][0].get("error", "")
     assert any("NN rows:" in line and line.split("NN rows:")[-1].strip() == "0"
                for line in process.stderr.splitlines()), process.stderr[-3000:]
+    alive_request = request("alive-ko", stones=ko_stones, moves=[["B", "B3"]],
+                            initialPlayer="B", action="alive")
+    alive_responses, _ = run(args, [alive_request])
+    assert len(alive_responses["alive-ko"]) == 1
+    alive = alive_responses["alive-ko"][0]["alive"]
+    assert len(alive) == 25 and alive[ko_index] == ".", alive
+    assert set(alive) <= {"B", "W", "b", "w", "."}, alive
 
 
 def main():

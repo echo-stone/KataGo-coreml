@@ -86,15 +86,17 @@ static json stoneStatusesToJson(const Board& board, const vector<bool>& statuses
   return result;
 }
 
-// 목적: 분석 응답에 사용할 판의 돌 색을 행 우선 JSON 배열로 바꾼다.
+// 목적: 분석 응답에 사용할 판의 돌 색과 패 금지점을 행 우선 JSON 배열로 바꾼다.
 // 매개변수: board는 현재 판이다.
-// 반환값: 흑백 B/W와 빈칸 .으로 구성된 판 면적 크기의 배열이다.
+// 반환값: 흑백 B/W, 빈칸 ., 패 금지점 K로 구성된 판 면적 크기의 배열이다.
 static json boardStonesToJson(const Board& board) {
   json result = json::array();
   for(int y = 0; y<board.y_size; y++) {
     for(int x = 0; x<board.x_size; x++) {
-      const Color color = board.colors[Location::getLoc(x,y,board.x_size)];
-      result.push_back(color == P_BLACK ? "B" : color == P_WHITE ? "W" : ".");
+      const Loc loc = Location::getLoc(x,y,board.x_size);
+      const Color color = board.colors[loc];
+      result.push_back(loc == board.ko_loc ? "K" :
+        color == P_BLACK ? "B" : color == P_WHITE ? "W" : ".");
     }
   }
   return result;
