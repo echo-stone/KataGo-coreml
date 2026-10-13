@@ -3,7 +3,9 @@
 ## 돌 생사 문자열 확장
 
 일반 분석의 `includeAlive`와 독립 `action: "alive"`는 판 크기의 `alive` 문자열
-배열을 반환합니다. `"A"`는 생존, `"E"`는 빈 교차점, `"D"`는 죽음입니다.
+배열을 반환합니다. `"B"`/`"W"`는 살아있는 흑/백돌, `"b"`/`"w"`는
+죽은 흑/백돌, `"."`는 빈 교차점입니다. 이 5코드는 개발 소스의 새 계약이며
+운영 서버는 아직 2026-10-10 배포본의 A/E/D 계약을 사용합니다.
 `action: "final_score"`도 `includeAlive: true`이면 기존 점수와 이 배열을 함께
 반환합니다. 미종료 국면은 원래 덤의 첫 탐색만 생사 예산으로 늘려 ownership을
 저장하며, 이 옵션으로 추정 점수가 달라질 수 있습니다. 생략·false는 기존 점수
@@ -11,6 +13,34 @@
 기존 `includeSeki`와 `action: "seki"`는 제거되어 오류를 반환합니다.
 배열 좌표, 검색·계가의 차이와 응답 생략 규칙은
 [돌 생사 문자열 계약](analysis-stone-status.md)을 참조하세요.
+
+## 현재 판 조회: `showboard`
+
+분석 엔진에 `action: "showboard"`를 보내면 선택한 착수 시점의 판을 검색 없이
+조회합니다. 위치·규칙·`analyzeTurns`는 일반 분석 요청과 같은 방식으로 지정합니다.
+`analyzeTurns`를 생략하면 마지막 착수 후를, 여러 턴을 지정하면 각 턴의 응답을
+받습니다. 이 기능은 **개발 소스 계약**이며 아직 운영 서버 배포 기능이 아닙니다.
+
+```json
+{"id":"board-1","action":"showboard","boardXSize":3,"boardYSize":2,"rules":"chinese","komi":0,"initialStones":[["B","A2"]],"initialPlayer":"W","moves":[["W","C1"]],"analyzeTurns":[0,1]}
+```
+
+각 응답에는 다음 필드가 있습니다.
+
+| 필드 | 의미 |
+| --- | --- |
+| `id`, `action`, `turnNumber` | 요청 식별자, 항상 `showboard`, 해당 턴 번호 |
+| `isDuringSearch` | 항상 `false` |
+| `nextPlayer` | 해당 턴의 다음 착수자 `B` 또는 `W` |
+| `board.xSize`, `board.ySize` | 판의 가로·세로 크기 |
+| `board.stones` | 좌상단부터 행 우선으로 나열한 `B`/`W`/`.` 문자열 배열. 길이는 `xSize × ySize` |
+| `board.koLoc` | 현재 패 좌표 문자열. 패가 없으면 기존 `Board::toJson`과 같은 문자열 `"null"`이며 JSON `null`이 아님 |
+| `board.numBlackCaptures`, `board.numWhiteCaptures` | 각각 포획된 흑돌·백돌의 누적 개수 |
+| `boardText` | `printBasicInfo` 텍스트를 GTP `showboard` 응답과 같은 방식으로 연속 개행 제거 및 양끝 공백 정리한 문자열. GTP 응답 본문과 직접 비교 가능 |
+
+`board.stones`는 이 액션만의 표기이며 기존 `Board::toJson`의 `X`/`O`/`.`/`|`
+전역 직렬화 계약을 바꾸지 않습니다. `alive`의 `B`/`W`/`b`/`w`/`.`와도
+구별해야 합니다. `board.stones`에는 죽음 판정이 없습니다.
 
 KataGo contains an engine that can be used to analyze large numbers of positions in parallel (entire games, or multiple games).
 When properly configured and used with modern GPUs that can handle large batch sizes, this engine can be much faster than using

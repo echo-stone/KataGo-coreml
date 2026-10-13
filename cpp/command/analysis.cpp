@@ -38,6 +38,7 @@ enum class AnalyzeRequestKind {
   ANALYSIS,
   FINAL_SCORE,
   ALIVE,
+  SHOWBOARD,
 };
 
 // 목적: GTP 종료 판정과 동일하게 검색의 인위적인 편향을 제거한다.
@@ -69,18 +70,72 @@ static bool hasFinishedStoneStatuses(const BoardHistory& hist) {
   );
 }
 
-// 목적: Loc 색인 상태를 ownership과 같은 행 우선 순서의 JSON 문자열 배열로 바꾼다.
-// 매개변수: board는 판 크기, statuses는 Loc 색인 상태다.
-// 반환값: 생존 A, 빈 교차점 E, 죽음 D를 담은 판 크기만큼의 JSON 배열이다.
+// 목적: Loc 색인 상태를 돌 색과 생사에 따른 행 우선 JSON 배열로 바꾼다.
+// 매개변수: board는 돌 색과 판 크기, statuses는 Loc 색인 생사 상태다.
+// 반환값: 살아 있는 흑백 B/W, 죽은 흑백 b/w, 빈칸 . 배열이다.
 static json stoneStatusesToJson(const Board& board, const vector<bool>& statuses) {
   json result = json::array();
   for(int y = 0; y<board.y_size; y++) {
     for(int x = 0; x<board.x_size; x++) {
       Loc loc = Location::getLoc(x,y,board.x_size);
-      result.push_back(board.colors[loc] == C_EMPTY ? "E" : (statuses[loc] ? "A" : "D"));
+      const Color color = board.colors[loc];
+      result.push_back(color == C_EMPTY ? "." :
+        color == P_BLACK ? (statuses[loc] ? "B" : "b") : (statuses[loc] ? "W" : "w"));
     }
   }
   return result;
+}
+
+// 목적: 분석 응답에 사용할 판의 돌 색을 행 우선 JSON 배열로 바꾼다.
+// 매개변수: board는 현재 판이다.
+// 반환값: 흑백 B/W와 빈칸 .으로 구성된 판 면적 크기의 배열이다.
+static json boardStonesToJson(const Board& board) {
+  json result = json::array();
+  for(int y = 0; y<board.y_size; y++) {
+    for(int x = 0; x<board.x_size; x++) {
+      const Color color = board.colors[Location::getLoc(x,y,board.x_size)];
+      result.push_back(color == P_BLACK ? "B" : color == P_WHITE ? "W" : ".");
+    }
+  }
+  return result;
+}
+
+// 목적: GTP showboard와 같은 개행 정리 규칙을 적용해 판 정보를 만든다.
+// 매개변수: board는 판, hist는 해당 수순의 이력이다.
+// 반환값: GTP showboard 본문과 같은 문자열이다.
+static string boardTextForShowboard(const Board& board, const BoardHistory& hist) {
+  ostringstream out;
+  hist.printBasicInfo(out,board);
+  const string raw = out.str();
+  string filtered;
+  for(size_t i = 0; i<raw.size(); i++) {
+    if(i > 0 && raw[i-1] == '\n' && raw[i] == '\n')
+      continue;
+    filtered += raw[i];
+  }
+  return Global::trim(filtered);
+}
+
+// 목적: 요청의 선택 턴을 GTP showboard 형식과 색 배열로 직렬화한다.
+// 매개변수: id는 요청 식별자, turnNumber는 턴 번호, board와 hist는 그 턴의 판과 이력, nextPla는 다음 착점자다.
+// 반환값: 검색 없이 완성된 showboard JSON 응답이다.
+static json showboardToJson(const string& id, int turnNumber, const Board& board, const BoardHistory& hist, Player nextPla) {
+  json ret;
+  ret["id"] = id;
+  ret["action"] = "showboard";
+  ret["turnNumber"] = turnNumber;
+  ret["isDuringSearch"] = false;
+  ret["nextPlayer"] = nextPla == P_BLACK ? "B" : "W";
+  ret["board"] = {
+    {"xSize", board.x_size},
+    {"ySize", board.y_size},
+    {"stones", boardStonesToJson(board)},
+    {"koLoc", Location::toString(board.ko_loc,board)},
+    {"numBlackCaptures", board.numBlackCaptures},
+    {"numWhiteCaptures", board.numWhiteCaptures},
+  };
+  ret["boardText"] = boardTextForShowboard(board,hist);
+  return ret;
 }
 
 // 목적: 목적지 착점 목록에 중복을 만들지 않으면서 새 착점을 덧붙인다.
@@ -794,7 +849,7 @@ int MainCmds::analysis(const vector<string>& args) {
       rbase.id = input["id"].get<string>();
 
       if(input.contains("includeSeki")) {
-        reportErrorForId(rbase.id,"includeSeki","includeSeki has been removed; use includeAlive for A/E/D stone statuses");
+        reportErrorForId(rbase.id,"includeSeki","includeSeki has been removed; use includeAlive for B/W/b/w/. stone statuses");
         continue;
       }
 
@@ -908,8 +963,11 @@ int MainCmds::analysis(const vector<string>& args) {
         else if(action == "alive") {
           requestKind = AnalyzeRequestKind::ALIVE;
         }
+        else if(action == "showboard") {
+          requestKind = AnalyzeRequestKind::SHOWBOARD;
+        }
         else {
-          reportError("'action' field must be 'query_version' or 'query_models' or 'clear_cache' or 'terminate' or 'terminate_all' or 'final_score' or 'alive'");
+          reportError("'action' field must be 'query_version' or 'query_models' or 'clear_cache' or 'terminate' or 'terminate_all' or 'final_score' or 'alive' or 'showboard'");
         }
 
         if(requestKind == AnalyzeRequestKind::ANALYSIS)
@@ -1666,6 +1724,17 @@ int MainCmds::analysis(const vector<string>& args) {
       if(foundIllegalMove) {
         for(int i = 0; i<newRequests.size(); i++)
           delete newRequests[i];
+        newRequests.clear();
+        continue;
+      }
+
+      if(requestKind == AnalyzeRequestKind::SHOWBOARD) {
+        for(AnalyzeRequest* request: newRequests) {
+          pushToWrite(new string(showboardToJson(
+            request->id,request->turnNumber,request->board,request->hist,request->nextPla
+          ).dump()));
+          delete request;
+        }
         newRequests.clear();
         continue;
       }

@@ -1,0 +1,2 @@
+{"id":"showboard-two-turns","action":"showboard","boardXSize":3,"boardYSize":2,"rules":"chinese","komi":0,"initialStones":[["B","A2"]],"initialPlayer":"W","moves":[["W","C1"]],"analyzeTurns":[0,1]}
+{"id":"empty-alive","action":"alive","boardXSize":3,"boardYSize":2,"rules":"chinese","komi":0,"moves":[]}

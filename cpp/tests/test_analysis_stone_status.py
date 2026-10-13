@@ -104,13 +104,13 @@ def final_response(results, request_id, process):
 
 
 def occupied_indexes(turn):
-    """초기 돌과 지정 턴까지의 수순을 행 우선 배열의 점유 인덱스로 변환한다."""
+    """초기 돌과 지정 턴까지의 수순을 행 우선 배열의 색 인덱스로 변환한다."""
     stones = INITIAL_STONES + MOVES[:turn]
-    indexes = set()
-    for _, point in stones:
+    indexes = {}
+    for color, point in stones:
         x = ord(point[0]) - ord("A")
         y = HEIGHT - int(point[1])
-        indexes.add(y * WIDTH + x)
+        indexes[y * WIDTH + x] = color
     return indexes
 
 
@@ -121,10 +121,12 @@ def assert_status(response, field, turn, process):
         fail(f"{response.get('id')}: {field} 배열 길이 위반", process)
     occupied = occupied_indexes(turn)
     for index, value in enumerate(values):
-        if type(value) is not str or value not in ("A", "E", "D"):
+        if type(value) is not str or value not in ("B", "W", "b", "w", "."):
             fail(f"{response.get('id')}: {field}[{index}] 상태 코드 위반: {value!r}", process)
-        if (value == "E") != (index not in occupied):
+        if index not in occupied and value != ".":
             fail(f"{response.get('id')}: {field}[{index}] 빈칸 코드 위반", process)
+        if index in occupied and value.upper() != occupied[index]:
+            fail(f"{response.get('id')}: {field}[{index}] 돌 색 코드 위반", process)
     if "seki" in response:
         fail("제거된 seki 응답이 있음", process)
     return values
@@ -180,6 +182,11 @@ def test_analysis(args):
 
 def test_actions_and_errors(args):
     """목적: 독립 액션과 제거 오류 검증. 매개변수: CLI 설정. 반환값: 없음."""
+    swapped_stones = [["W" if color == "B" else "B", point]
+                      for color, point in INITIAL_STONES]
+    swapped_moves = [["B", "G3"], ["W", "E1"], ["B", "pass"], ["W", "pass"]]
+    swapped_end = dict(initialStones=swapped_stones, moves=swapped_moves,
+                       analyzeTurns=[4])
     requests = [
         make_request("action-alive", action="alive"),
         make_request("captured", action="alive", initialPlayer="B",
@@ -189,6 +196,9 @@ def test_actions_and_errors(args):
                      analyzeTurns=[4], includeAlive=True),
         make_request("finished-alive", action="alive",
                      moves=MOVES + [["W", "pass"], ["B", "pass"]], analyzeTurns=[4]),
+        make_request("swapped-analysis", includeAlive=True, **swapped_end),
+        make_request("swapped-alive", action="alive", **swapped_end),
+        make_request("swapped-score", action="final_score", includeAlive=True, **swapped_end),
         make_request("bad-alive", includeAlive="true"),
         make_request("removed-true", includeSeki=True),
         make_request("removed-false", includeSeki=False),
@@ -203,15 +213,21 @@ def test_actions_and_errors(args):
         fail("독립 액션 메타데이터 위반", process)
     assert_status(result, "alive", 2, process)
     captured = final_response(results, "captured", process)["alive"]
-    if len(captured) != AREA or captured[1 * WIDTH + 6] != "E":
-        fail("포획된 돌의 위치가 E로 직렬화되지 않음", process)
+    if len(captured) != AREA or captured[1 * WIDTH + 6] != ".":
+        fail("포획된 돌의 위치가 .으로 직렬화되지 않음", process)
     finished = final_response(results, "finished-analysis", process)
     finished_alive = final_response(results, "finished-alive", process)
     values = assert_status(finished, "alive", 4, process)
     if values != assert_status(finished_alive, "alive", 4, process):
         fail("종료 국면 일반 분석과 독립 alive 불일치", process)
-    if values[1 * WIDTH + 6] != "D" or values[0] != "A":
-        fail("종료 국면의 죽은 백돌 D 또는 두 눈 흑돌 A 판정 위반", process)
+    if values[1 * WIDTH + 6] != "w" or values[0] != "B":
+        fail("종료 국면의 죽은 백돌 w 또는 두 눈 흑돌 B 판정 위반", process)
+    swapped = [final_response(results, name, process)["alive"] for name in
+               ("swapped-analysis", "swapped-alive", "swapped-score")]
+    if swapped[0] != swapped[1] or swapped[0] != swapped[2]:
+        fail("색 반전 종료 국면의 일반·독립·최종 점수 생사 배열 불일치", process)
+    if swapped[0][1 * WIDTH + 6] != "b" or swapped[0][0] != "W":
+        fail("색 반전 종료 국면의 죽은 흑돌 b 또는 두 눈 백돌 W 판정 위반", process)
     for request_id, field in [("bad-alive", "includeAlive")] + [
         (name, "includeSeki") for name in ("removed-true", "removed-false", "removed-type")
     ]:
