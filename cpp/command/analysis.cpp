@@ -539,9 +539,9 @@ int MainCmds::analysis(const vector<string>& args) {
         score.isAlive = PlayUtils::computeAnticipatedStatusesSimple(board,hist);
     }
     else {
-      const int64_t numVisits = request->includeAliveBoard ?
-        std::max((int64_t)100,(int64_t)finalScoreParams.numThreads * 20) :
-        std::max((int64_t)50,(int64_t)finalScoreParams.numThreads * 10);
+      // ownership 요청의 첫 원래덤은 computeLeadCancellable이 별도 100회·스레드 20배 예산으로 처리한다.
+      // 여기 전달하는 예산은 덤 조정의 후속 검색이므로 기존 50회·스레드 10배를 유지한다.
+      const int64_t numVisits = std::max((int64_t)50,(int64_t)finalScoreParams.numThreads * 10);
       float leadBuf;
       vector<double> initialOwnership;
       // 목적: 점수 검색 중 취소 요청을 감지한다.
