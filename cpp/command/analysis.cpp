@@ -88,16 +88,43 @@ static json stoneStatusesToJson(const Board& board, const vector<bool>& statuses
 
 // 목적: 분석 응답에 사용할 판의 돌 색과 패 금지점을 행 우선 JSON 배열로 바꾼다.
 // 매개변수: board는 현재 판이다.
-// 반환값: 흑백 B/W, 빈칸 ., 패 금지점 K로 구성된 판 면적 크기의 배열이다.
+// 반환값: 흑백 B/W, 빈칸 ., 패 금지점 !로 구성된 판 면적 크기의 배열이다.
 static json boardStonesToJson(const Board& board) {
   json result = json::array();
   for(int y = 0; y<board.y_size; y++) {
     for(int x = 0; x<board.x_size; x++) {
       const Loc loc = Location::getLoc(x,y,board.x_size);
       const Color color = board.colors[loc];
-      result.push_back(loc == board.ko_loc ? "K" :
+      result.push_back(loc == board.ko_loc ? "!" :
         color == P_BLACK ? "B" : color == P_WHITE ? "W" : ".");
     }
+  }
+  return result;
+}
+
+// 목적: 공통 분석 보드 계약의 크기, 착점, 포획 수를 직렬화한다.
+// 매개변수: board는 해당 턴의 판이다.
+// 반환값: 행 우선 stones와 크기·포획 수를 담은 JSON 객체다.
+static json boardToJson(const Board& board) {
+  return {
+    {"xSize", board.x_size},
+    {"ySize", board.y_size},
+    {"stones", boardStonesToJson(board)},
+    {"numBlackCaptures", board.numBlackCaptures},
+    {"numWhiteCaptures", board.numWhiteCaptures},
+  };
+}
+
+// 목적: 생사 배열에 빈 단순패 금지점을 표시한다.
+// 매개변수: board는 판, statuses는 Loc 색인 생사 상태다.
+// 반환값: 행 우선 B/W/b/w/./! 배열을 stones로 담은 공통 보드 객체다.
+static json aliveBoardToJson(const Board& board, const vector<bool>& statuses) {
+  json result = boardToJson(board);
+  result["stones"] = stoneStatusesToJson(board,statuses);
+  if(board.ko_loc != Board::NULL_LOC) {
+    const int x = Location::getX(board.ko_loc,board.x_size);
+    const int y = Location::getY(board.ko_loc,board.x_size);
+    result["stones"][y * board.x_size + x] = "!";
   }
   return result;
 }
@@ -128,14 +155,7 @@ static json showboardToJson(const string& id, int turnNumber, const Board& board
   ret["turnNumber"] = turnNumber;
   ret["isDuringSearch"] = false;
   ret["nextPlayer"] = nextPla == P_BLACK ? "B" : "W";
-  ret["board"] = {
-    {"xSize", board.x_size},
-    {"ySize", board.y_size},
-    {"stones", boardStonesToJson(board)},
-    {"koLoc", Location::toString(board.ko_loc,board)},
-    {"numBlackCaptures", board.numBlackCaptures},
-    {"numWhiteCaptures", board.numWhiteCaptures},
-  };
+  ret["board"] = boardToJson(board);
   ret["boardText"] = boardTextForShowboard(board,hist);
   return ret;
 }
@@ -179,6 +199,9 @@ struct AnalyzeRequest {
   bool includeNoResultValue;
   bool includePatterns;
   bool includeAlive;
+  bool includeBoard;
+  bool includeAliveBoard;
+  bool includeFinalScore;
   bool patternsSuppressedByRulesSubstitution;
 
   bool reportDuringSearch;
@@ -203,6 +226,24 @@ struct AnalyzeRequest {
   static constexpr int STATUS_TERMINATED = -3;
   std::atomic<int> status;
 };
+
+struct FinalScoreComputation {
+  Player winner;
+  double whiteMinusBlackScore;
+  string scoreSource;
+  vector<bool> isAlive;
+};
+
+// 목적: 최종 점수 계산값을 새 일반 분석 응답 형식으로 바꾼다.
+// 매개변수: score는 승자와 백·흑 점수 차이를 담은 계산 결과다.
+// 반환값: winner, result, 양수 margin을 담은 JSON 객체다.
+static json finalScoreResultToJson(const FinalScoreComputation& score) {
+  return {
+    {"winner", score.winner == P_BLACK ? "B" : score.winner == P_WHITE ? "W" : "0"},
+    {"result", formatFinalScore(score.winner,score.whiteMinusBlackScore)},
+    {"margin", Global::roundDynamic(std::abs(score.whiteMinusBlackScore),8)},
+  };
+}
 
 
 int MainCmds::analysis(const vector<string>& args) {
@@ -390,6 +431,9 @@ int MainCmds::analysis(const vector<string>& args) {
     "includeNoResultValue",
     "includePatterns",
     "includeAlive",
+    "includeBoard",
+    "includeAliveBoard",
+    "includeFinalScore",
     "reportDuringSearchEvery",
     "firstReportDuringSearchAfter",
     "priority",
@@ -465,8 +509,73 @@ int MainCmds::analysis(const vector<string>& args) {
     pushToWrite(new string(ret.dump()));
   };
 
+  // 목적: GTP와 같은 종료 판정·원래덤 검색으로 최종 점수를 계산한다.
+  // 매개변수: request는 현재 턴과 검색 설정, bot은 재사용할 검색기, needAlive는 첫 ownership 필요 여부, score는 결과 저장소다.
+  // 반환값: 점수 계산이 끝나면 true, 취소되면 false다.
+  auto computeFinalScore = [](const AnalyzeRequest* request, AsyncBot* bot, bool needAlive, FinalScoreComputation& score) {
+    SearchParams finalScoreParams = getFinalStatusParams(request->params);
+    Board board = request->board;
+    BoardHistory hist = request->hist;
+    Player pla = request->nextPla;
+
+    bot->setParams(finalScoreParams);
+    bot->setPosition(pla,board,hist);
+    bot->setAlwaysIncludeOwnerMap(false);
+    vector<int> noAvoidMovesBlack;
+    vector<int> noAvoidMovesWhite;
+    bot->setAvoidMoveUntilByLoc(noAvoidMovesBlack,noAvoidMovesWhite);
+    vector<Loc> noIncludeMovesBlack;
+    vector<Loc> noIncludeMovesWhite;
+    bot->setIncludeMoves(noIncludeMovesBlack,noIncludeMovesWhite);
+
+    score.winner = C_EMPTY;
+    score.whiteMinusBlackScore = 0.0;
+    score.isAlive.clear();
+    if(hasFinishedStoneStatuses(hist)) {
+      score.winner = hist.winner;
+      score.whiteMinusBlackScore = hist.finalWhiteMinusBlackScore;
+      score.scoreSource = "finished";
+      if(needAlive)
+        score.isAlive = PlayUtils::computeAnticipatedStatusesSimple(board,hist);
+    }
+    else {
+      const int64_t numVisits = request->includeAliveBoard ?
+        std::max((int64_t)100,(int64_t)finalScoreParams.numThreads * 20) :
+        std::max((int64_t)50,(int64_t)finalScoreParams.numThreads * 10);
+      float leadBuf;
+      vector<double> initialOwnership;
+      // 목적: 점수 검색 중 취소 요청을 감지한다.
+      // 매개변수: request는 캡처하며 직접 전달되는 값은 없다.
+      // 반환값: 종료 요청을 받으면 true다.
+      std::function<bool()> shouldStopEarly = [request]() {
+        return request->status.load(std::memory_order_acquire) == AnalyzeRequest::STATUS_TERMINATED;
+      };
+      bool completed = PlayUtils::computeLeadCancellable(
+        bot->getSearchStopAndWait(),NULL,board,hist,pla,numVisits,OtherGameProperties(),shouldStopEarly,leadBuf,
+        needAlive ? &initialOwnership : nullptr
+      );
+      if(!completed)
+        return false;
+      if(needAlive) {
+        const Search* search = bot->getSearchStopAndWait();
+        score.isAlive = PlayUtils::computeAnticipatedStatusesFromOwnership(
+          board,initialOwnership,search->nnXLen,search->nnYLen
+        );
+      }
+      double lead = leadBuf;
+      if(hist.rules.gameResultWillBeInteger())
+        lead = round(lead);
+      else
+        lead = round(lead+0.5)-0.5;
+      score.whiteMinusBlackScore = lead;
+      score.winner = lead > 0 ? P_WHITE : lead < 0 ? P_BLACK : C_EMPTY;
+      score.scoreSource = "estimated";
+    }
+    return request->status.load(std::memory_order_acquire) != AnalyzeRequest::STATUS_TERMINATED;
+  };
+
   //Returns false if no analysis was reportable due to there being no root node or search results.
-  auto reportAnalysis = [&preventEncore,&pushToWrite,&reportWarningForId](const AnalyzeRequest* request, const Search* search, bool isDuringSearch) {
+  auto reportAnalysis = [&preventEncore,&pushToWrite,&reportWarningForId,&computeFinalScore](const AnalyzeRequest* request, const Search* search, bool isDuringSearch, AsyncBot* bot) {
     json ret;
     ret["id"] = request->id;
     ret["turnNumber"] = request->turnNumber;
@@ -482,7 +591,10 @@ int MainCmds::analysis(const vector<string>& args) {
       ret
     );
 
-    if(success && !isDuringSearch && request->includeAlive) {
+    if(success && !isDuringSearch && request->includeBoard)
+      ret["board"] = boardToJson(request->board);
+
+    if(success && !isDuringSearch && (request->includeAlive || (request->includeAliveBoard && !request->includeFinalScore))) {
       const Board& board = search->rootBoard;
       const BoardHistory& hist = search->rootHistory;
       vector<bool> isAlive;
@@ -494,7 +606,10 @@ int MainCmds::analysis(const vector<string>& args) {
           board,ownership,search->nnXLen,search->nnYLen
         );
       }
-      ret["alive"] = stoneStatusesToJson(board,isAlive);
+      if(request->includeAlive)
+        ret["alive"] = stoneStatusesToJson(board,isAlive);
+      if(request->includeAliveBoard && !request->includeFinalScore)
+        ret["aliveBoard"] = aliveBoardToJson(board,isAlive);
     }
 
     if(success && request->includePatterns && !isDuringSearch) {
@@ -518,6 +633,15 @@ int MainCmds::analysis(const vector<string>& args) {
       }
     }
 
+    if(success && !isDuringSearch && request->includeFinalScore) {
+      FinalScoreComputation score;
+      if(!computeFinalScore(request,bot,request->includeAliveBoard,score))
+        return false;
+      ret["finalScoreResult"] = finalScoreResultToJson(score);
+      if(request->includeAliveBoard)
+        ret["aliveBoard"] = aliveBoardToJson(request->board,score.isAlive);
+    }
+
     if(success)
       pushToWrite(new string(ret.dump()));
     return success;
@@ -526,69 +650,9 @@ int MainCmds::analysis(const vector<string>& args) {
   // 목적: 요청 위치의 확정 또는 추정 최종 점수를 계산해 간결한 JSON 응답을 기록한다.
   // 매개변수: request는 위치와 검색 설정을 제공하고, bot은 미종료 위치의 점수를 추정하는 검색 상태를 제공한다.
   // 반환값: 점수를 출력하면 true, 계산 도중 취소되면 false를 반환한다.
-  auto reportFinalScore = [&pushToWrite](const AnalyzeRequest* request, AsyncBot* bot) {
-    SearchParams finalScoreParams = getFinalStatusParams(request->params);
-
-    Board board = request->board;
-    BoardHistory hist = request->hist;
-    Player pla = request->nextPla;
-
-    bot->setParams(finalScoreParams);
-    bot->setPosition(pla,board,hist);
-    bot->setAlwaysIncludeOwnerMap(false);
-    vector<int> noAvoidMovesBlack;
-    vector<int> noAvoidMovesWhite;
-    bot->setAvoidMoveUntilByLoc(noAvoidMovesBlack,noAvoidMovesWhite);
-    vector<Loc> noIncludeMovesBlack;
-    vector<Loc> noIncludeMovesWhite;
-    bot->setIncludeMoves(noIncludeMovesBlack,noIncludeMovesWhite);
-
-    Player winner = C_EMPTY;
-    double finalWhiteMinusBlackScore = 0.0;
-    string scoreSource;
-    vector<bool> isAlive;
-
-    if(hasFinishedStoneStatuses(hist)) {
-      winner = hist.winner;
-      finalWhiteMinusBlackScore = hist.finalWhiteMinusBlackScore;
-      scoreSource = "finished";
-      if(request->includeAlive)
-        isAlive = PlayUtils::computeAnticipatedStatusesSimple(board,hist);
-    }
-    else {
-      int64_t numVisits = std::max((int64_t)50, (int64_t)finalScoreParams.numThreads * 10);
-      float leadBuf;
-      vector<double> initialOwnership;
-      // 목적: 현재 최종 점수 요청에 취소 신호가 들어왔는지 확인한다.
-      // 매개변수: 요청 상태를 캡처하므로 별도 매개변수는 없다.
-      // 반환값: 요청이 종료 상태이면 true, 아니면 false다.
-      std::function<bool()> shouldStopEarly = [request]() {
-        return request->status.load(std::memory_order_acquire) == AnalyzeRequest::STATUS_TERMINATED;
-      };
-      bool completed = PlayUtils::computeLeadCancellable(
-        bot->getSearchStopAndWait(),NULL,board,hist,pla,numVisits,OtherGameProperties(),shouldStopEarly,leadBuf,
-        request->includeAlive ? &initialOwnership : nullptr
-      );
-      if(!completed)
-        return false;
-      if(request->includeAlive) {
-        const Search* search = bot->getSearchStopAndWait();
-        isAlive = PlayUtils::computeAnticipatedStatusesFromOwnership(
-          board,initialOwnership,search->nnXLen,search->nnYLen
-        );
-      }
-      double lead = leadBuf;
-      if(hist.rules.gameResultWillBeInteger())
-        lead = round(lead);
-      else
-        lead = round(lead+0.5)-0.5;
-
-      finalWhiteMinusBlackScore = lead;
-      winner = lead > 0 ? P_WHITE : lead < 0 ? P_BLACK : C_EMPTY;
-      scoreSource = "estimated";
-    }
-
-    if(request->status.load(std::memory_order_acquire) == AnalyzeRequest::STATUS_TERMINATED)
+  auto reportFinalScore = [&pushToWrite,&computeFinalScore](const AnalyzeRequest* request, AsyncBot* bot) {
+    FinalScoreComputation score;
+    if(!computeFinalScore(request,bot,request->includeAlive || request->includeAliveBoard,score))
       return false;
 
     json ret;
@@ -596,12 +660,16 @@ int MainCmds::analysis(const vector<string>& args) {
     ret["action"] = "final_score";
     ret["turnNumber"] = request->turnNumber;
     ret["isDuringSearch"] = false;
-    ret["winner"] = winner == P_BLACK ? "B" : winner == P_WHITE ? "W" : "0";
-    ret["finalScore"] = formatFinalScore(winner,finalWhiteMinusBlackScore);
-    ret["finalWhiteMinusBlackScore"] = Global::roundDynamic(finalWhiteMinusBlackScore,8);
-    ret["scoreSource"] = scoreSource;
+    ret["winner"] = score.winner == P_BLACK ? "B" : score.winner == P_WHITE ? "W" : "0";
+    ret["finalScore"] = formatFinalScore(score.winner,score.whiteMinusBlackScore);
+    ret["finalWhiteMinusBlackScore"] = Global::roundDynamic(score.whiteMinusBlackScore,8);
+    ret["scoreSource"] = score.scoreSource;
     if(request->includeAlive)
-      ret["alive"] = stoneStatusesToJson(board,isAlive);
+      ret["alive"] = stoneStatusesToJson(request->board,score.isAlive);
+    if(request->includeAliveBoard) {
+      ret["nextPlayer"] = request->nextPla == P_BLACK ? "B" : "W";
+      ret["aliveBoard"] = aliveBoardToJson(request->board,score.isAlive);
+    }
     pushToWrite(new string(ret.dump()));
     return true;
   };
@@ -699,7 +767,8 @@ int MainCmds::analysis(const vector<string>& args) {
             request->includeOwnershipStdev ||
             request->includeMovesOwnership ||
             request->includeMovesOwnershipStdev ||
-            request->includeAlive
+            request->includeAlive ||
+            (request->includeAliveBoard && !request->includeFinalScore)
           );
           bot->setParams(request->params);
           bot->setAvoidMoveUntilByLoc(request->avoidMoveUntilByLocBlack,request->avoidMoveUntilByLocWhite);
@@ -725,7 +794,7 @@ int MainCmds::analysis(const vector<string>& args) {
           if(request->reportDuringSearch) {
             std::function<void(const Search* search)> callback = [&request,&reportAnalysis](const Search* search) {
               const bool isDuringSearch = true;
-              reportAnalysis(request,search,isDuringSearch);
+              reportAnalysis(request,search,isDuringSearch,nullptr);
             };
             bot->genMoveSynchronousAnalyze(
               pla, TimeControls(), searchFactor,
@@ -746,7 +815,7 @@ int MainCmds::analysis(const vector<string>& args) {
           {
             const bool isDuringSearch = false;
             const Search* search = bot->getSearch();
-            bool analysisWritten = reportAnalysis(request,search,isDuringSearch);
+            bool analysisWritten = reportAnalysis(request,search,isDuringSearch,bot);
             //If the search didn't have any root or root neural net output, it must have been interrupted and we must be quitting imminently
             if(!analysisWritten) {
               //If the reason we stopped was because we noticed a terminate, then we will write out a dummy response even if we didn't have
@@ -990,6 +1059,9 @@ int MainCmds::analysis(const vector<string>& args) {
       rbase.includeNoResultValue = false;
       rbase.includePatterns = false;
       rbase.includeAlive = false;
+      rbase.includeBoard = false;
+      rbase.includeAliveBoard = false;
+      rbase.includeFinalScore = false;
       rbase.patternsSuppressedByRulesSubstitution = false;
       rbase.reportDuringSearch = false;
       rbase.reportDuringSearchEvery = 1e30;
@@ -1421,6 +1493,21 @@ int MainCmds::analysis(const vector<string>& args) {
         if(!suc)
           continue;
       }
+      if(input.find("includeBoard") != input.end()) {
+        bool suc = parseBoolean(input, "includeBoard", rbase.includeBoard, "Must be a boolean");
+        if(!suc)
+          continue;
+      }
+      if(input.find("includeAliveBoard") != input.end()) {
+        bool suc = parseBoolean(input, "includeAliveBoard", rbase.includeAliveBoard, "Must be a boolean");
+        if(!suc)
+          continue;
+      }
+      if(input.find("includeFinalScore") != input.end()) {
+        bool suc = parseBoolean(input, "includeFinalScore", rbase.includeFinalScore, "Must be a boolean");
+        if(!suc)
+          continue;
+      }
       if(input.find("includePolicy") != input.end()) {
         bool suc = parseBoolean(input, "includePolicy", rbase.includePolicy, "Must be a boolean");
         if(!suc)
@@ -1671,6 +1758,9 @@ int MainCmds::analysis(const vector<string>& args) {
           newRequest->includeNoResultValue = rbase.includeNoResultValue;
           newRequest->includePatterns = rbase.includePatterns;
           newRequest->includeAlive = rbase.includeAlive;
+          newRequest->includeBoard = rbase.includeBoard;
+          newRequest->includeAliveBoard = rbase.includeAliveBoard;
+          newRequest->includeFinalScore = rbase.includeFinalScore;
           newRequest->patternsSuppressedByRulesSubstitution =
             rbase.patternsSuppressedByRulesSubstitution;
           newRequest->reportDuringSearch = rbase.reportDuringSearch;

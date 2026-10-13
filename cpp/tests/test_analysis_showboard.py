@@ -52,7 +52,7 @@ def assert_board(response, width, height, points, next_player, captures=(0, 0)):
     assert response["action"] == "showboard" and response["isDuringSearch"] is False
     assert response["nextPlayer"] == next_player
     board = response["board"]
-    assert set(board) == {"xSize", "ySize", "stones", "koLoc",
+    assert set(board) == {"xSize", "ySize", "stones",
                           "numBlackCaptures", "numWhiteCaptures"}, board
     assert (board["xSize"], board["ySize"]) == (width, height)
     expected = ["."] * (width * height)
@@ -60,19 +60,15 @@ def assert_board(response, width, height, points, next_player, captures=(0, 0)):
         x = ord(point[0]) - ord("A")
         y = height - int(point[1:])
         expected[y * width + x] = color
-    ko_loc = board["koLoc"]
-    if ko_loc != "null":
-        ko_x = ord(ko_loc[0]) - ord("A")
-        ko_y = height - int(ko_loc[1:])
-        ko_index = ko_y * width + ko_x
+    ko_indexes = [index for index, value in enumerate(board["stones"]) if value == "!"]
+    for ko_index in ko_indexes:
         assert expected[ko_index] == ".", board
-        expected[ko_index] = "K"
+        expected[ko_index] = "!"
     assert board["stones"] == expected, (board["stones"], expected)
-    assert set(board["stones"]) <= {"B", "W", ".", "K"}, board
-    assert board["stones"].count("K") == (0 if ko_loc == "null" else 1), board
+    assert set(board["stones"]) <= {"B", "W", ".", "!"}, board
+    assert len(ko_indexes) <= 1, board
     assert board["numBlackCaptures"] == captures[0]
     assert board["numWhiteCaptures"] == captures[1]
-    assert isinstance(board["koLoc"], str)
     player_name = "Black" if next_player == "B" else "White"
     assert f"Next player: {player_name}" in response["boardText"]
     assert response["boardText"].startswith("MoveNum: ")
@@ -134,10 +130,8 @@ def test_showboard(args):
     ko_points += [["B", point] for point in ("A2", "B1", "C2", "B3")]
     assert_board(ko[0], 5, 5, ko_points, "W", (0, 1))
     assert_board(ko[1], 5, 5, ko_points, "B", (0, 1))
-    assert ko[0]["board"]["koLoc"] == "B2", ko[0]
-    assert ko[1]["board"]["koLoc"] == "null", ko[1]
     ko_index = 3 * 5 + 1
-    assert ko[0]["board"]["stones"][ko_index] == "K", ko[0]
+    assert ko[0]["board"]["stones"][ko_index] == "!", ko[0]
     assert ko[1]["board"]["stones"][ko_index] == ".", ko[1]
     assert len(responses["illegal"]) == 1, responses["illegal"]
     assert responses["illegal"][0].get("field") == "moves"
