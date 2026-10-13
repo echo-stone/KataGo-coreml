@@ -4,8 +4,8 @@
 
 일반 분석의 `includeAlive`와 독립 `action: "alive"`는 판 크기의 `alive` 문자열
 배열을 반환합니다. `"B"`/`"W"`는 살아있는 흑/백돌, `"b"`/`"w"`는
-죽은 흑/백돌, `"."`는 빈 교차점입니다. 이 5코드는 개발 소스의 새 계약이며
-운영 서버는 아직 2026-10-10 배포본의 A/E/D 계약을 사용합니다.
+죽은 흑/백돌, `"."`는 빈 교차점입니다. 이 5코드는 2026-10-13부터
+운영 서버 `https://katago.echostone.net`에도 배포된 계약입니다.
 `action: "final_score"`도 `includeAlive: true`이면 기존 점수와 이 배열을 함께
 반환합니다. 미종료 국면은 원래 덤의 첫 탐색만 생사 예산으로 늘려 ownership을
 저장하며, 이 옵션으로 추정 점수가 달라질 수 있습니다. 생략·false는 기존 점수
@@ -19,7 +19,8 @@
 분석 엔진에 `action: "showboard"`를 보내면 선택한 착수 시점의 판을 검색 없이
 조회합니다. 위치·규칙·`analyzeTurns`는 일반 분석 요청과 같은 방식으로 지정합니다.
 `analyzeTurns`를 생략하면 마지막 착수 후를, 여러 턴을 지정하면 각 턴의 응답을
-받습니다. 이 기능은 **개발 소스 계약**이며 아직 운영 서버 배포 기능이 아닙니다.
+받습니다. 이 기능은 2026-10-13부터 운영 서버
+`https://katago.echostone.net`에서도 사용할 수 있습니다.
 
 ```json
 {"id":"board-1","action":"showboard","boardXSize":3,"boardYSize":2,"rules":"chinese","komi":0,"initialStones":[["B","A2"]],"initialPlayer":"W","moves":[["W","C1"]],"analyzeTurns":[0,1]}
