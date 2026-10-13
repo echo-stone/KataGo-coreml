@@ -14,13 +14,20 @@
 배열 좌표, 검색·계가의 차이와 응답 생략 규칙은
 [돌 생사 문자열 계약](analysis-stone-status.md)을 참조하세요.
 
+일반 분석에서 보드·생사 보드·계가를 함께 또는 각각 요청하려면 불리언
+`includeBoard`, `includeAliveBoard`, `includeFinalScore`를 사용합니다. 완료 응답의
+`board`, `aliveBoard`, `finalScoreResult` 형식과 여덟 옵션 조합은
+[보드·생사·계가 v2 내부 계약](analysis-board-score-v2.md)을 참조하세요. 기존
+`includeAlive`의 `alive` 배열과 독립 `final_score` 점수 필드는 유지됩니다.
+
 ## 현재 판 조회: `showboard`
 
 분석 엔진에 `action: "showboard"`를 보내면 선택한 착수 시점의 판을 검색 없이
 조회합니다. 위치·규칙·`analyzeTurns`는 일반 분석 요청과 같은 방식으로 지정합니다.
 `analyzeTurns`를 생략하면 마지막 착수 후를, 여러 턴을 지정하면 각 턴의 응답을
-받습니다. 이 기능은 2026-10-13부터 운영 서버
-`https://katago.echostone.net`에서도 사용할 수 있습니다.
+받습니다. `showboard` 기능은 2026-10-13부터 운영 서버
+`https://katago.echostone.net`에서 사용할 수 있습니다. 아래 공통 보드 객체의
+`!` 표기는 이 저장소의 현재 엔진 계약이며, 운영 배포 상태는 별도로 확인해야 합니다.
 
 ```json
 {"id":"board-1","action":"showboard","boardXSize":3,"boardYSize":2,"rules":"chinese","komi":0,"initialStones":[["B","A2"]],"initialPlayer":"W","moves":[["W","C1"]],"analyzeTurns":[0,1]}
@@ -34,16 +41,15 @@
 | `isDuringSearch` | 항상 `false` |
 | `nextPlayer` | 해당 턴의 다음 착수자 `B` 또는 `W` |
 | `board.xSize`, `board.ySize` | 판의 가로·세로 크기 |
-| `board.stones` | 좌상단부터 행 우선으로 나열한 `B`/`W`/`.`/`K` 문자열 배열. 길이는 `xSize × ySize`. `K`는 돌 없는 패 금지점 |
-| `board.koLoc` | 현재 패 좌표 문자열. 패가 없으면 기존 `Board::toJson`과 같은 문자열 `"null"`이며 JSON `null`이 아님 |
+| `board.stones` | 좌상단부터 행 우선으로 나열한 `B`/`W`/`.`/`!` 문자열 배열. 길이는 `xSize × ySize`. `!`는 빈 단순패 금지점이며 최대 한 칸 |
 | `board.numBlackCaptures`, `board.numWhiteCaptures` | 각각 포획된 흑돌·백돌의 누적 개수 |
 | `boardText` | `printBasicInfo` 텍스트를 GTP `showboard` 응답과 같은 방식으로 연속 개행 제거 및 양끝 공백 정리한 문자열. GTP 응답 본문과 직접 비교 가능 |
 
-`board.stones`는 이 액션만의 표기이며 기존 `Board::toJson`의 `X`/`O`/`.`/`|`
-전역 직렬화 계약을 바꾸지 않습니다. `K`는 `board.koLoc`에 해당하는 빈 교차점의
-표시입니다. 같은 지점의 `alive` 값은 `"."`이고, `boardText`는 기존 GTP
-`showboard` 텍스트 형식을 유지합니다. `alive`의 `B`/`W`/`b`/`w`/`.`와도
-구별해야 합니다. `board.stones`에는 죽음 판정이 없습니다.
+`board.stones`는 일반 분석의 `board`와 같은 표기이며 기존 `Board::toJson`의
+`X`/`O`/`.`/`|` 전역 직렬화 계약을 바꾸지 않습니다. `koLoc` 필드는 반환하지
+않습니다. 같은 지점의 기존 `alive` 배열 값은 `"."`이고, 새 `aliveBoard.stones`
+값은 `"!"`입니다. `boardText`는 기존 GTP `showboard` 텍스트 형식을 유지합니다.
+`board.stones`에는 죽음 판정이 없습니다.
 
 KataGo contains an engine that can be used to analyze large numbers of positions in parallel (entire games, or multiple games).
 When properly configured and used with modern GPUs that can handle large batch sizes, this engine can be much faster than using

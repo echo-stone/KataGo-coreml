@@ -6,6 +6,9 @@
 살아있는 백돌 `"W"`, 죽은 흑돌 `"b"`, 죽은 백돌 `"w"`, 빈 교차점 `"."`의
 5코드를 사용한다. 이는 검색 또는 종료 계가의
 예상 판정이며 무조건 생존의 증명을 의미하지 않는다. 기존 `patterns` v1과 별개다.
+이 문서는 기존 `alive` 배열 계약을 설명한다. 새 `aliveBoard`는 크기·포획 수를
+포함한 공통 보드 객체이며 빈 단순패 금지점에 `!`를 쓴다. 세 옵션 조합과
+`finalScoreResult`는 [보드·생사·계가 v2 내부 계약](analysis-board-score-v2.md)을 참조한다.
 
 ## 요청과 응답
 
@@ -101,7 +104,8 @@ python3 cpp/tests/test_analysis_stone_status.py \
 
 [간단한 기보 검증](simple-sgf-feature-validation.md)과
 [에코스톤 문제 DB 검증](echostone-life-judgment-validation.md), 해당 fixture는
-이전 불리언·빅 확장에 대한 역사 기록으로 보존한다. 현행 프로토콜은 이 문서가 기준이다.
+이전 불리언·빅 확장에 대한 역사 기록으로 보존한다. 기존 `alive` 배열의 현행
+계약은 이 문서가 기준이다.
 
 2026-10-10 변경 검증에서는 Metal/CoreML 빌드와 `cpp` 디렉터리에서 실행한
 `build-coreml/katago runtests`가 통과했다. 기존 공식 v1.18.2의
